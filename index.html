@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#8ed9f1">
+    <title>木叶试炼 · 自动战斗原型</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <main class="game-shell">
+      <header class="topbar">
+        <div class="brand-mark" aria-hidden="true">木</div>
+        <div class="brand-copy"><p class="eyebrow">PIXEL AUTO BATTLE · V0.1</p><h1>木叶试炼</h1></div>
+        <div class="round-chip"><span class="live-dot"></span><span id="battle-status">准备就绪</span></div>
+      </header>
+
+      <section class="status-board" aria-label="队伍生命值">
+        <div class="team-heading"><span class="team-dot ally-dot"></span><span>木叶小队</span><b>1 人</b></div>
+        <div id="health-bars" class="health-bars"></div>
+        <div class="versus" aria-hidden="true">VS</div>
+        <div class="team-heading enemy-heading"><span class="team-dot enemy-dot"></span><span>砂隐守备</span><b>2 人</b></div>
+        <div id="enemy-health-bars" class="health-bars enemy-health-bars"></div>
+      </section>
+
+      <section class="arena" aria-label="战斗区域">
+        <div class="arena-sky"></div>
+        <div class="sun"></div><div class="cloud cloud-a"></div><div class="cloud cloud-b"></div>
+        <div class="far-hills"></div><div class="pixel-tree tree-a"></div><div class="pixel-tree tree-b"></div>
+        <div class="arena-label"><span class="sparkle">✦</span> 风之国 · 训练场</div>
+        <div class="battle-stamp" id="battle-stamp" aria-live="polite"></div>
+
+        <div class="fighter fighter-guard" data-character="guard">
+          <div class="fighter-name">守卫</div>
+          <div class="sprite-wrap"><img src="assets/guard.svg" alt="像素守卫" class="sprite"><span class="hit-flash"></span><span class="damage-number"></span></div>
+          <div class="ground-shadow"></div><div class="position-tag">前排</div>
+        </div>
+        <div class="fighter fighter-mage" data-character="mage">
+          <div class="fighter-name">法师</div>
+          <div class="sprite-wrap"><img src="assets/mage.svg" alt="像素法师" class="sprite"><span class="hit-flash"></span><span class="damage-number"></span></div>
+          <div class="ground-shadow"></div><div class="position-tag">后排</div>
+        </div>
+        <div class="fighter fighter-naruto" data-character="naruto">
+          <div class="fighter-name">鸣人</div>
+          <div class="sprite-wrap"><img src="assets/naruto.svg" alt="橙色忍者像素占位角色" class="sprite"><span class="hit-flash"></span><span class="damage-number"></span><span class="skill-burst"></span></div>
+          <div class="ground-shadow"></div><div class="position-tag">前排 · 战士</div>
+        </div>
+        <div class="arena-ground"></div>
+      </section>
+
+      <section class="reserve-deck" aria-label="小队与技能栏">
+        <div class="reserve-panel squad-panel">
+          <div class="reserve-heading"><h2>小队成员</h2><span>1 / 4</span></div>
+          <div class="squad-slots">
+            <div class="squad-slot active-slot"><img src="assets/naruto.svg" alt=""><span>鸣人</span></div>
+            <div class="squad-slot empty-slot"><b>＋</b><span>预留</span></div>
+            <div class="squad-slot empty-slot"><b>＋</b><span>预留</span></div>
+            <div class="squad-slot empty-slot"><b>＋</b><span>预留</span></div>
+          </div>
+        </div>
+        <div class="reserve-panel skill-panel">
+          <div class="reserve-heading"><h2>技能栏</h2><span>自动触发</span></div>
+          <div class="skill-slots">
+            <div class="skill-slot active-skill"><span class="skill-glyph">影</span><span class="skill-copy"><b>影分身突袭</b><small>触发率 25%</small></span><span class="skill-auto">AUTO</span></div>
+            <div class="skill-slot empty-skill"><b>＋</b></div>
+            <div class="skill-slot empty-skill"><b>＋</b></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="battle-tools">
+        <div class="log-panel">
+          <div class="section-heading"><div><span class="heading-icon">▤</span><h2>战斗记录</h2></div><span id="log-count" class="log-count">等待开战</span></div>
+          <ol id="battle-log" class="battle-log" aria-live="polite" aria-relevant="additions"></ol>
+        </div>
+        <div class="controls" aria-label="战斗操作">
+          <button id="start-btn" class="control-btn primary"><span class="button-icon">▶</span><span>开始战斗</span></button>
+          <button id="speed-btn" class="control-btn"><span class="button-icon">»</span><span>加速 <b id="speed-label">关</b></span></button>
+          <button id="skip-btn" class="control-btn"><span class="button-icon">▮▮</span><span>跳过动画</span></button>
+          <button id="restart-btn" class="control-btn"><span class="button-icon">↺</span><span>重新开始</span></button>
+        </div>
+        <footer class="footer-note"><span>⚔</span> 自动战斗 · 速度决定先手</footer>
+      </section>
+    </main>
+    <script>
+      function showStartHelp() {
+        const status = document.querySelector("#battle-status");
+        if (status) status.textContent = "请用启动游戏.bat打开";
+        const start = document.querySelector("#start-btn");
+        if (start) start.title = "请先使用启动游戏.bat，或在项目目录运行 npm run start";
+      }
+    </script>
+    <script type="module" src="app.js" onerror="showStartHelp()"></script>
+  </body>
+</html>
