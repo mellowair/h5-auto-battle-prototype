@@ -28,8 +28,9 @@ jobs:
       - name: Prepare static site
         run: |
           mkdir -p _site/assets
-          cp index.html style.css app.js battle.js characters.js _site/
-          cp assets/*.svg _site/assets/
+          # Explicit runtime allowlist. Never package dev/ or local test fixtures.
+          cp index.html style.css app.js battle.js characters.js campaign.js progression.js skills.js routeGraph.js routeMap.js visualConfig.js music.js enemyEntrance.js _site/
+          cp -R assets/. _site/assets/
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
