@@ -214,6 +214,27 @@ export function getAvailableAdventureEventIds(runState, step = 1, partyStates = 
 
 export function chooseAdventureEventId(runState, random = Math.random, step = 1, partyStates = [runState], stageId = 1) {
   const ids = getAvailableAdventureEventIds(runState, step, partyStates, stageId);
+  if (stageId >= 2 && ids.length > 1) {
+    const chosenInStageOne = (chapterId, firstId, choiceId) => ids.includes(chapterId) &&
+      Object.values(runState.eventResults).some((record) => record.eventId === firstId &&
+        (record.data?.stageId ?? 1) === 1 && record.data?.choiceId === choiceId && record.status === "completed");
+    const boosted = new Set([
+      ...(chosenInStageOne("anteiku_2", "coffee_shop", "coffee_help") ? ["anteiku_2"] : []),
+      ...(chosenInStageOne("giant_rock_2", "big_rock", "rock_move") ? ["giant_rock_2"] : []),
+    ]);
+    if (boosted.size && boosted.size < ids.length) {
+      // Keep one candidate per event series. Add 10 percentage points to each
+      // eligible sequel's 1/N chance, while preserving a total probability of 1.
+      const sequelChance = Math.min(1 / boosted.size, 1 / ids.length + .10);
+      const otherChance = (1 - boosted.size * sequelChance) / (ids.length - boosted.size);
+      let roll = Math.max(0, Math.min(0.999999999999, finite(random(), 0)));
+      for (const id of ids) {
+        roll -= boosted.has(id) ? sequelChance : otherChance;
+        if (roll < 0) return id;
+      }
+      return ids.at(-1);
+    }
+  }
   return ids[rngIndex(ids.length, random)] ?? null;
 }
 

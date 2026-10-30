@@ -331,7 +331,7 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .weakness-chip { display:inline-block; margin-left:5px; padding:1px 3px; color:#934c23; background:#f8e3cf; border:1px solid #c99462; font-size:9px; }
 .squad-slots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
 .squad-slots.is-enemy-view { grid-template-columns: repeat(auto-fit, minmax(min(100%, 145px), 1fr)); }
-.enemy-squad-card { display:grid; gap:3px; min-height:64px; padding:6px; border:1px solid #c5b6aa; border-radius:5px; background:#fff7ef; color:#4e342c; font-size:10px; }
+.enemy-squad-card { display:grid; gap:3px; min-height:64px; width:100%; padding:6px; border:1px solid #c5b6aa; border-radius:5px; background:#fff7ef; color:#4e342c; font:inherit; font-size:10px; text-align:left; cursor:pointer; }
 .enemy-squad-card.is-dead { opacity:.55; }
 .enemy-squad-card b { font-size:11px; }
 .squad-slot { min-height: 48px; display: flex; justify-content: center; align-items: center; gap: 5px; border: 1.5px solid #d7ded2; border-radius: 5px; font-size: 9px; font-weight: 900; }

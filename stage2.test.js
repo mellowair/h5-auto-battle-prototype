@@ -45,10 +45,13 @@ test("Boss reward and recruitment follow the ordered, idempotent state machine",
   assert.equal(campaign.stageId, 2);
   assert.equal(campaign.stageTransition.phase, "interlude");
   assert.equal(campaign.stageTransition.skillRemaining, 0);
+  assert.equal(campaign.stageTransition.heroActiveSkillRemaining, 0);
   assert.equal(campaign.stageTransition.statRemaining, 0);
   assert.equal(campaign.stageTransition.partnerStatRemaining, 0);
   assert.equal(campaign.stageTransition.partnerSkillRemaining, 0);
   assert.equal(heroState.passiveLevel, 2, "the first-stage Boss upgrades the hero passive once");
+  assert.equal(heroState.skillLevels[heroState.learnedActiveSkills[0]], 2, "the starting hero also upgrades one active skill");
+  assert.equal(heroState.skillHistory.filter((entry) => entry.sourceId.startsWith("stage1-clear-active:")).length, 1);
   assert.ok(partnerState.skillHistory.some((entry) => entry.sourceId.startsWith("stage2-partner:")));
   assert.equal(heroState.consumedActions.filter((entry) => entry.includes("stage1-boss:")).length, 1);
   assert.equal(partnerState.skillHistory.filter((entry) => entry.sourceId.startsWith("stage2-partner-upgrade-")).length, 1);
@@ -58,6 +61,37 @@ test("Boss reward and recruitment follow the ordered, idempotent state machine",
   assert.equal(campaign.stageStep, 1);
   assert.equal(campaign.routeMap.stageId, 2);
   assert.equal(beginStageTwo(campaign), false);
+});
+
+test("stage-one clear active reward can teach the unlearned skill after the first is capped or be declined", () => {
+  const ready = () => {
+    const campaign = createCampaign(() => .21, { seed: 481 });
+    startCampaign(campaign);
+    campaign.candidateIds = ["naruto", "eren"];
+    selectStartingCharacter(campaign, "naruto", null);
+    chooseStartingSkill(campaign, "rasengan");
+    beginJourney(campaign);
+    campaign.status = "settlement";
+    campaign.settlementNext = "victory";
+    campaign.activeNode = campaign.routeMap.nodes.find((node) => node.type === "demon");
+    completeSettlement(campaign);
+    advanceStageTransition(campaign, "upgrade_passive");
+    campaign.runCharacterState.skillLevels.rasengan = 4;
+    return campaign;
+  };
+  const learn = ready();
+  assert.deepEqual(getStageTransitionChoices(learn).skillIds, ["shadow-clone-rush"]);
+  assert.ok(advanceStageTransition(learn, "shadow-clone-rush"));
+  assert.equal(learn.runCharacterState.skillLevels["shadow-clone-rush"], 1);
+  assert.equal(learn.stageTransition.phase, "hero_stat");
+  assert.equal(advanceStageTransition(learn, "shadow-clone-rush"), false);
+
+  const skip = ready();
+  delete skip.stageTransition.heroActiveSkillRemaining; // A transition saved before this reward was added.
+  assert.equal(getStageTransitionChoices(skip).canDecline, true);
+  assert.ok(advanceStageTransition(skip, "__skip_new_skill__"));
+  assert.deepEqual(skip.runCharacterState.learnedActiveSkills, ["rasengan"]);
+  assert.equal(skip.stageTransition.phase, "hero_stat");
 });
 
 test("stage transition heals both members once without changing growth or healing between rooms", () => {

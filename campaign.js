@@ -510,7 +510,7 @@ export function completeSettlement(campaign) {
   }
   if (next === "victory" && campaign.stageId === 1) {
     campaign.step += 1;
-    campaign.stageTransition = { phase: "hero_skill", skillRemaining: 1, statRemaining: 3,
+    campaign.stageTransition = { phase: "hero_skill", skillRemaining: 1, heroActiveSkillRemaining: 1, statRemaining: 3,
       candidateIds: [], partnerId: null, partnerStatRemaining: 5, partnerSkillRemaining: 1, offer: null };
     campaign.status = "stage_transition";
   } else campaign.status = next;
@@ -901,6 +901,9 @@ export function getStageTransitionChoices(campaign) {
   switch (flow.phase) {
     case "hero_skill":
       return { phase: flow.phase, remaining: flow.skillRemaining, passiveId: campaign.runCharacterState.passiveSkillId };
+    case "hero_active_skill":
+      return { phase: flow.phase, remaining: flow.heroActiveSkillRemaining ?? 1,
+        skillIds: getSkillTrainingChoices(campaign.runCharacterState), canDecline: canDeclineNewSkill(campaign.runCharacterState) };
     case "hero_stat":
       return { phase: flow.phase, remaining: flow.statRemaining,
         offer: stageOffer(campaign, campaign.runCharacterState, `hero-stat-${3 - flow.statRemaining}`) };
@@ -932,7 +935,23 @@ export function advanceStageTransition(campaign, choiceId = null) {
     if ((campaign.runCharacterState.passiveLevel ?? 1) < 2 &&
       !upgradePassiveSkill(campaign.runCharacterState, `stage1-boss:${campaign.playerId}`)) return false;
     flow.skillRemaining -= 1;
-    if (flow.skillRemaining <= 0) flow.phase = "hero_stat";
+    if (flow.skillRemaining <= 0) flow.phase = "hero_active_skill";
+  } else if (phase === "hero_active_skill") {
+    const state = campaign.runCharacterState;
+    const choices = getSkillTrainingChoices(state);
+    if (choices.length) {
+      if (choiceId === "__skip_new_skill__" && canDeclineNewSkill(state)) {
+        // The player may decline a new skill when the learned skill is maxed.
+      } else if (!choices.includes(choiceId)) return false;
+      else {
+        const sourceId = `stage1-clear-active:${campaign.playerId}`;
+        const upgraded = getUpgradeableSkills(state).length
+          ? upgradeActiveSkill(state, choiceId, sourceId) : learnActiveSkill(state, choiceId, sourceId);
+        if (!upgraded) return false;
+      }
+    } else if (choiceId != null) return false;
+    flow.heroActiveSkillRemaining = (flow.heroActiveSkillRemaining ?? 1) - 1;
+    if (flow.heroActiveSkillRemaining <= 0) flow.phase = "hero_stat";
   } else if (phase === "hero_stat" || phase === "partner_stat") {
     const isPartner = phase === "partner_stat";
     const state = isPartner ? partner : campaign.runCharacterState;

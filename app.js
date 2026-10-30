@@ -945,7 +945,49 @@ function openTangSummonDetail(unit) {
   }
 }
 
+function openEnemyDetail(unit) {
+  detailCharacterId = unit.id;
+  const skillMap = new Map();
+  for (const skill of unit.skills?.length ? unit.skills : unit.skill ? [unit.skill] : []) skillMap.set(skill.id, skill);
+  const phaseSkillId = unit.borosPhase > 1 ? unit.phaseSkills?.[unit.borosPhase] : null;
+  if (phaseSkillId && SKILL_DATA[phaseSkillId]) {
+    const config = SKILL_DATA[phaseSkillId];
+    skillMap.set(phaseSkillId, { ...config, ...config.levels[1], level: 1 });
+  }
+  const passiveIds = [unit.passiveSkillId, unit.elitePassiveId, unit.periodicPassive?.id].filter(Boolean);
+  const skillRows = [...skillMap.values()].map((skill) =>
+    `<div class="detail-skill-row"><div class="detail-skill-icon">技</div><div class="detail-skill-copy"><b>${skill.name}</b><p>${skill.description || displaySkillEffect(skill)}</p></div></div>`).join("");
+  const passiveRows = [...new Set(passiveIds)].map((id) => {
+    const passive = SKILL_DATA[id] ?? unit.periodicPassive;
+    return passive ? `<div class="detail-skill-row"><div class="detail-skill-icon quiet">被</div><div class="detail-skill-copy"><b>${passive.name}</b><p>${passive.description ?? ""}</p></div></div>` : "";
+  }).join("");
+  const summonRow = unit.summonPassive
+    ? `<div class="detail-skill-row"><div class="detail-skill-icon quiet">被</div><div class="detail-skill-copy"><b>${unit.summonPassive.name}</b><p>第 ${unit.summonPassive.firstRound} 回合开始，每隔 ${unit.summonPassive.everyRounds} 回合召唤一名普通巨人。</p></div></div>` : "";
+  const c0Row = Number.isFinite(unit.c0DamagePerRound)
+    ? `<div class="detail-skill-row"><div class="detail-skill-icon quiet">被</div><div class="detail-skill-copy"><b>C0</b><p>每个完整战斗回合累计 ${unit.c0DamagePerRound} 点真实伤害。</p></div></div>` : "";
+  $("#character-detail").innerHTML =
+    `<div class="detail-profile"><div class="detail-portrait"><img src="${unit.asset}" alt="${unit.name}"></div>` +
+    `<div class="detail-name"><h3>${unit.name}</h3><p>${unit.role ?? "敌方单位"} · ${unit.row === "back" ? "后排" : "前排"}</p><span class="detail-team enemy">${unit.alive ? "敌方角色" : "已倒地"}</span></div></div>` +
+    `<div class="detail-stats" aria-label="敌方属性">` +
+    `<div class="stat-card"><span>生命 HP</span><b>${unit.currentHp} / ${unit.maxHp}</b></div>` +
+    `<div class="stat-card"><span>攻击 ATK</span><b>${unit.atk}</b></div>` +
+    `<div class="stat-card"><span>防御 DEF</span><b>${unit.def}</b></div>` +
+    `<div class="stat-card"><span>速度 SPD</span><b>${unit.spd}</b></div>` +
+    `<div class="stat-card"><span>闪避率</span><b>${(getDodgeChance(unit) * 100).toFixed(1)}%</b></div>` +
+    `<div class="stat-card"><span>技能闪避率</span><b>${(getSkillDodgeChance(unit) * 100).toFixed(1)}%</b></div>` +
+    `<div class="stat-card"><span>暴击率</span><b>${(getCritChance(unit) * 100).toFixed(1)}%</b></div>` +
+    `<div class="stat-card"><span>暴击倍率</span><b>${(unit.critMultiplier ?? COMBAT_RULES.critMultiplier).toFixed(1)}×</b></div></div>` +
+    `<section class="detail-skill"><h3>敌方技能</h3>${skillRows || passiveRows || summonRow || c0Row ? skillRows + passiveRows + summonRow + c0Row : '<div class="detail-skill-row"><div class="detail-skill-copy"><b>普通攻击</b></div></div>'}</section>`;
+  if (!characterDialog.open) {
+    if (typeof characterDialog.showModal === "function") characterDialog.showModal();
+    else characterDialog.setAttribute("open", "");
+  }
+}
+
 function openCharacterDetail(characterId) {
+  const enemy = campaign?.status === "combat"
+    ? viewState.characters.find((unit) => unit.id === characterId && unit.team === "enemy") : null;
+  if (enemy) return openEnemyDetail(enemy);
   const summon = campaign?.status === "combat"
     ? viewState.characters.find((unit) => unit.id === characterId && unit.team === "ally" && unit.tangSummonKind) : null;
   if (summon) return openTangSummonDetail(summon);
@@ -2844,6 +2886,10 @@ function renderStageTransition() {
     ], "确认升级", () => { if (!advanceStageTransition(campaign, "upgrade_passive")) return false; updateProgressionDisplays(); renderStageTransition(); return true; }, "ACT 01 · CLEAR REWARD");
     return;
   }
+  if (phase.phase === "hero_active_skill" && !phase.skillIds.length) {
+    advanceStageTransition(campaign);
+    return renderStageTransition();
+  }
   if (phase.phase === "partner_upgrade" && !phase.skillIds.length) {
     advanceStageTransition(campaign);
     return renderStageTransition();
@@ -2859,6 +2905,8 @@ function renderStageTransition() {
       const level = phase.phase === "partner_skill" ? 1 : current + 1;
       return decisionChoice(id, `${config.name} · Lv.${level}`, `${config.description} ${displaySkillEffect({ ...config, ...config.levels[level] })}`);
     });
+    if (phase.phase === "hero_active_skill" && phase.canDecline)
+      choices.push(decisionChoice("__skip_new_skill__", "放弃学习", "结束这次主动技能升级奖励。"));
     renderDecisionScreen(`${owner}${phase.phase === "partner_skill" ? "选择初始技能" : "技能升级"}`, `第一关通关培养 · 剩余 ${phase.remaining ?? 1} 次`, choices,
       "确认", (id) => { if (!advanceStageTransition(campaign, id)) return false; renderStageTransition(); return true; }, "ACT 01 · CLEAR REWARD");
     return;
@@ -2894,7 +2942,8 @@ function renderSquad() {
   slots.classList.toggle("is-enemy-view", squadSide === "enemy");
   if (squadSide === "enemy") {
     for (const enemy of enemies) {
-      const card = document.createElement("div");
+      const card = document.createElement("button");
+      card.type = "button";
       card.className = `enemy-squad-card${enemy.alive ? "" : " is-dead"}`;
       const phase = enemy.borosPhase ? ` · 阶段 ${enemy.borosPhase}` : "";
       card.innerHTML = `<b></b><span></span><span></span>`;
@@ -2902,6 +2951,7 @@ function renderSquad() {
       const lines = card.querySelectorAll("span");
       lines[0].textContent = `HP ${enemy.currentHp}/${enemy.maxHp}`;
       lines[1].textContent = `ATK ${enemy.atk} · DEF ${enemy.def} · SPD ${enemy.spd}`;
+      card.addEventListener("click", () => openCharacterDetail(enemy.id));
       slots.append(card);
     }
     return;

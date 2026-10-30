@@ -7,7 +7,7 @@ import { createStageTwoTestCampaign } from "./dev/stage2-config.js";
 import { claimCampaignSpecialReward, finishBattle, getRouteEnemyGrowth, prepareBattle,
   resolveCampaignEvent, startCampaignEventBattle, advanceEventEpilogue } from "./campaign.js";
 import { advanceTemporaryEffectsAfterBattle, applyAdventurePartyOutcome, createAdventureEventResult,
-  createRunCharacterState, getAvailableAdventureEventIds, getCampfireOptions, getTemporaryCombatModifiers,
+  chooseAdventureEventId, createRunCharacterState, getAvailableAdventureEventIds, getCampfireOptions, getTemporaryCombatModifiers,
   getTreasureCombatModifiers, grantAdventureSpecialReward, resolveAdventureEvent, upgradeActiveSkill } from "./progression.js";
 import { ADVENTURE_EVENT_DATA } from "./skills.js";
 
@@ -65,6 +65,30 @@ test("series chapters respect choices, stage exclusions, permanent exclusions, s
   resolveAdventureEvent(scroll, "scroll-c", "scroll_not_yet");
   assert.equal(getAvailableAdventureEventIds(scroll, 11, [scroll], 2).includes("old_scroll_2"), false);
   assert.equal(getAvailableAdventureEventIds(scroll, 23, [scroll], 3).includes("old_scroll_2"), true);
+});
+
+test("stage-one help and rock choices add 10 percentage points to eligible later-chapter draws", () => {
+  const prepare = (firstStage) => {
+    const state = run();
+    for (const [source, eventId, choiceId] of [["coffee", "coffee_shop", "coffee_help"], ["rock", "big_rock", "rock_move"]]) {
+      createAdventureEventResult(state, source, eventId, () => .5, [state], firstStage);
+      resolveAdventureEvent(state, source, choiceId);
+    }
+    return state;
+  };
+  const boosted = prepare(1), baseline = prepare(2);
+  for (const stageId of [2, 3]) {
+    const candidates = getAvailableAdventureEventIds(boosted, 11, [boosted], stageId);
+    assert.deepEqual(candidates, getAvailableAdventureEventIds(baseline, 11, [baseline], stageId));
+    const drawCount = (state, id) => Array.from({ length: 1000 }, (_, index) =>
+      chooseAdventureEventId(state, () => (index + .5) / 1000, 11, [state], stageId)).filter((picked) => picked === id).length;
+    for (const id of ["anteiku_2", "giant_rock_2"]) {
+      assert.ok(candidates.includes(id));
+      assert.ok(Math.abs(drawCount(boosted, id) / 1000 - (1 / candidates.length + .10)) <= .002);
+      assert.ok(Math.abs(drawCount(baseline, id) / 1000 - 1 / candidates.length) <= .002);
+    }
+  }
+  assert.equal(getAvailableAdventureEventIds(boosted, 11, [boosted], 1).includes("anteiku_2"), false);
 });
 
 test("linked adventure chapters never count the same series twice in one draw", () => {
