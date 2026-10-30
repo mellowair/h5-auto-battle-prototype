@@ -142,6 +142,8 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .fighter[data-row="back"] { scale: .86; transform-origin: bottom center; }
 .fighter[data-character="dina"][data-row="back"] { scale: 1; }
 .fighter.is-summoning { animation: giant-run-in var(--summon-duration, 950ms) steps(12, end) both; }
+.fighter[data-team="ally"].is-summoning { animation-name: ally-summon-in; }
+@keyframes ally-summon-in { from { translate: -110vw 0; } to { translate: 0 0; } }
 .fighter.is-summoning .sprite-wrap { animation: summon-jog .2s steps(2, end) infinite; }
 @keyframes giant-run-in { from { translate: 110vw 0; } to { translate: 0 0; } }
 @keyframes summon-jog { 0%, 100% { translate: 0 0; } 50% { translate: 0 -4px; } }
@@ -215,6 +217,7 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .fighter[data-character="kaneki"] .sprite-action-frame { transform: scale(var(--action-frame-scale, 1)); transform-origin: center bottom; }
 .fighter[data-character="toji"] .sprite-action-frame { transform: scale(var(--action-frame-scale, 1)); transform-origin: center bottom; }
 .fighter[data-character="armored-titan"] .sprite-action-frame { transform: scale(var(--action-frame-scale, 1)); transform-origin: center bottom; }
+.fighter[data-character^="tang-shaseng-"] .sprite-action-frame { transform: scale(var(--action-frame-scale, 1)); transform-origin: center bottom; }
 .fighter[data-character="boros"] .sprite-action-frame { transform: scale(var(--action-frame-scale, 1)); transform-origin: center bottom; }
 .fighter.is-boros-flying { animation: boros-takeoff var(--boros-takeoff-duration) ease-out both; }
 .fighter.is-boros-dashing { animation: boros-dash var(--boros-dash-duration) cubic-bezier(.2,.7,.3,1) both; }

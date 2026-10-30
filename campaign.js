@@ -4,7 +4,7 @@ import { createSeededRandom, generateRouteMap, ROUTE_MAP_FINAL_STEP } from "./ro
 import {
   applyAdventureBattleBonusReward, applyAdventureBattleStatReward, applyBattleBonusReward,
   advanceTemporaryEffectsAfterBattle, applyAdventurePartyOutcome, applyBattleStatReward, chooseAdventureEventId, completeAdventureBattle, createAdventureEventResult,
-  createBattleRewardOffer, createRunCharacterState, getCampfireOptions, getSkillAtLevel,
+  canDeclineNewSkill, createBattleRewardOffer, createRunCharacterState, getCampfireOptions, getSkillAtLevel,
   getTemporaryCombatModifiers, getTemporaryEffects, getTreasureCombatModifiers, getUnlearnedActiveSkills, getUpgradeableSkills, getSkillTrainingChoices, grantGiantSpinalFluid, grantAdventureSpecialReward, claimTreasure, learnActiveSkill, upgradeActiveSkill,
   createStatUpgradeChoices, applyStatUpgrade, healRunCharacter, resolveAdventureEvent, resolveCampfire, startAdventureBattle, upgradePassiveSkill,
 } from "./progression.js";
@@ -299,6 +299,8 @@ export function prepareBattle(campaign) {
     return {
       ...template, rosterOrder: index,
       hp: state.maxHp, maxHp: state.maxHp, currentHp: state.currentHp,
+      ...(id === "tang" ? { tangGrowth: Object.fromEntries(["maxHp", "atk", "def", "spd"].map((stat) =>
+        [stat, Math.max(0, state[stat] - template.baseStats[stat])])) } : {}),
       atk: Math.floor(state.atk * (id === campaign.playerId ? campaign.nextAttackMultiplier : 1)),
       def: Math.max(0, state.def + temporaryModifiers.def), spd: Math.max(0, state.spd + temporaryModifiers.spd),
       roundLimitedSpdEffects, spdWithoutRoundEffects: Math.max(0, state.spd + temporaryModifiers.spd - roundLimitedSpdTotal),
@@ -661,7 +663,7 @@ export function claimStageTwoEliteSkill(campaign, characterId, skillId) {
 export function claimStageTwoEliteSkip(campaign, characterId = campaign?.partyIds?.[campaign?.stageTwoReward?.eliteAssignments?.length ?? 0]) {
   if (campaign?.stageId !== 2 || campaign.status !== "reward" || campaign.rewardPhase !== "bonus" ||
     !campaign.stageTwoReward || campaign.partyIds[campaign.stageTwoReward.eliteAssignments?.length ?? 0] !== characterId ||
-    getSkillTrainingChoices(campaign.partyStates[characterId]).length) return false;
+    (getSkillTrainingChoices(campaign.partyStates[characterId]).length && !canDeclineNewSkill(campaign.partyStates[characterId]))) return false;
   const offer = campaign.stageTwoReward;
   offer.eliteAssignments ??= [];
   offer.eliteAssignments.push({ characterId, skipped: true });
@@ -828,7 +830,11 @@ export function resolveStageTwoCampfire(campaign, choiceId, skillChoices = {}) {
   const members = getStageTwoCampfireOptions(campaign);
   if (!sourceId || !members || !["rest", "skill_upgrade"].includes(choiceId)) return false;
   if (choiceId === "skill_upgrade" && members.some(({ characterId, options }) =>
-    options[1].enabled && !options[1].skills.some((entry) => entry.skillId === skillChoices[characterId]))) return false;
+    options[1].enabled && skillChoices[characterId] !== "__skip_new_skill__" &&
+      !options[1].skills.some((entry) => entry.skillId === skillChoices[characterId]))) return false;
+  if (choiceId === "skill_upgrade" && members.some(({ characterId, options }) =>
+    options[1].enabled && skillChoices[characterId] === "__skip_new_skill__" &&
+      !canDeclineNewSkill(campaign.partyStates[characterId]))) return false;
   const results = [];
   for (const { characterId, options } of members) {
     const state = campaign.partyStates[characterId];

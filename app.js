@@ -1,7 +1,7 @@
 import { ANIMATION_TIMING, CHARACTER_DATA, COMBAT_RULES, STARTING_CHARACTERS } from "./characters.js";
 import { advanceEventEpilogue, advanceStageTransition, beginJourney, beginStageTwo, chooseRoute, chooseStartingSkill, claimCampaignReward, claimCampaignSpecialReward, claimCampaignTreasure, claimStageTwoEliteSkill, claimStageTwoEliteSkip, claimStageTwoGiantRecipient, claimStageTwoStatReward, completeLocation, completeSettlement, createCampaign, finishBattle, getActiveCampfireOptions, getCampaignRewardOffer, getCampaignTreasureOffer, getRouteMap, getRouteOptions, getStageTransitionChoices, getStageTwoCampfireOptions, prepareBattle, resolveCampaignEvent, resolveStageTwoCampfire, selectStartingCharacter, startCampaign, startCampaignEventBattle, STAGE_TWO_STAT_UPGRADES } from "./campaign.js";
 import { getCritChance, getDodgeChance, getSkillDodgeChance, initializeBattle, simulateBattle } from "./battle.js";
-import { getSeaBeyondOfferDetails, getSkillAtLevel, getSkillTrainingChoices, getTemporaryCombatModifiers, getTemporaryEffectDisplayRows, getTreasureCombatModifiers, getUnlearnedActiveSkills } from "./progression.js";
+import { canDeclineNewSkill, getSeaBeyondOfferDetails, getSkillAtLevel, getSkillTrainingChoices, getTemporaryCombatModifiers, getTemporaryEffectDisplayRows, getTreasureCombatModifiers, getUnlearnedActiveSkills } from "./progression.js";
 import { ATTRIBUTE_UPGRADES, ELITE_BONUS_REWARDS, GIANT_SPINAL_FLUID, SKILL_DATA, TREASURE_DATA } from "./skills.js";
 import { orderRouteOptionsByPosition, shortestRemainingRouteLength, ROUTE_MAP_FINAL_STEP } from "./routeMap.js";
 import { getAnimationFrameFootShift, getAnimationFrameVisualScale, getAnimationVisualOffset, getBorosBeamGeometry, getCharacterVisual } from "./visualConfig.js";
@@ -60,6 +60,7 @@ let lastBorosVisualCastId = null;
 let lastGilgameshVisualCastId = null;
 const spriteFrameTimers = new Map();
 const spriteFrameLayers = new WeakMap();
+const summonFramePreloads = new Map();
 let targetHitTimer = null;
 let entranceTimer = null;
 let entrancePreloadTimer = null;
@@ -103,7 +104,8 @@ function renderDecisionScreen(title, description, choices, confirmText, onConfir
   decisionBusy = false;
   selectedDecisionId = null;
   selectedDecisionIds = [];
-  decisionSelection = { multiple: Boolean(selection.multiple), required: Math.max(1, Math.floor(selection.required ?? 1)), autoConfirm: Boolean(selection.autoConfirm) };
+  decisionSelection = { multiple: Boolean(selection.multiple), required: Math.max(1, Math.floor(selection.required ?? 1)),
+    autoConfirm: Boolean(selection.autoConfirm), autoConfirmChoiceIds: selection.autoConfirmChoiceIds ?? [] };
   $("#decision-screen").classList.toggle("is-dark-epilogue", Boolean(selection.darkScene));
   decisionHandler = onConfirm;
   $("#decision-kicker").textContent = kicker;
@@ -158,7 +160,7 @@ function renderDecisionScreen(title, description, choices, confirmText, onConfir
         candidate.setAttribute("aria-pressed", String(candidate === button));
       });
       $("#decision-confirm").disabled = false;
-      if (decisionSelection.autoConfirm) confirmDecision();
+      if (decisionSelection.autoConfirm || decisionSelection.autoConfirmChoiceIds.includes(choice.id)) confirmDecision();
     });
     list.append(button);
   }
@@ -183,6 +185,13 @@ function confirmDecision() {
   } catch (error) {
     console.error("选项结算失败", error);
     decisionBusy = false;
+    if (campaign?.status === "event" && campaign.pendingEvent?.eventId === "kings_treasury") {
+      try {
+        renderCampaignEvent();
+        $("#decision-copy").textContent += " 操作未完成，请重试。";
+        return;
+      } catch (renderError) { console.error("王之宝库界面恢复失败", renderError); }
+    }
     $("#decision-confirm").disabled = false;
     $("#decision-copy").textContent = `${$("#decision-copy").textContent} 操作未完成，请重试。`;
     return;
@@ -203,6 +212,12 @@ function displaySkillEffect(skill, context = {}) {
   if (skill?.id === "eren-free-will") return `${chance} · 普通攻击 · DEF +${skill.defenseBonus ?? 0}（本场最多 ${skill.maxDefenseStacks} 层） · 每触发 ${skill.healEveryTriggers} 次恢复最大 HP 的 ${Math.round(skill.healMaxHpFraction * 100)}%${skill.extraTrueDamageEvery ? ` · 每第 ${skill.extraTrueDamageEvery} 次释放追加真实伤害` : ""}`;
   if (skill?.id === "eren-tatakae") return `${chance} · 攻击力按 ATK + 当前 DEF 计算 · ${skill.multiplier ?? 1}×伤害 · 下回合嘲讽敌方单体攻击${skill.teamShield ? ` · 每名存活队友护盾 +${skill.teamShield}` : ""}`;
   if (skill?.id === "eren-2000-years") return "Lv.1 每场免疫首次受击；Lv.2 每场免疫前两次受击，并一次性增加最大 HP 400。";
+  if (skill?.id === "journey-west") {
+    const weights = { 1: [100, 0, 0, 0], 2: [80, 20, 0, 0], 3: [60, 40, 0, 0], 4: [40, 60, 0, 0], 5: [20, 80, 0, 0], 6: [0, 80, 20, 0], 7: [0, 60, 40, 0], 8: [0, 40, 60, 0], 9: [0, 20, 80, 0], 10: [0, 30, 45, 25] };
+    const [horse, bajie, shaseng, wukong] = weights[skill.level ?? 1];
+    return `必定尝试召唤 · 白龙马 ${horse}% / 八戒 ${bajie}% / 沙僧 ${shaseng}% / 孙悟空 ${wukong}% · 召唤物技能触发率 ${(skill.level ?? 1) * 10}%`;
+  }
+  if (skill?.id === "tang-flesh") return "有存活召唤物时受到伤害减少 20%；Lv.2 召唤物按实际造成伤害的 20% 治疗唐僧。";
   if (skill?.effectType === "buff") return `${chance} · 防御 +${skill.defenseBonus ?? 0}，持续 ${skill.durationTurns ?? 1} 回合`;
   if (skill?.id === "shadow-clone-rush") return `影分身 ${skill.cloneCount ?? skill.level ?? 1} 个 · 伤害倍率 ${skill.multiplier ?? 1}× · ${chance}`;
   if (skill?.id === "rasengan" || skill?.multiplierFormula) {
@@ -338,7 +353,7 @@ function showFighterFrame(fighter, character, animationName, frameName) {
   visualLayer?.style.setProperty("--visual-action-offset-x", `${offset.offsetX ?? 0}px`);
   visualLayer?.style.setProperty("--visual-action-offset-y", `${offset.offsetY ?? 0}px`);
   node.style.setProperty("--action-frame-scale", getAnimationFrameVisualScale(character, animationName, frameName));
-  node.style.setProperty("--action-frame-foot-shift", `${fighter.closest(".battle-screen.stage-two") ? getAnimationFrameFootShift(character, animationName, frameName) : 0}px`);
+  node.style.setProperty("--action-frame-foot-shift", `${fighter.closest(".battle-screen.stage-two") || character.visualId === "tang-shaseng" ? getAnimationFrameFootShift(character, animationName, frameName) : 0}px`);
   const hasLoadedCurrent = [...(spriteFrameLayers.get(node)?.values() ?? [])].some(image => image.complete && image.naturalWidth > 0 && image.classList.contains("is-current"));
   if (hasLoadedCurrent || node?.dataset.framePending !== "true") fighter.classList.add("has-action-sprite");
   return true;
@@ -651,6 +666,10 @@ function startRunCycle(fighter, character, frameDuration, durationScale = 1) {
 
 function startIdleCycle(fighter, character) {
   if (!fighter || !character?.alive || character.currentHp <= 0) return;
+  if (character.id === "tang" && character.visualMeditating) {
+    showFighterFrame(fighter, character, "meditate", "sit");
+    return;
+  }
   if (character.id === "armored-titan" && Number(fighter.dataset.armorPoseRound) === battleStatusState.currentRound && fighter.dataset.armorPoseRound) {
     showFighterFrame(fighter, character, "skill1", "hold");
     return;
@@ -803,6 +822,9 @@ function renderAllyStatusIcons() {
 
   const allyStatuses = [];
   const enemyStatuses = [];
+  if (viewState?.characters?.some((unit) => unit.id === "tang" && unit.alive && unit.visualMeditating))
+    allyStatuses.push({ id: "tang-meditate", name: "唐僧打坐", image: "assets/tang/tang_meditate.png", tone: "passive",
+      description: "召唤物存活期间唐僧停止普通行动；每三个完整战斗回合发动一次诵经冲击。" });
   const temporaryEffects = campaign?.runCharacterState ? getTemporaryEffectDisplayRows(campaign.runCharacterState) : [];
   for (const effect of temporaryEffects) {
     const isCafe = ["coffee_shop", "coffee_help", "anteiku_2"].includes(effect.id);
@@ -1250,6 +1272,8 @@ function playEvent(event, finish) {
       const fighter = document.querySelector(`[data-character="${target.id}"]`);
       const number = fighter?.querySelector(".damage-number");
       if (number) { number.textContent = `-${event.actualDamage}`; number.classList.remove("pop"); void number.offsetWidth; number.classList.add("pop"); }
+      const burst = fighter?.querySelector(".impact-burst");
+      if (burst) { burst.classList.remove("play", "melee-impact", "melee-from-right"); void burst.offsetWidth; burst.classList.add("play"); }
       if (event.targetDied && fighter) {
         clearSpriteFrame(fighter);
         fighter.classList.add("is-dead");
@@ -1259,7 +1283,7 @@ function playEvent(event, finish) {
     }
     battleStatusState.bombs = battleStatusState.bombs.filter((bomb) => bomb.id !== event.bombId && (target?.alive || bomb.targetId !== event.targetId));
     renderAllyStatusIcons();
-    addLog(`<b>杀手皇后</b> 炸弹 ${event.bombId} 引爆：累计 ${event.accumulatedDamage}，经当前 DEF 结算造成 ${event.actualDamage} 点伤害。`, "log-enemy");
+    addLog(`<b>杀手皇后</b> 炸弹 ${event.bombId} 引爆：${target?.name ?? event.targetId} 受到 ${event.actualDamage} 点伤害（本次无视 40% DEF）。`, "log-enemy");
     return finish();
   }
   if (event.type === "treasure-damage") {
@@ -1305,28 +1329,46 @@ function playEvent(event, finish) {
     timer = window.setTimeout(() => { timer = null; finish(); }, fast ? 140 : 280);
     return;
   }
-  if (event.type === "boros-round-heal" || event.type === "boros-round-growth") {
+  if (event.type === "boros-round-speed" || event.type === "boros-round-growth") {
     const boss = viewState.characters.find((character) => character.id === event.targetId);
-    if (boss && event.type === "boros-round-heal") { boss.currentHp = event.hpAfter; updateHealth(boss); }
+    if (boss && event.type === "boros-round-speed") boss.spd = event.effectiveSpd;
     if (boss && event.type === "boros-round-growth") boss.atk = event.effectiveAtk;
     if (squadSide === "enemy") renderSquad();
-    addLog(event.type === "boros-round-heal"
-      ? `<b>波罗斯</b> 阶段二每回合恢复 ${event.healedAmount} HP。`
+    addLog(event.type === "boros-round-speed"
+      ? `<b>波罗斯</b> 阶段二每个完整回合 SPD +${event.speedBonus}（当前 ${event.effectiveSpd}）。`
       : `<b>波罗斯</b> 最终形态每回合 ATK +${event.attackBonus}（当前 ${event.effectiveAtk}）。`, "log-enemy");
     return finish();
   }
   if (event.type === "summon") {
     const summoned = { ...event.character };
     if (viewState.characters.some((character) => character.id === summoned.id)) return finish();
+    if (summoned.tangSummonKind === "wukong") {
+      for (const path of [summoned.animations?.charge?.frames?.charge,
+        ...Object.values(summoned.animations?.skillAttack?.frames ?? {}),
+        summoned.animations?.death?.frames?.down].filter(Boolean)) {
+        if (summonFramePreloads.has(path)) continue;
+        const image = new Image();
+        image.decoding = "async";
+        image.src = new URL(`./${path}`, import.meta.url).href;
+        summonFramePreloads.set(path, image);
+      }
+    }
     viewState.characters.push(summoned);
-    if (squadSide === "enemy") renderSquad();
+    if (summoned.team === "enemy" && squadSide === "enemy") renderSquad();
     const row = document.createElement("div");
     row.className = "health-row";
     row.dataset.health = summoned.id;
-    row.innerHTML = `<span class="health-name"></span><span class="health-track"><i class="health-fill enemy-fill"></i></span><span class="health-value"><b class="current-hp"></b><small></small></span>`;
+    row.innerHTML = `<span class="health-name"></span><span class="health-track"><i class="health-fill ${summoned.team === "ally" ? "ally-fill" : "enemy-fill"}"></i></span><span class="health-value"><b class="current-hp"></b><small></small></span>`;
     row.querySelector(".health-name").textContent = summoned.name;
     row.querySelector(".health-value small").textContent = `/${summoned.maxHp}`;
-    $("#enemy-health-bars").append(row);
+    $(summoned.team === "ally" ? "#health-bars" : "#enemy-health-bars").append(row);
+    const owner = viewState.characters.find((unit) => unit.id === event.summonerId);
+    const ownerFighter = owner && document.querySelector(`[data-character="${owner.id}"]`);
+    if (owner?.id === "tang") {
+      showFighterFrame(ownerFighter, owner, "skill1", "cast");
+      owner.visualMeditating = true;
+      renderAllyStatusIcons();
+    }
     const fighter = mountFighter(summoned);
     layoutBattleFormation(viewState.characters);
     updateHealth(summoned);
@@ -1335,12 +1377,15 @@ function playEvent(event, finish) {
       fighter.style.setProperty("--summon-duration", `${duration}ms`);
       fighter.classList.add("is-summoning");
     }
-    addLog(`<b>戴娜</b> 触发被动 <span class="skill-name">${event.passiveName}</span>：第 ${event.round} 回合召唤一名普通巨人。`, "log-enemy");
+    addLog(summoned.team === "ally"
+      ? `<b>唐僧</b> 使用 <span class="skill-name">${event.skillName}</span>：召唤 ${summoned.name}。`
+      : `<b>戴娜</b> 触发被动 <span class="skill-name">${event.passiveName}</span>：第 ${event.round} 回合召唤一名普通巨人。`, summoned.team === "ally" ? "log-skill" : "log-enemy");
     const completeSummon = () => {
       if (fighter) {
         fighter.classList.remove("is-summoning");
         fighter.style.removeProperty("--summon-duration");
         startIdleCycle(fighter, summoned);
+        if (owner?.id === "tang") startIdleCycle(ownerFighter, owner);
       }
       finish();
     };
@@ -1349,6 +1394,41 @@ function playEvent(event, finish) {
       if (playbackPaused) pausedContinuation = completeSummon;
       else completeSummon();
     }, duration);
+    return;
+  }
+  if (event.type === "summon-failed") {
+    const tang = viewState.characters.find((unit) => unit.id === event.summonerId);
+    const fighter = tang && document.querySelector(`[data-character="${tang.id}"]`);
+    if (fighter) showFighterFrame(fighter, tang, "skill1", "cast");
+    addLog(`<b>唐僧</b> 尝试「取经之路」：${event.reason}，召唤失败。`, "log-skill");
+    timer = window.setTimeout(() => { if (fighter) startIdleCycle(fighter, tang); timer = null; finish(); }, fast ? 220 : 440);
+    return;
+  }
+  if (event.type === "meditation-end" || event.type === "summon-dismissed") {
+    const tang = viewState.characters.find((unit) => unit.id === event.summonerId);
+    if (event.type === "meditation-end" && tang) {
+      tang.visualMeditating = false;
+      startIdleCycle(document.querySelector(`[data-character="${tang.id}"]`), tang);
+      renderAllyStatusIcons();
+    }
+    if (event.type === "summon-dismissed") {
+      const summon = viewState.characters.find((unit) => unit.id === event.targetId);
+      if (summon) { summon.currentHp = 0; summon.alive = false; updateHealth(summon); }
+      document.querySelector(`[data-character="${event.targetId}"]`)?.classList.add("is-dead");
+    }
+    return finish();
+  }
+  if (event.type === "wukong-charge") {
+    addLog(`<b>孙悟空</b> 使用「天命人」蓄力：下个完整回合受到伤害减少 80%。`, "log-skill");
+    const actor = viewState.characters.find((unit) => unit.id === event.attackerId);
+    const fighter = document.querySelector(`[data-character="${event.attackerId}"]`);
+    if (fighter && actor) showFighterFrame(fighter, actor, "charge", "charge");
+    timer = window.setTimeout(() => {
+      timer = null;
+      if (fighter && actor?.alive) { clearSpriteFrame(fighter); startIdleCycle(fighter, actor); }
+      if (playbackPaused) pausedContinuation = finish;
+      else finish();
+    }, fast ? 250 : 500);
     return;
   }
   if (event.type === "skill-guarantee") {
@@ -1705,10 +1785,10 @@ function playEvent(event, finish) {
   const borosVisualDuration = skillAnimationName === "meteor"
     ? borosTimeline?.takeoffMs + borosTimeline?.dashMs + borosTimeline?.slamMs + borosTimeline?.returnMs
     : borosTimeline?.totalMs;
-  const duration = gilTimeline ? firstGilVisual ? gilTimeline.totalMs : 0 : isBorosPunch ? scaled(1500) : isKiraPunch ? scaled(700) : borosTimeline ? firstBorosVisual
+  const duration = event.wukongTeleportAttack ? scaled(650) : gilTimeline ? firstGilVisual ? gilTimeline.totalMs : 0 : isBorosPunch ? scaled(1500) : isKiraPunch ? scaled(700) : borosTimeline ? firstBorosVisual
     ? skillAnimationName === "cannon" ? borosVisualDuration : scaled(borosVisualDuration)
     : 0 : scaled(actionDuration);
-  const impactDelay = gilTimeline ? firstGilVisual ? gilTimeline.impactMs : 0 : isBorosPunch ? scaled(650) : isKiraPunch ? scaled(360) : isTojiCombo ? scaled((tojiFirst ? tojiRushMs : 0) + tojiWindupMs) : borosTimeline ? firstBorosVisual
+  const impactDelay = event.wukongTeleportAttack ? scaled(340) : gilTimeline ? firstGilVisual ? gilTimeline.impactMs : 0 : isBorosPunch ? scaled(650) : isKiraPunch ? scaled(360) : isTojiCombo ? scaled((tojiFirst ? tojiRushMs : 0) + tojiWindupMs) : borosTimeline ? firstBorosVisual
     ? skillAnimationName === "cannon" ? borosTimeline.impactMs : scaled(borosTimeline.impactMs)
     : 0 : scaled(isCloneTechnique
     ? cloneSealMs + cloneApproachMs
@@ -1846,13 +1926,25 @@ function playEvent(event, finish) {
     }
   } else {
     sourceEl.classList.add("is-attacking");
-    if (!borosTimeline && !isBorosPunch && !isKiraPunch) sourceEl.classList.add(event.attackType === "magic" ? "is-magic-attacking" : "is-ranged-attacking");
+    if (!borosTimeline && !isBorosPunch && !isKiraPunch && !event.wukongTeleportAttack) sourceEl.classList.add(event.attackType === "magic" ? "is-magic-attacking" : "is-ranged-attacking");
     const configuredAnimation = event.skilled
       ? attacker.skillAnimationMap?.[event.skillId]
       : attacker.attackAnimation;
     const animationName = configuredAnimation ?? attacker.attackAnimation;
     const rangedFrames = animationFrameNames(attacker, animationName);
-    if (isBorosPunch) {
+    if (event.wukongTeleportAttack) {
+      const sourceBox = sourceEl.getBoundingClientRect();
+      const targetBox = targetEl.getBoundingClientRect();
+      const delta = targetBox.left + targetBox.width / 2 - sourceBox.left - sourceBox.width / 2;
+      const stopGap = (sourceBox.width + targetBox.width) * .5;
+      sourceEl.style.translate = `${Math.sign(delta) * Math.max(0, Math.abs(delta) - stopGap)}px 0`;
+      sourceEl.classList.add("is-wukong-teleport");
+      showFighterFrame(sourceEl, attacker, "skillAttack", "teleport");
+      animationStageTimer = window.setTimeout(() => {
+        animationStageTimer = null;
+        showFighterFrame(sourceEl, attacker, "skillAttack", "strike");
+      }, scaled(180));
+    } else if (isBorosPunch) {
       const sourceBox = sourceEl.getBoundingClientRect();
       const targetBox = targetEl.getBoundingClientRect();
       const delta = targetBox.left + targetBox.width / 2 - (sourceBox.left + sourceBox.width / 2);
@@ -2043,6 +2135,17 @@ function playEvent(event, finish) {
         healingNumber.classList.add("pop");
       }
     }
+    if (event.summonerHealedAmount > 0) {
+      const summoner = viewState.characters.find((unit) => unit.id === event.summonerId);
+      if (summoner) {
+        summoner.currentHp = event.summonerHp;
+        updateHealth(summoner);
+        const number = document.querySelector(`[data-character="${summoner.id}"] .damage-number`);
+        if (number) { number.textContent = `+${event.summonerHealedAmount}`; number.classList.add("is-heal");
+          number.classList.remove("pop"); void number.offsetWidth; number.classList.add("pop"); }
+        addLog(`<b>唐僧肉</b>：${attacker.name} 造成伤害，唐僧恢复 ${event.summonerHealedAmount} HP。`, "log-skill");
+      }
+    }
     if (event.jinchurikiExpired) {
       battleStatusState.jinchuriki = null;
       renderAllyStatusIcons();
@@ -2115,6 +2218,7 @@ function playEvent(event, finish) {
       clearBorosVisuals(sourceEl);
     }
     sourceEl.classList.remove("is-boros-punch-approaching", "is-boros-punch-at-target", "is-boros-punch-returning");
+    if (event.wukongTeleportAttack) { sourceEl.style.removeProperty("translate"); sourceEl.classList.remove("is-wukong-teleport"); }
     sourceEl.style.removeProperty("--boros-punch-x");
     sourceEl.style.removeProperty("--boros-punch-approach-duration");
     sourceEl.style.removeProperty("--boros-punch-return-duration");
@@ -2332,7 +2436,7 @@ function beginBattle() {
     addLog(`迪达拉的 C0 每个完整行动回合积累 ${boss?.c0DamagePerRound ?? 70} 点真实伤害；C4 迦楼罗有 ${c4Chance}% 概率造成 1.2 倍伤害并降低目标 DEF 20 点。`, "log-enemy");
   }
   if (prepared.battle.type === "boss" && campaign.stageId === 2) {
-    addLog("波罗斯阶段一受到伤害减少 10%；阶段二每完整回合恢复 120 HP；阶段三属性强化且每完整回合 ATK +20。", "log-enemy");
+    addLog("波罗斯阶段一受到伤害减少 10%；阶段二每个完整回合 SPD +10；阶段三入场 ATK +80、DEF -40、SPD +100，之后每个完整回合 ATK +30。", "log-enemy");
   }
   const startFight = () => {
     if (battleStartedToken === token || token !== generation || campaign?.status !== "combat") return;
@@ -2900,14 +3004,28 @@ function renderBattleReward() {
         ? decisionChoice(skillId, `${skill.name} Lv.${skill.level + 1}`, displaySkillEffect({ ...skill, ...SKILL_DATA[skillId].levels[skill.level + 1] }))
         : decisionChoice(skillId, `学习 ${SKILL_DATA[skillId].name} Lv.1`, displaySkillEffect({ ...SKILL_DATA[skillId], ...SKILL_DATA[skillId].levels[1], level: 1 }));
     });
-    if (!choices.length) choices.push(decisionChoice("__skip__", "主动技能均已满级", "继续为下一位结算。"));
-    renderDecisionScreen(`${recipient?.name ?? "队员"} · 精英技能升级`, "每名队员各获得一次机会。", choices, "确认", (skillId) => {
+    const finishSkillChoice = (skillId) => {
       const result = skillId === "__skip__" ? claimStageTwoEliteSkip(campaign, recipientId) : claimStageTwoEliteSkill(campaign, recipientId, skillId);
       if (!result) return false;
       updateProgressionDisplays();
       if (result.phase === "complete") renderRoute(); else renderBattleReward();
       return true;
-    }, "ACT 02 · ELITE REWARD");
+    };
+    if (canDeclineNewSkill(campaign.partyStates[recipientId])) {
+      renderDecisionScreen(`${recipient?.name ?? "队员"} · 精英技能升级`, "已学主动技能达到 Lv.4，可学习另一项技能，也可放弃本次机会。", [
+        decisionChoice("__learn__", "学习新技能", "查看可学习的主动技能。"),
+        decisionChoice("__skip__", "放弃学习", "保留现有技能，继续奖励结算。"),
+      ], "确认", (choiceId) => {
+        if (choiceId === "__skip__") return finishSkillChoice(choiceId);
+        renderDecisionScreen("选择新技能", "确认后从 Lv.1 开始学习。", [...choices,
+          decisionChoice("__back__", "返回上一层", "暂不确认学习。")], "确认", (skillId) =>
+          skillId === "__back__" ? (renderBattleReward(), true) : finishSkillChoice(skillId), "ACT 02 · ELITE REWARD");
+        return true;
+      }, "ACT 02 · ELITE REWARD");
+    } else {
+      if (!choices.length) choices.push(decisionChoice("__skip__", "主动技能均已满级", "继续为下一位结算。"));
+      renderDecisionScreen(`${recipient?.name ?? "队员"} · 精英技能升级`, "每名队员各获得一次机会。", choices, "确认", finishSkillChoice, "ACT 02 · ELITE REWARD");
+    }
     return;
   }
   if (campaign.rewardPhase === "stat") {
@@ -2941,13 +3059,25 @@ function renderBattleReward() {
         ? decisionChoice(skillId, `${current.name} · Lv.${current.level} → Lv.${current.level + 1}`, displaySkillEffect({ ...current, ...next }))
         : decisionChoice(skillId, `学习 ${SKILL_DATA[skillId].name} Lv.1`, displaySkillEffect({ ...SKILL_DATA[skillId], ...next, level: 1 }));
     });
-    renderDecisionScreen("精英战胜利 · 技能升级", "属性加点已完成，选择升级技能；已学技能满级时可学习新技能。", skills, "确认", (skillId) => {
-      const result = claimCampaignReward(campaign, "skill_upgrade", null, skillId);
+    const finishSkillChoice = (skillId) => {
+      const result = skillId === "__skip__" ? claimCampaignReward(campaign, "skip_skill") : claimCampaignReward(campaign, "skill_upgrade", null, skillId);
       if (!result) return false;
       updateProgressionDisplays();
       renderRoute();
       return true;
-    }, "ACT 01 · ELITE REWARD");
+    };
+    if (canDeclineNewSkill(campaign.runCharacterState)) {
+      renderDecisionScreen("精英战胜利 · 技能升级", "已学主动技能达到 Lv.4，可学习另一项技能，也可放弃本次机会。", [
+        decisionChoice("__learn__", "学习新技能", "查看可学习的主动技能。"),
+        decisionChoice("__skip__", "放弃学习", "保留现有技能并返回地图。"),
+      ], "确认", (choiceId) => {
+        if (choiceId === "__skip__") return finishSkillChoice(choiceId);
+        renderDecisionScreen("选择新技能", "确认后从 Lv.1 开始学习。", [...skills,
+          decisionChoice("__back__", "返回上一层", "暂不确认学习。")], "确认", (skillId) =>
+          skillId === "__back__" ? (renderBattleReward(), true) : finishSkillChoice(skillId), "ACT 01 · ELITE REWARD");
+        return true;
+      }, "ACT 01 · ELITE REWARD");
+    } else renderDecisionScreen("精英战胜利 · 技能升级", "属性加点已完成，选择升级技能。", skills, "确认", finishSkillChoice, "ACT 01 · ELITE REWARD");
   }
 }
 
@@ -3033,13 +3163,29 @@ function renderCampfire() {
         if (index >= eligible.length) {
           const result = resolveStageTwoCampfire(campaign, "skill_upgrade", selections);
           if (!result) return false;
+          if (result.results.every(({ result: memberResult }) => memberResult.skippedSkill)) return finishEventAndAdvance();
           updateProgressionDisplays(); renderEventResult({ result }); return true;
         }
         const { characterId, options } = eligible[index];
         const character = STARTING_CHARACTERS.find((item) => item.id === characterId);
-        renderDecisionScreen(`${character.name}技能升级`, "本次篝火每名队员最多训练一次。", options[1].skills.map((entry) =>
-          decisionChoice(entry.skillId, entry.currentLevel ? `${entry.name} Lv.${entry.nextLevel}` : `学习 ${entry.name} Lv.1`, displaySkillEffect({ ...SKILL_DATA[entry.skillId], ...entry.nextEffect, level: entry.nextLevel }))),
-        "确认升级", (skillId) => { selections[characterId] = skillId; return chooseFor(index + 1); }, "ACT 02 · CAMPFIRE");
+        const skillChoices = options[1].skills.map((entry) =>
+          decisionChoice(entry.skillId, entry.currentLevel ? `${entry.name} Lv.${entry.nextLevel}` : `学习 ${entry.name} Lv.1`, displaySkillEffect({ ...SKILL_DATA[entry.skillId], ...entry.nextEffect, level: entry.nextLevel })));
+        const saveChoice = (skillId) => { selections[characterId] = skillId; return chooseFor(index + 1); };
+        if (canDeclineNewSkill(campaign.partyStates[characterId])) {
+          const chooseOrLeave = () => renderDecisionScreen(`${character.name}技能升级`, "已学主动技能达到 Lv.4，可学习另一项技能，也可直接离开。", [
+            decisionChoice("__learn__", "学习新技能", "查看可学习的主动技能。"),
+            decisionChoice("__skip_new_skill__", "直接离开", "不改变技能。"),
+          ], "确认", (choiceId) => {
+            if (choiceId === "__skip_new_skill__") return saveChoice(choiceId);
+            renderDecisionScreen("选择新技能", "确认前可返回上一层。", [...skillChoices,
+              decisionChoice("__back__", "返回上一层", "暂不确认学习。")], "确认", (skillId) =>
+              skillId === "__back__" ? (chooseOrLeave(), true) : saveChoice(skillId), "ACT 02 · CAMPFIRE");
+            return true;
+          }, "ACT 02 · CAMPFIRE");
+          return chooseOrLeave();
+        }
+        renderDecisionScreen(`${character.name}技能升级`, "本次篝火每名队员最多训练一次。", skillChoices,
+          "确认升级", saveChoice, "ACT 02 · CAMPFIRE");
         return true;
       };
       return chooseFor(0);
@@ -3057,6 +3203,22 @@ function renderCampfire() {
     if (id === "rest") return resolveVisibleEvent("rest");
     if (id === "skill_upgrade") {
       const choices = upgrade.skills.map((entry) => decisionChoice(entry.skillId, entry.currentLevel ? `${entry.name} · Lv.${entry.currentLevel} → Lv.${entry.nextLevel}` : `学习 ${entry.name} Lv.1`, displaySkillEffect({ ...SKILL_DATA[entry.skillId], ...entry.nextEffect, level: entry.nextLevel })));
+      if (canDeclineNewSkill(campaign.runCharacterState)) {
+        const chooseOrLeave = () => renderDecisionScreen("技能升级", "已学主动技能达到 Lv.4，可学习另一项技能，也可直接离开。", [
+          decisionChoice("__learn__", "学习新技能", "查看可学习的主动技能。"),
+          decisionChoice("__skip_new_skill__", "直接离开", "不改变技能。"),
+        ], "确认", (choiceId) => {
+          if (choiceId === "__skip_new_skill__") {
+            if (!resolveCampaignEvent(campaign, "skill_upgrade", choiceId)) return false;
+            return finishEventAndAdvance();
+          }
+          renderDecisionScreen("选择新技能", "确认前可返回上一层。", [...choices,
+            decisionChoice("__back__", "返回上一层", "暂不确认学习。")], "确认", (skillId) =>
+            skillId === "__back__" ? (chooseOrLeave(), true) : resolveVisibleEvent("skill_upgrade", skillId), "ACT 01 · CAMPFIRE");
+          return true;
+        }, "ACT 01 · CAMPFIRE");
+        return chooseOrLeave();
+      }
       renderDecisionScreen("选择升级技能", "已学技能满级后可学习新的主动技能。", choices, "确认", (skillId) => resolveVisibleEvent("skill_upgrade", skillId), "ACT 01 · CAMPFIRE");
       return true;
     }
@@ -3183,7 +3345,8 @@ function renderAdventureEvent() {
       ? `${record.description}\n${getSeaBeyondOfferDetails(record).map((offer) => `第 ${offer.index + 1} 次：主角最大生命值 -${offer.hpLossPercent}%（-${offer.hpLoss}）；${campaign.partyIds.length > 1 ? "全队" : ""}${({ atk: "攻击", def: "防御", spd: "速度" })[offer.rewardStat]} +${offer.rewardAmount}`).join("\n")}`
     : record.description;
   $("#decision-copy").classList.toggle("sea-offer-preview", record.eventId === "sea_beyond" && record.data.phase === "intro");
-  renderDecisionScreen(record.name, eventDescription, choices, "确认选择", (id) => resolveVisibleEvent(id === "__confirm__" ? null : id), "ACT 01 · ADVENTURE", record.image);
+  renderDecisionScreen(record.name, eventDescription, choices, "确认选择", (id) => resolveVisibleEvent(id === "__confirm__" ? null : id),
+    "ACT 01 · ADVENTURE", record.image, { autoConfirmChoiceIds: record.eventId === "kings_treasury" ? ["treasury_steal"] : [] });
 }
 
 function renderCampaignEvent() {

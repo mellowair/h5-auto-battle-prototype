@@ -11,6 +11,7 @@ import { beginStageTwo, advanceStageTransition, claimStageTwoEliteSkill, claimSt
 function stageTwoRun(seed = 21, beforeBegin = null) {
   const campaign = createCampaign(() => 0.21, { seed });
   startCampaign(campaign);
+  campaign.candidateIds = ["naruto", "eren"];
   const hero = STARTING_CHARACTERS.find((entry) => entry.id === campaign.candidateIds[0]);
   selectStartingCharacter(campaign, hero.id, null);
   chooseStartingSkill(campaign, hero.activeSkills[0]);
@@ -26,7 +27,7 @@ function stageTwoRun(seed = 21, beforeBegin = null) {
     let choice = null;
     if (offer.skillIds) choice = offer.skillIds[0] ?? null;
     else if (offer.offer) choice = offer.offer.choices[0];
-    else if (offer.candidateIds) choice = offer.candidateIds[0];
+    else if (offer.candidateIds) choice = offer.candidateIds.includes("kaneki") ? "kaneki" : offer.candidateIds[0];
     assert.ok(advanceStageTransition(campaign, choice), `${offer.phase} must advance`);
   }
   assert.equal(campaign.partyIds.length, 2);
@@ -251,7 +252,7 @@ test("second-stage elite reward keeps a separate extra skill upgrade", () => {
   assert.equal(claimStageTwoEliteSkill(campaign, partnerId, skillId), false);
 });
 
-test("a fully upgraded learned skill teaches the unlearned active skill to that ally only", () => {
+test("a capped ally can decline a new active skill while the partner still upgrades", () => {
   const { campaign, partnerId } = stageTwoRun(38);
   campaign.status = "combat";
   campaign.currentBattle = { ...CAMPAIGN_BATTLES[0], type: "elite", step: campaign.step, number: 1 };
@@ -263,7 +264,28 @@ test("a fully upgraded learned skill teaches the unlearned active skill to that 
   const heroSkill = campaign.runCharacterState.learnedActiveSkills[0];
   campaign.runCharacterState.skillLevels[heroSkill] = 4;
   const newHeroSkill = campaign.runCharacterState.activeSkillPool.find((id) => id !== heroSkill);
+  assert.deepEqual(claimStageTwoEliteSkip(campaign, campaign.playerId), { phase: "bonus", remaining: 1 });
+  assert.equal(campaign.runCharacterState.skillLevels[newHeroSkill] ?? 0, 0);
   assert.equal(claimStageTwoEliteSkip(campaign, campaign.playerId), false);
+  assert.equal(claimStageTwoEliteSkill(campaign, campaign.playerId, newHeroSkill), false);
+  const partnerSkill = campaign.partyStates[partnerId].learnedActiveSkills[0];
+  assert.equal(claimStageTwoEliteSkill(campaign, partnerId, partnerSkill).phase, "complete");
+  assert.equal(campaign.stageTwoReward, null);
+  assert.equal(claimStageTwoEliteSkill(campaign, partnerId, partnerSkill), false);
+});
+
+test("a capped ally can choose to learn a second active skill during an elite reward", () => {
+  const { campaign, partnerId } = stageTwoRun(39);
+  campaign.status = "combat";
+  campaign.currentBattle = { ...CAMPAIGN_BATTLES[0], type: "elite", step: campaign.step, number: 1 };
+  prepareBattle(campaign);
+  assert.equal(finishBattle(campaign, "victory", campaign.playerHp).status, "reward");
+  const [first, second] = getCampaignRewardOffer(campaign).choices;
+  assert.ok(claimStageTwoStatReward(campaign, campaign.playerId, first));
+  assert.equal(claimStageTwoStatReward(campaign, partnerId, second).phase, "bonus");
+  const heroSkill = campaign.runCharacterState.learnedActiveSkills[0];
+  campaign.runCharacterState.skillLevels[heroSkill] = 4;
+  const newHeroSkill = campaign.runCharacterState.activeSkillPool.find((id) => id !== heroSkill);
   assert.equal(claimStageTwoEliteSkill(campaign, campaign.playerId, newHeroSkill).phase, "bonus");
   assert.equal(campaign.runCharacterState.skillLevels[newHeroSkill], 1);
   assert.equal(claimStageTwoEliteSkip(campaign, campaign.playerId), false);
@@ -300,6 +322,26 @@ test("stage-two campfire upgrade gives each eligible member exactly one skill le
   assert.equal(campaign.runCharacterState.skillLevels[selections[campaign.playerId]], heroBefore + 1);
   assert.equal(campaign.partyStates[partnerId].skillLevels[selections[partnerId]], partnerBefore + 1);
   assert.equal(resolveStageTwoCampfire(campaign, "skill_upgrade", selections), false);
+});
+
+test("stage-two campfire lets a capped ally leave while the other upgrades", () => {
+  const { campaign, partnerId } = stageTwoRun(89);
+  const camp = campaign.routeMap.nodes.find((node) => node.type === "campfire");
+  campaign.status = "event"; campaign.activeEventType = "campfire"; campaign.activeNode = camp; camp.status = "in_progress";
+  const heroSkill = campaign.runCharacterState.learnedActiveSkills[0];
+  campaign.runCharacterState.skillLevels[heroSkill] = 4;
+  const partnerSkill = campaign.partyStates[partnerId].learnedActiveSkills[0];
+  const partnerBefore = campaign.partyStates[partnerId].skillLevels[partnerSkill];
+  const result = resolveStageTwoCampfire(campaign, "skill_upgrade", {
+    [campaign.playerId]: "__skip_new_skill__", [partnerId]: partnerSkill,
+  });
+  assert.equal(result.results[0].result.skippedSkill, true);
+  assert.equal(campaign.runCharacterState.skillLevels[heroSkill], 4);
+  assert.equal(campaign.runCharacterState.learnedActiveSkills.length, 1);
+  assert.equal(campaign.partyStates[partnerId].skillLevels[partnerSkill], partnerBefore + 1);
+  assert.equal(resolveStageTwoCampfire(campaign, "skill_upgrade", {
+    [campaign.playerId]: "__skip_new_skill__", [partnerId]: partnerSkill,
+  }), false);
 });
 
 test("Kaneki death asset is a distinct transparent frame and stays in death animation mapping", () => {

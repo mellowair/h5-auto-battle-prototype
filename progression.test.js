@@ -8,7 +8,7 @@ import {
   createAdventureEventResult, createBattleRewardOffer, createRunCharacterState,
   createStatUpgradeChoices, evaluatePassive, getCampfireOptions, getSkillAtLevel,
   advanceTemporaryEffectsAfterBattle, chooseAdventureEventId, getAvailableAdventureEventIds,
-  getTemporaryCombatModifiers, getTemporaryEffectDisplayRows, getTemporaryEffects, getUnlearnedActiveSkills, getUpgradeableSkills, healRunCharacter, learnActiveSkill,
+  canDeclineNewSkill, getTemporaryCombatModifiers, getTemporaryEffectDisplayRows, getTemporaryEffects, getUnlearnedActiveSkills, getUpgradeableSkills, healRunCharacter, learnActiveSkill,
   resolveAdventureEvent, resolveCampfire, startAdventureBattle, upgradeActiveSkill,
 } from "./progression.js";
 import { createCampaign, selectStartingCharacter, startCampaign } from "./campaign.js";
@@ -45,7 +45,7 @@ test("playable and battle character data expose stable skill and position ids", 
     assert.ok(character.position === "front" || character.position === "back");
     assert.ok(character.baseStats.maxHp > 0 && character.baseStats.critRate >= 0 && character.baseStats.critMultiplier >= 1);
     assert.ok(Array.isArray(character.activeSkills));
-    assert.ok(character.activeSkills.length === 0 || character.activeSkills.length === 2);
+    assert.ok(character.activeSkills.length === 0 || character.activeSkills.length === 1 || character.activeSkills.length === 2);
     assert.ok(character.activeSkills.every((id) => SKILL_DATA[id]?.type === "active"));
     if (character.passiveSkillId) assert.equal(SKILL_DATA[character.passiveSkillId]?.type, "passive");
   }
@@ -282,6 +282,18 @@ test("campfire upgrades learned skills, then teaches an unlearned active skill a
   assert.equal(getCampfireOptions(full)[1].enabled, false);
 });
 
+test("a capped skill holder can leave campfire without learning and cannot claim twice", () => {
+  const run = makeNaruto();
+  for (let i = 2; i <= 4; i += 1) upgradeActiveSkill(run, "shadow-clone-rush", `camp-cap-${i}`);
+  assert.equal(canDeclineNewSkill(run), true);
+  const before = structuredClone(run.skillLevels);
+  assert.deepEqual(resolveCampfire(run, "camp-skip", "skill_upgrade", "__skip_new_skill__"),
+    { choiceId: "skill_upgrade", skippedSkill: true });
+  assert.deepEqual(run.skillLevels, before);
+  assert.equal(resolveCampfire(run, "camp-skip", "skill_upgrade", "rasengan"), false);
+  assert.equal(resolveCampfire(makeNaruto(), "invalid-skip", "skill_upgrade", "__skip_new_skill__"), false);
+});
+
 test("battle reward offers persist three options, apply two stats, and block duplicate claims", () => {
   const run = makeNaruto();
   const offer = createBattleRewardOffer(run, "battle-7", "normal", () => 0.2);
@@ -316,6 +328,18 @@ test("elite victory reward grants two stat upgrades plus one skill upgrade", () 
   assert.equal(maxed.skillLevels.rasengan, 1);
   maxed.skillLevels.rasengan = 4;
   assert.deepEqual(createBattleRewardOffer(maxed, "elite-3", "elite").extraChoices, []);
+});
+
+test("elite reward can be declined after stats without changing skill levels", () => {
+  const run = makeNaruto();
+  for (let i = 2; i <= 4; i += 1) upgradeActiveSkill(run, "shadow-clone-rush", `elite-cap-${i}`);
+  const before = structuredClone(run.skillLevels);
+  const offer = createBattleRewardOffer(run, "elite-decline", "elite", () => .2);
+  assert.deepEqual(offer.extraChoices, ["skill_upgrade", "skip_skill"]);
+  const result = applyBattleReward(run, "elite-decline", offer.statChoices.slice(0, 2), "skip_skill");
+  assert.deepEqual(result.bonus, { skippedSkill: true });
+  assert.deepEqual(run.skillLevels, before);
+  assert.equal(applyBattleReward(run, "elite-decline", offer.statChoices.slice(0, 2), "skip_skill"), false);
 });
 
 test("adventure candidates are equally sampled and omit a fully learned scroll", () => {

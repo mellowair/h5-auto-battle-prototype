@@ -126,8 +126,8 @@ test("Kira bomb pays defense before HP and feeds actual loss to a later bomb", (
     { id: "bomb-2", targetId: "hero", attachedRound: 2, dueRound: 4, accumulatedDamage: 100 },
   ];
   const result = detonateDueBombs(state);
-  assert.deepEqual(result.map((event) => event.actualDamage), [250, 175]);
-  assert.equal(state.characters[0].currentHp, 2575);
+  assert.deepEqual(result.map((event) => event.actualDamage), [312, 257]);
+  assert.equal(state.characters[0].currentHp, 2431);
 });
 
 test("Dina's fourth living summoned giant forces defeat before actions", () => {
@@ -146,7 +146,7 @@ test("Gilgamesh heals on third cast and deals true damage on fourth without a sk
   assert.equal(result.events.some((event) => event.type === "gilgamesh-rest"), false);
   const fourth = result.events.find((event) => event.gilgameshCast === 4);
   assert.ok(fourth?.trueDamage);
-  assert.equal(fourth.damage, 5000);
+  assert.equal(fourth.damage, 4000);
   assert.ok(getDodgeChance({ spd: 100, dodgeRateBonus: .2 }) > getDodgeChance({ spd: 100 }));
 });
 
@@ -231,16 +231,17 @@ test("level-four Tatakae shields every living teammate and level-four Free Will 
     enemy("foe", { hp: 10000, currentHp: 10000, rosterOrder: 2 })]);
   state.round = 1;
   const shieldEvent = executeAttack(state, state.characters[0], state.characters[2], () => .99, { skill: tatakae });
-  assert.deepEqual(shieldEvent.shieldsGranted.map((entry) => entry.amount), [250, 250]);
-  assert.equal(state.characters[1].shieldHp, 250);
+  assert.deepEqual(shieldEvent.shieldsGranted.map((entry) => entry.amount), [100, 100]);
+  assert.equal(state.characters[1].shieldHp, 100);
   const freeWill = { ...SKILL_DATA["eren-free-will"], ...SKILL_DATA["eren-free-will"].levels[4], level: 4 };
   const freeState = initializeBattle([ally("eren", { skills: [freeWill], hp: 10000, currentHp: 10000 }),
     enemy("foe", { hp: 10000, currentHp: 10000 })]);
-  for (let round = 1; round <= 5; round += 1) {
+  for (let round = 1; round <= 8; round += 1) {
     freeState.round = round;
     const event = executeAttack(freeState, freeState.characters[0], freeState.characters[1], () => .99, { skill: freeWill });
-    assert.equal(Boolean(event.extraTrueDamage), round === 4);
+    assert.equal(Boolean(event.extraTrueDamage), round === 4 || round === 8);
     if (round === 4) assert.equal(event.extraTrueDamage.requested, Math.floor((40 + 100) * .8));
+    if (round === 8) assert.equal(event.freeWillDefenseStacks, 4);
   }
 });
 

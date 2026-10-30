@@ -4,6 +4,12 @@
 // Optional animationOffsets: { skill1: { offsetX: 4, offsetY: 0 } } applies
 // only while that animation is visible and resets when its frame is cleared.
 export const CHARACTER_VISUALS = Object.freeze({
+  tang: { scale: 1.1, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98 },
+  "tang-white-horse": { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98 },
+  "tang-bajie": { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98 },
+  "tang-shaseng": { scale: 1.35, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98,
+    animationFrameScales: { skill1: { cast: 1.8 } }, frameFootShifts: { skill1: { cast: 10 } } },
+  "tang-wukong": { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98 },
   naruto: { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98 },
   eren: { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98,
     stageTwoFootOffsetY: 4,

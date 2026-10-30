@@ -89,55 +89,71 @@ test("Boros thresholds are strict, phases never reverse, and crossing both thres
   const state = initializeBattle([ally("hero"), foe(STAGE_TWO_BOSS_DATA)]);
   const boss = state.characters[1];
   state.round = 1;
-  boss.currentHp = 3750;
+  boss.currentHp = 4001;
   assert.equal(changeBorosPhase(state, boss), null);
-  boss.currentHp = 3749;
+  boss.currentHp = 4000;
   assert.equal(changeBorosPhase(state, boss).phase, 2);
   boss.currentHp = 5000;
   assert.equal(changeBorosPhase(state, boss), null);
-  boss.currentHp = 1500;
+  boss.currentHp = 2501;
   assert.equal(changeBorosPhase(state, boss), null);
-  boss.currentHp = 1499;
-  assert.deepEqual(changeBorosPhase(state, boss), { phase: 3, atk: 670, def: 70, spd: 250 });
+  boss.currentHp = 2500;
+  assert.deepEqual(changeBorosPhase(state, boss), { phase: 3, atk: 630, def: 120, spd: 250 });
   assert.equal(changeBorosPhase(state, boss), null);
-  assert.deepEqual([boss.atk, boss.def, boss.spd], [670, 70, 250]);
+  assert.deepEqual([boss.atk, boss.def, boss.spd], [630, 120, 250]);
   const skipped = initializeBattle([ally("hero"), foe(STAGE_TWO_BOSS_DATA)]);
-  skipped.round = 1; skipped.characters[1].currentHp = 1000;
+  skipped.round = 1; skipped.characters[1].currentHp = 2300;
   assert.equal(changeBorosPhase(skipped, skipped.characters[1]).phase, 3);
-  assert.deepEqual([skipped.characters[1].atk, skipped.characters[1].def, skipped.characters[1].spd], [670, 70, 250]);
+  assert.deepEqual([skipped.characters[1].atk, skipped.characters[1].def, skipped.characters[1].spd], [630, 120, 250]);
+  const dead = initializeBattle([ally("hero"), foe(STAGE_TWO_BOSS_DATA)]);
+  dead.characters[1].currentHp = 0;
+  assert.equal(changeBorosPhase(dead, dead.characters[1]), null);
 });
 
-test("Boros phase one reduces actual hit damage; phase two heals only after a later full round; phase three grows ATK", () => {
+test("Boros phase one reduces damage; phase two grows SPD once per full round; phase three grows ATK", () => {
   const state = initializeBattle([ally("hero", { atk: 200 }), foe(STAGE_TWO_BOSS_DATA)]);
   const [hero, boss] = state.characters;
   state.round = 1;
   const hit = executeAttack(state, hero, boss, () => .9);
   assert.equal(hit.damage, 68); // 200 ATK through 100/(100+160), then 10% reduction.
-  boss.currentHp = 2900;
+  boss.currentHp = 3900;
   changeBorosPhase(state, boss);
+  const hpAtTransition = boss.currentHp;
   assert.deepEqual(advanceBorosRound(state), []);
   state.round = 2;
-  assert.equal(advanceBorosRound(state)[0].healedAmount, 120);
-  boss.currentHp = 4980;
-  assert.equal(advanceBorosRound(state)[0].healedAmount, 20);
-  boss.currentHp = 1000;
-  changeBorosPhase(state, boss);
+  assert.equal(advanceBorosRound(state)[0].effectiveSpd, 160);
   assert.deepEqual(advanceBorosRound(state), []);
   state.round = 3;
-  assert.equal(advanceBorosRound(state)[0].effectiveAtk, 690);
-  assert.equal(boss.currentHp, 1000);
+  assert.equal(advanceBorosRound(state)[0].effectiveSpd, 170);
+  state.round = 4;
+  assert.equal(advanceBorosRound(state)[0].effectiveSpd, 180);
+  assert.equal(boss.currentHp, hpAtTransition);
+  boss.currentHp = 2500;
+  changeBorosPhase(state, boss);
+  assert.deepEqual(advanceBorosRound(state), []);
+  assert.deepEqual([boss.atk, boss.def, boss.spd], [630, 120, 280]);
+  state.round = 5;
+  assert.equal(advanceBorosRound(state)[0].effectiveAtk, 660);
+  assert.deepEqual(advanceBorosRound(state), []);
+  assert.equal(boss.currentHp, 2500);
 });
 
 test("meteor casts alternate one target 1.3x and all targets 0.7x; final cannon hits all targets at 1.5x", () => {
-  const heroA = ally("a", { hp: 6000, atk: 350, spd: 90 });
-  const heroB = ally("b", { hp: 6000, atk: 350, spd: 70, rosterOrder: 1 });
-  const phase2 = simulateBattle([heroA, heroB, foe(STAGE_TWO_BOSS_DATA, { currentHp: 3000 })], () => .49);
+  const heroA = ally("a", { hp: 100000, atk: 25, spd: 90 });
+  const heroB = ally("b", { hp: 100000, atk: 25, spd: 70, rosterOrder: 1 });
+  const phase2 = simulateBattle([heroA, heroB, foe(STAGE_TWO_BOSS_DATA, { currentHp: 3900 })], () => .49);
   const meteor = phase2.events.filter((entry) => entry.skillId === "boros-meteor-burst");
   assert.equal(meteor[0].skillCastNumber, 1);
   assert.equal(meteor[0].skillMultiplier, 1.3);
   const second = meteor.filter((entry) => entry.skillCastNumber === 2);
   assert.deepEqual(second.map((entry) => entry.targetId), ["a", "b"]);
   assert.ok(second.every((entry) => entry.skillMultiplier === .7));
+  const third = meteor.filter((entry) => entry.skillCastNumber === 3);
+  assert.equal(third.length, 1);
+  assert.equal(third[0].skillMultiplier, 1.3);
+  const fourth = meteor.filter((entry) => entry.skillCastNumber === 4);
+  assert.deepEqual(fourth.map((entry) => entry.targetId), ["a", "b"]);
+  assert.ok(fourth.every((entry) => entry.skillMultiplier === .7));
   const phase3 = simulateBattle([heroA, heroB, foe(STAGE_TWO_BOSS_DATA, { currentHp: 1200 })], () => .49);
   const cannon = phase3.events.filter((entry) => entry.skillId === "boros-collapsing-star");
   assert.deepEqual(cannon.slice(0, 2).map((entry) => entry.targetId), ["a", "b"]);
@@ -194,7 +210,7 @@ test("Kira attaches separate bombs only for actual damage, counts subsequent act
   state.round = 4;
   const explosion = detonateDueBombs(state);
   assert.equal(explosion.length, 1);
-  assert.equal(explosion[0].actualDamage, Math.floor(second.actualDamage * 100 / (100 + hero.def)));
+  assert.equal(explosion[0].actualDamage, Math.floor(second.actualDamage * 100 / (100 + hero.def * .6)));
   assert.equal(state.bombs[0].accumulatedDamage, explosion[0].actualDamage);
   assert.equal(detonateDueBombs(state).length, 0);
 });
@@ -222,10 +238,27 @@ test("simultaneous bomb detonations use attach order and feed later bombs withou
     { id: "bomb-2", targetId: "hero", attachedRound: 2, dueRound: 4, accumulatedDamage: 30 },
   ];
   const events = detonateDueBombs(state);
-  assert.deepEqual(events.map((event) => [event.bombId, event.actualDamage]), [["bomb-1", 50], ["bomb-2", 40]]);
-  assert.equal(state.characters[0].currentHp, 910);
+  assert.deepEqual(events.map((event) => [event.bombId, event.actualDamage]), [["bomb-1", 62], ["bomb-2", 57]]);
+  assert.equal(state.characters[0].currentHp, 881);
   assert.equal(state.bombs.length, 0);
   assert.equal(detonateDueBombs(state).length, 0);
+});
+
+test("Kira bomb hits every living opponent once using 60 percent of each DEF", () => {
+  const kira = ELITE_ENEMY_DATA.find((entry) => entry.id === "kira");
+  const state = initializeBattle([ally("front", { hp: 1000, def: 100 }),
+    ally("rear", { hp: 1000, def: 200, row: "back", rosterOrder: 1 }), foe(kira)]);
+  state.round = 4;
+  state.bombs = [{ id: "bomb-1", targetId: "front", attachedRound: 1, dueRound: 4, accumulatedDamage: 300 }];
+  const events = detonateDueBombs(state);
+  assert.deepEqual(events.map((event) => [event.targetId, event.actualDamage]), [["front", 187], ["rear", 136]]);
+  assert.deepEqual(state.characters.slice(0, 2).map((unit) => [unit.currentHp, unit.def]), [[813, 100], [864, 200]]);
+  assert.equal(state.characters[2].currentHp, kira.hp);
+  assert.deepEqual(detonateDueBombs(state), []);
+  state.characters[1].alive = false;
+  state.characters[1].currentHp = 0;
+  state.bombs = [{ id: "bomb-2", targetId: "front", attachedRound: 1, dueRound: 4, accumulatedDamage: 300 }];
+  assert.deepEqual(detonateDueBombs(state).map((event) => event.targetId), ["front"]);
 });
 
 test("Bites the Dust reads the two-round-old HP snapshot, can lower HP, and advances bombs once", () => {

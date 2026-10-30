@@ -83,7 +83,7 @@ test("the opening draw is stable within a run, unique, reproducible, and permits
     const excluded = STARTING_CHARACTERS.find((entry) => !before.includes(entry.id));
     assert.equal(selectStartingCharacter(campaign, excluded.id), false);
   }
-  assert.deepEqual([...pairs].sort(), ["eren+kaneki", "eren+naruto", "kaneki+naruto"]);
+  assert.deepEqual([...pairs].sort(), ["eren+kaneki", "eren+naruto", "eren+tang", "kaneki+naruto", "kaneki+tang", "naruto+tang"]);
 });
 
 test("Kaneki enters combat with one chosen skill and can learn the other through a scroll", () => {

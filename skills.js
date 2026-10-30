@@ -2,6 +2,28 @@
 // Level-one Naruto values preserve current combat behavior. Other starter entries are first-pass placeholders.
 // Skill tuning can be replaced through this registry without scattering numbers into UI code.
 export const SKILL_DATA = {
+  "tang-flesh": {
+    id: "tang-flesh", name: "唐僧肉", type: "passive", passive: true, maxLevel: 2,
+    description: "召唤物存活时唐僧受到伤害减少 20%；Lv.2 召唤物按实际造成伤害的 20% 治疗唐僧。",
+    levels: { 1: { reduction: 0.2 }, 2: { reduction: 0.2, summonHealRatio: 0.2 } },
+  },
+  "journey-west": {
+    id: "journey-west", name: "取经之路", type: "active", triggerType: "on_action", maxLevel: 10,
+    description: "每次行动必定尝试召唤；同一时间最多一只，同种召唤物每场最多成功召唤一次。",
+    levels: Object.fromEntries(Array.from({ length: 10 }, (_, index) => [index + 1, { chance: 1, effectType: "summon", summonSkillChance: (index + 1) / 10 }])),
+  },
+  "tang-meditation-strike": {
+    id: "tang-meditation-strike", name: "诵经冲击", type: "active", maxLevel: 1,
+    levels: { 1: { chance: 1, multiplier: 1.2, effectType: "damage", attackType: "magic" } },
+  },
+  "horse-hoof": { id: "horse-hoof", name: "蹄朝西", type: "active", maxLevel: 1,
+    levels: { 1: { chance: 1, multiplier: 1, attackFormula: "atk_plus_spd", effectType: "damage", attackType: "melee" } } },
+  "bajie-rake": { id: "bajie-rake", name: "九齿钉耙", type: "active", maxLevel: 1,
+    levels: { 1: { chance: 1, multiplier: 1, attackFormula: "atk_plus_current_hp_fraction", hpFraction: 0.2, effectType: "damage", attackType: "melee" } } },
+  "shaseng-staff": { id: "shaseng-staff", name: "梭罗宝杖", type: "active", maxLevel: 1,
+    levels: { 1: { chance: 1, multiplier: 1.5, attackFormula: "atk_plus_current_def", targetRule: "all_living", effectType: "damage", attackType: "magic" } } },
+  "wukong-fate": { id: "wukong-fate", name: "天命人", type: "active", maxLevel: 1,
+    levels: { 1: { chance: 1, effectType: "alternating" } } },
   "reiner-sat-down": {
     id: "reiner-sat-down", name: "莱纳我坐了", type: "active",
     description: "50% 概率释放；下一个完整战斗回合受到的最终伤害减少 25%，重复释放只刷新持续时间。",
@@ -37,7 +59,7 @@ export const SKILL_DATA = {
     maxLevel: 1, levels: { 1: {} },
   },
   "boros-cosmic-overlord": {
-    id: "boros-cosmic-overlord", name: "宇宙霸主", type: "passive", description: "阶段一减伤、阶段二回合回血、阶段三强化攻击和速度。",
+    id: "boros-cosmic-overlord", name: "宇宙霸主", type: "passive", description: "阶段一减伤；阶段二每个完整回合速度+10；阶段三入场强化攻击和速度，此后每个完整回合攻击+30。",
     maxLevel: 1, levels: { 1: {} },
   },
   "gilgamesh-enuma-elish": {
@@ -131,13 +153,13 @@ export const SKILL_DATA = {
     },
   },
   "eren-tatakae": {
-    id: "eren-tatakae", name: "塔塔开", type: "active", description: "触发时以 ATK + 当前 DEF 作为攻击力并造成倍率伤害；下回合嘲讽敌方单体攻击。Lv.4 为每名存活队友提供 250 点护盾。",
+    id: "eren-tatakae", name: "塔塔开", type: "active", description: "触发时以 ATK + 当前 DEF 作为攻击力并造成倍率伤害；下回合嘲讽敌方单体攻击。Lv.4 为每名存活队友提供 100 点护盾。",
     triggerType: "on_action", targetRule: "front_priority_random", passive: false, unlockMethod: "character_choice", maxLevel: 4,
     levels: {
       1: { chance: 0.30, multiplier: 1.3, attackFormula: "atk_plus_current_def", effectType: "damage", tauntNextRound: true },
       2: { chance: 0.35, multiplier: 1.4, attackFormula: "atk_plus_current_def", effectType: "damage", tauntNextRound: true },
       3: { chance: 0.40, multiplier: 1.55, attackFormula: "atk_plus_current_def", effectType: "damage", tauntNextRound: true },
-      4: { chance: 0.50, multiplier: 1.7, attackFormula: "atk_plus_current_def", effectType: "damage", tauntNextRound: true, teamShield: 250 },
+      4: { chance: 0.50, multiplier: 1.7, attackFormula: "atk_plus_current_def", effectType: "damage", tauntNextRound: true, teamShield: 100 },
     },
   },
   "shield-bash": {

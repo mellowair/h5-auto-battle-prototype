@@ -32,6 +32,7 @@ test("Eren human-form first-pass stats and skill configurations are explicit", (
 test("Eren can choose one configured skill and prepare a battle with his passive", () => {
   const campaign = createCampaign(() => 0, { seed: 77 });
   assert.equal(startCampaign(campaign), true);
+  campaign.candidateIds = ["naruto", "eren"];
   assert.ok(selectStartingCharacter(campaign, "eren", null));
   assert.equal(campaign.startingSkillSelected, false);
   assert.deepEqual(campaign.runCharacterState.learnedActiveSkills, []);

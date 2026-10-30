@@ -1,6 +1,7 @@
 import { CHARACTER_DATA, COMBAT_RULES } from "./characters.js";
 import { evaluatePassive } from "./progression.js";
 import { SKILL_DATA } from "./skills.js";
+import { chooseTangSummon, tangSummonStats, tangSummonVisual } from "./tangSummons.js";
 
 const MAHITO_ATTACK_BONUS = SKILL_DATA["mahito-domain"].levels[1].attackBonusPerRound;
 
@@ -9,7 +10,7 @@ export function initializeBattle(config = CHARACTER_DATA, options = {}) {
     const maxHp = character.maxHp ?? character.hp;
     const currentHp = Math.max(0, Math.min(maxHp, character.currentHp ?? character.hp));
     return { ...character, skill: character.skill ? { ...character.skill } : null, skills: character.skills?.map((skill) => ({ ...skill })) ?? character.skills, maxHp, currentHp, alive: currentHp > 0, elitePassiveActive: false, elitePassiveLastRound: 0, freeWillTriggers: 0, damageTakenHits: 0, critRateBonus: (character.critRateBonus ?? 0) + (character.passiveSkillId === "kaneki-one-eye" && character.passiveLevel >= 2 ? 0.10 : 0), dodgeRateBonus: character.dodgeRateBonus ?? 0, battleAttackBonus: 0, shieldHp: 0, tauntRounds: [], jinchurikiActive: false, jinchurikiAttackBonus: 0,
-      ...(character.phaseSkills ? { borosPhase: 1, borosEnteredRound: 0, meteorCasts: 0 } : {}),
+      ...(character.phaseSkills ? { borosPhase: 1, borosEnteredRound: 0, borosLastGrowthRound: 0, meteorCasts: 0 } : {}),
       ...(character.id === "eren" ? { freeWillDefenseStacks: 0 } : {}),
       ...(character.elitePassiveId === "toji-heavenly-restriction" ? { fasterActions: 0, tojiExhausted: false, tojiSkipRound: null } : {}),
       ...(character.elitePassiveId === "killer-queen" ? { hpSnapshots: [], bitesDustNextAvailableRound: 1 } : {}),
@@ -187,13 +188,13 @@ export function expireArmoredShieldAtRoundEnd(state) {
 
 export function changeBorosPhase(state, character) {
   if (!character.phaseSkills || character.currentHp <= 0) return null;
-  const next = character.currentHp < character.maxHp * .30 ? 3 : character.currentHp < character.maxHp * .75 ? 2 : 1;
+  const next = character.currentHp <= character.maxHp * .50 ? 3 : character.currentHp <= character.maxHp * .80 ? 2 : 1;
   if (next <= character.borosPhase) return null;
   character.borosPhase = next;
   character.borosEnteredRound = state.round;
   if (next === 3) {
-    character.atk += 120;
-    character.def = Math.max(-20, character.def - 90);
+    character.atk += 80;
+    character.def -= 40;
     character.spd += 100;
   }
   return { phase: next, atk: character.atk, def: character.def, spd: character.spd };
@@ -221,20 +222,23 @@ export function detonateDueBombs(state) {
   for (const bomb of due) {
     if (!state.bombs.includes(bomb)) continue;
     state.bombs.splice(state.bombs.indexOf(bomb), 1);
-    const target = state.characters.find((entry) => entry.id === bomb.targetId);
-    if (!target?.alive || target.currentHp <= 0) continue;
-    const hpBefore = target.currentHp;
-    const effectiveDef = target.def + ((target.defenseBuffUntilRound ?? -1) >= state.round ? target.defenseBuff ?? 0 : 0);
-    const damage = bomb.accumulatedDamage > 0
-      ? applyNormalDamageReduction(target, calculateDamage({ atk: bomb.accumulatedDamage }, { def: effectiveDef })) : 0;
-    target.currentHp = Math.max(0, hpBefore - damage);
-    const actualDamage = hpBefore - target.currentHp;
-    // This bomb is already removed, so its explosion only feeds other bombs.
-    accumulateBombDamage(state, target.id, actualDamage);
-    const died = handleDeath(target);
-    if (died) state.bombs = state.bombs.filter((entry) => entry.targetId !== target.id);
-    events.push({ type: "bomb-explode", round: state.round, bombId: bomb.id, targetId: target.id,
-      damage, accumulatedDamage: bomb.accumulatedDamage, actualDamage, hpBefore, hpAfter: target.currentHp, targetDied: died });
+    const primary = state.characters.find((entry) => entry.id === bomb.targetId);
+    if (!primary?.alive || primary.currentHp <= 0) continue;
+    const targets = state.characters.filter((entry) => entry.team === primary.team && entry.alive && entry.currentHp > 0);
+    for (const target of targets) {
+      const hpBefore = target.currentHp;
+      const defense = target.def + ((target.defenseBuffUntilRound ?? -1) >= state.round ? target.defenseBuff ?? 0 : 0);
+      const damage = bomb.accumulatedDamage > 0
+        ? applyNormalDamageReduction(target, calculateDamage({ atk: bomb.accumulatedDamage }, { def: defense * .6 })) : 0;
+      target.currentHp = Math.max(0, hpBefore - damage);
+      const actualDamage = hpBefore - target.currentHp;
+      // This bomb is already removed, so its explosion only feeds other bombs.
+      accumulateBombDamage(state, target.id, actualDamage);
+      const died = handleDeath(target);
+      if (died) state.bombs = state.bombs.filter((entry) => entry.targetId !== target.id);
+      events.push({ type: "bomb-explode", round: state.round, bombId: bomb.id, targetId: target.id,
+        damage, accumulatedDamage: bomb.accumulatedDamage, actualDamage, hpBefore, hpAfter: target.currentHp, targetDied: died });
+    }
   }
   return events;
 }
@@ -348,7 +352,8 @@ export function executeAttack(state, attacker, target, random = Math.random, att
   const currentDefenseBonus = (attacker.defenseBuffUntilRound ?? -1) >= (state.round ?? 1) ? attacker.defenseBuff ?? 0 : 0;
   const skillAttackPower = skill?.attackFormula === "atk_plus_current_def"
     ? attacker.atk + attacker.def + currentDefenseBonus
-    : skill?.attackFormula === "atk_plus_spd" ? attacker.atk + attacker.spd : attacker.atk;
+    : skill?.attackFormula === "atk_plus_spd" ? attacker.atk + attacker.spd
+    : skill?.attackFormula === "atk_plus_current_hp_fraction" ? attacker.atk + Math.floor(attacker.currentHp * skill.hpFraction) : attacker.atk;
   const targetEffectiveDef = target.def + ((target.defenseBuffUntilRound ?? -1) >= (state.round ?? 1) ? target.defenseBuff ?? 0 : 0);
   const critMultiplier = (attacker.critMultiplier ?? COMBAT_RULES.critMultiplier)
     + (attacker.passiveSkillId === "kaneki-one-eye" && attacker.passiveLevel >= 2 ? SKILL_DATA["kaneki-one-eye"].levels[2].critDamageBonus : 0);
@@ -369,6 +374,10 @@ export function executeAttack(state, attacker, target, random = Math.random, att
   }
   if (!dodged && target.damageTakenMultiplier > 1) damage = Math.floor(damage * target.damageTakenMultiplier);
   if (damage > 0 && target.borosPhase === 1) damage = Math.max(1, Math.floor(damage * .9));
+  if (damage > 0 && target.id === "tang" && state.characters.some((unit) => unit.summonerId === "tang" && unit.alive && unit.currentHp > 0))
+    damage = Math.max(1, Math.floor(damage * .8));
+  if (damage > 0 && target.tangSummonKind === "wukong" && target.wukongReductionRound === state.round)
+    damage = Math.max(1, Math.floor(damage * .2));
   const armorReductionApplied = damage > 0 && target.id === "armored-titan"
     && target.armorReductionStartRound != null && state.round >= target.armorReductionStartRound
     && state.round <= target.armorReductionUntilRound;
@@ -380,6 +389,12 @@ export function executeAttack(state, attacker, target, random = Math.random, att
   damage -= shieldAbsorbed;
   target.currentHp = Math.max(0, target.currentHp - damage);
   const actualDamage = targetHpBefore - target.currentHp;
+  let summonerHealedAmount = 0;
+  const summoner = attacker.summonerId && state.characters.find((unit) => unit.id === attacker.summonerId);
+  if (summoner?.alive && summoner.passiveSkillId === "tang-flesh" && (summoner.passiveLevel ?? 1) >= 2 && damage > 0) {
+    summonerHealedAmount = Math.min(summoner.maxHp - summoner.currentHp, Math.floor(actualDamage * .2));
+    summoner.currentHp += summonerHealedAmount;
+  }
   accumulateBombDamage(state, target.id, actualDamage);
   const oneEyeTriggered = damage > 0 && actualDamage > 0 && critical && attacker.passiveSkillId === "kaneki-one-eye";
   let oneEyeHealedAmount = 0;
@@ -465,6 +480,7 @@ export function executeAttack(state, attacker, target, random = Math.random, att
     freeWillDefenseStacks: skill?.id === "eren-free-will" ? attacker.freeWillDefenseStacks : null,
     freeWillTriggerCount: skill?.id === "eren-free-will" ? attacker.freeWillTriggers : null,
     healedAmount, oneEyeTriggered, oneEyeHealedAmount, treasureLifesteal, actualDamage, calculatedDamage: damage, attackerHp: attacker.currentHp, damageSkillTriggered,
+    summonerId: summoner?.id ?? null, summonerHealedAmount, summonerHp: summoner?.currentHp ?? null,
     hpBefore: targetHpBefore,
     shieldAbsorbed, targetShield: target.shieldHp, shieldsGranted, weaknessApplied: target.weaknessRound === state.round + 1,
     extraTrueDamage, predatorKillBonus, jinchurikiLifesteal,
@@ -501,7 +517,8 @@ function recordC0Action(state, event) {
 
 function resolveTrueDamageSkill(state, attacker, target, skill, amount) {
   const hpBefore = target.currentHp;
-  const amplified = applyTojiExhaustion(target, amount);
+  const reduced = target.tangSummonKind === "wukong" && target.wukongReductionRound === state.round ? Math.floor(amount * .2) : amount;
+  const amplified = applyTojiExhaustion(target, reduced);
   const shieldAbsorbed = Math.min(amplified, target.shieldHp ?? 0);
   target.shieldHp = Math.max(0, (target.shieldHp ?? 0) - shieldAbsorbed);
   const damage = amplified - shieldAbsorbed;
@@ -509,11 +526,16 @@ function resolveTrueDamageSkill(state, attacker, target, skill, amount) {
   const actualDamage = hpBefore - target.currentHp;
   accumulateBombDamage(state, target.id, actualDamage);
   const targetDied = handleDeath(target);
+  const summoner = attacker.summonerId && state.characters.find((unit) => unit.id === attacker.summonerId);
+  const summonerHealedAmount = summoner?.alive && (summoner.passiveLevel ?? 1) >= 2
+    ? Math.min(summoner.maxHp - summoner.currentHp, Math.floor(actualDamage * .2)) : 0;
+  if (summonerHealedAmount) summoner.currentHp += summonerHealedAmount;
   return { type: "attack", attackerId: attacker.id, attackerTeam: attacker.team, targetId: target.id,
     skillId: skill.id, skillName: skill.name, skillLevel: skill.level, skilled: true, attackKind: "skill",
     attackType: "magic", trueDamage: true, damage, actualDamage, calculatedDamage: damage,
     dodged: false, hit: true, critical: false, shieldAbsorbed, targetShield: target.shieldHp,
-    targetHp: target.currentHp, targetMaxHp: target.maxHp, targetDied, attackerHp: attacker.currentHp };
+    targetHp: target.currentHp, targetMaxHp: target.maxHp, targetDied, attackerHp: attacker.currentHp,
+    summonerId: summoner?.id ?? null, summonerHealedAmount, summonerHp: summoner?.currentHp ?? null };
 }
 
 function resolveCloneSplash(state, attacker, primary, skill, random) {
@@ -537,6 +559,45 @@ function resolveCloneSplash(state, attacker, primary, skill, random) {
       targetHp: target.currentHp, targetMaxHp: target.maxHp, targetDied, attackerHp: attacker.currentHp, round: state.round });
   }
   return splash;
+}
+
+function createTangSummon(state, summoner, skill, random) {
+  const seen = summoner.tangSummonedKinds ??= [];
+  const kind = chooseTangSummon(skill.level, seen, random);
+  if (!kind) return { type: "summon-failed", round: state.round, summonerId: summoner.id,
+    skillName: skill.name, reason: "本场已召唤过该种类" };
+  const visual = tangSummonVisual(kind);
+  const stats = tangSummonStats(kind, { ...summoner, currentRound: state.round });
+  const skillConfig = SKILL_DATA[visual.skillId];
+  const summoned = { ...visual, ...stats, id: `tang-${kind}-${state.round}`, tangSummonKind: kind,
+    summonerId: summoner.id, team: summoner.team, row: "front", position: "front", rosterOrder: 10,
+    maxHp: stats.hp, currentHp: stats.hp, alive: true, critChance: summoner.critChance ?? COMBAT_RULES.baseCritChance,
+    critMultiplier: summoner.critMultiplier ?? COMBAT_RULES.critMultiplier,
+    skills: [{ ...skillConfig, ...skillConfig.levels[1], chance: skill.level / 10, level: 1 }] };
+  state.characters.push(summoned);
+  seen.push(kind);
+  summoner.tangActiveSummonId = summoned.id;
+  summoner.tangMeditating = true;
+  summoner.tangMeditationRounds = 0;
+  summoner.tangSummonStartRound = state.round;
+  return { type: "summon", round: state.round, summonerId: summoner.id,
+    skillName: skill.name, character: { ...summoned } };
+}
+
+function syncTangSummons(state, events) {
+  const tang = state.characters.find((unit) => unit.id === "tang" && unit.team === "ally");
+  if (!tang) return;
+  const summons = state.characters.filter((unit) => unit.summonerId === tang.id && unit.alive && unit.currentHp > 0);
+  if (!tang.alive || tang.currentHp <= 0) {
+    for (const summon of summons) {
+      summon.currentHp = 0; summon.alive = false;
+      events.push({ type: "summon-dismissed", targetId: summon.id, summonerId: tang.id, round: state.round });
+    }
+  }
+  if (!tang.alive || !summons.length) {
+    if (tang.tangMeditating) events.push({ type: "meditation-end", summonerId: tang.id, round: state.round });
+    tang.tangMeditating = false; tang.tangActiveSummonId = null; tang.tangMeditationRounds = 0;
+  }
 }
 
 function resolveNichirinBonus(state, attacker, target, attack) {
@@ -615,6 +676,7 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
     if (state.forcedOutcome) { outcome = state.forcedOutcome; break; }
     const steamWave = triggerSteamWaveAtRoundStart(state);
     if (steamWave) events.push(steamWave);
+    if (steamWave) syncTangSummons(state, events);
     outcome = isBattleOver(state);
     if (outcome) break;
     for (const character of state.characters) {
@@ -636,7 +698,8 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
     }
     for (const orderedActor of getActionOrder(state)) {
       const attacker = state.characters.find((c) => c.id === orderedActor.id);
-      if (!attacker.alive || attacker.currentHp <= 0) continue;
+      if (!attacker?.alive || attacker.currentHp <= 0) continue;
+      if (attacker.id === "tang" && attacker.tangMeditating) continue;
       if (attacker.elitePassiveId === "toji-heavenly-restriction" && attacker.tojiSkipRound === state.round) {
         attacker.tojiSkipRound = null;
         events.push({ type: "toji-skip", attackerId: attacker.id, round: state.round,
@@ -645,6 +708,30 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
       }
       if (attacker.periodicPassive?.onlyPeriodicActions) continue;
       const selectedSkill = triggeredSkill(attacker, random, state.round);
+      if (attacker.id === "tang" && selectedSkill?.id === "journey-west") {
+        events.push(createTangSummon(state, attacker, selectedSkill, random));
+        continue;
+      }
+      if (attacker.tangSummonKind === "wukong" && selectedSkill?.id === "wukong-fate") {
+        attacker.wukongSkillCasts = (attacker.wukongSkillCasts ?? 0) + 1;
+        if (attacker.wukongSkillCasts % 2) {
+          attacker.wukongReductionRound = state.round + 1;
+          events.push({ type: "wukong-charge", attackerId: attacker.id, round: state.round,
+            reductionRound: attacker.wukongReductionRound, skillName: "天命人" });
+        } else {
+          const victim = chooseTarget(state, attacker, random);
+          if (victim) {
+            const hit = resolveTrueDamageSkill(state, attacker, victim, selectedSkill, 666);
+            hit.round = state.round;
+            hit.wukongTeleportAttack = true;
+            events.push(hit);
+            syncTangSummons(state, events);
+            outcome = isBattleOver(state);
+          }
+        }
+        if (outcome) break;
+        continue;
+      }
       if (selectedSkill?.effectType === "rewind") {
         events.push(...resolveBitesDust(state, attacker));
         outcome = isBattleOver(state);
@@ -665,7 +752,7 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
           continue;
         }
         if (gilgameshCast === 2) skill = { ...skill, multiplier: .9, ignoreDefenseFraction: .4 };
-        if (gilgameshCast === 4) skill = { ...skill, trueDamageRatio: .5 };
+        if (gilgameshCast === 4) skill = { ...skill, trueDamageRatio: .4 };
       }
       if (skill?.id === "boros-meteor-burst") {
         skillCastNumber = ++attacker.meteorCasts;
@@ -700,6 +787,7 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
         if (event.jinchurikiTriggered) events.push({ type: "passive-trigger", ...event.jinchurikiTriggered, attackerId: attacker.id });
         if (event.elitePassiveTriggered) events.push({ type: "elite-passive-trigger", ...event.elitePassiveTriggered, attackerId: attacker.id });
         events.push(event);
+        syncTangSummons(state, events);
         if (attacker.elitePassiveId === "toji-heavenly-restriction" && index + 1 === 4 && !attacker.tojiExhausted) {
           attacker.tojiExhausted = true;
           attacker.tojiSkipRound = state.round + 1;
@@ -730,7 +818,25 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
       if (outcome) break;
     }
     if (outcome) break;
+    const tang = state.characters.find((unit) => unit.id === "tang" && unit.team === "ally");
+    if (tang?.alive && tang.tangMeditating) {
+      const companion = state.characters.find((unit) => unit.id === tang.tangActiveSummonId && unit.alive);
+      if (companion && state.round > (Number(tang.tangSummonStartRound) || 0)) {
+        tang.tangMeditationRounds = (tang.tangMeditationRounds ?? 0) + 1;
+        if (tang.tangMeditationRounds % 3 === 0) {
+          const victim = chooseTarget(state, tang, random);
+          if (victim) {
+            const special = { ...SKILL_DATA["tang-meditation-strike"], ...SKILL_DATA["tang-meditation-strike"].levels[1], level: 1 };
+            const hit = executeAttack(state, tang, victim, random, { skill: special });
+            if (hit) { hit.round = state.round; events.push(hit); syncTangSummons(state, events); }
+            outcome = isBattleOver(state);
+            if (outcome) break;
+          }
+        }
+      }
+    }
     events.push(...detonateDueBombs(state));
+    syncTangSummons(state, events);
     outcome = isBattleOver(state);
     if (outcome) break;
     events.push(...advanceBorosRound(state));
@@ -746,16 +852,17 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
 export function advanceBorosRound(state) {
   const events = [];
   for (const character of state.characters) {
-    if (!character.alive || !character.phaseSkills || state.round <= character.borosEnteredRound) continue;
+    if (!character.alive || !character.phaseSkills || state.round <= character.borosEnteredRound || state.round <= character.borosLastGrowthRound) continue;
     if (character.borosPhase === 2) {
-      const hpBefore = character.currentHp;
-      character.currentHp = Math.min(character.maxHp, hpBefore + 120);
-      events.push({ type: "boros-round-heal", round: state.round, targetId: character.id,
-        healedAmount: character.currentHp - hpBefore, hpAfter: character.currentHp });
+      character.spd += 10;
+      character.borosLastGrowthRound = state.round;
+      events.push({ type: "boros-round-speed", round: state.round, targetId: character.id,
+        speedBonus: 10, effectiveSpd: character.spd });
     } else if (character.borosPhase === 3) {
-      character.atk += 20;
+      character.atk += 30;
+      character.borosLastGrowthRound = state.round;
       events.push({ type: "boros-round-growth", round: state.round, targetId: character.id,
-        attackBonus: 20, effectiveAtk: character.atk });
+        attackBonus: 30, effectiveAtk: character.atk });
     }
   }
   return events;

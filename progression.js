@@ -176,6 +176,11 @@ export function getSkillTrainingChoices(runState) {
   return upgradeable.length ? upgradeable : getUnlearnedActiveSkills(runState);
 }
 
+export function canDeclineNewSkill(runState) {
+  ensureRunState(runState);
+  return runState.learnedActiveSkills.length > 0 && getUpgradeableSkills(runState).length === 0 && getUnlearnedActiveSkills(runState).length > 0;
+}
+
 function applySkillTraining(runState, skillId, sourceId) {
   return getUpgradeableSkills(runState).length
     ? upgradeActiveSkill(runState, skillId, sourceId)
@@ -339,7 +344,7 @@ export function getCampfireOptions(runState) {
   }));
   return [
     { id: CAMPFIRE_RULES.rest.id, name: CAMPFIRE_RULES.rest.name, enabled: true, healAmount: cannotHeal ? 0 : Math.floor(getMaxHp(runState) * healFraction), blockedBy: cannotHeal ? "stone_mask" : null },
-    { id: CAMPFIRE_RULES.skillUpgrade.id, name: CAMPFIRE_RULES.skillUpgrade.name, enabled: eligible.length > 0, skills: eligible, reason: eligible.length ? null : "主动技能已全部学习并达到 Lv.4。" },
+    { id: CAMPFIRE_RULES.skillUpgrade.id, name: CAMPFIRE_RULES.skillUpgrade.name, enabled: eligible.length > 0, skills: eligible, reason: eligible.length ? null : "主动技能已全部学习并达到各自最高等级。" },
   ];
 }
 
@@ -356,6 +361,10 @@ export function resolveCampfire(runState, sourceId, choiceId, skillId = null) {
     if (!healing) return false;
     runState.completedCampfires.push(sourceId);
     return { choiceId, ...healing };
+  }
+  if (choiceId === "skill_upgrade" && skillId === "__skip_new_skill__" && canDeclineNewSkill(runState)) {
+    runState.completedCampfires.push(sourceId);
+    return { choiceId, skippedSkill: true };
   }
   if (choiceId !== "skill_upgrade" || !options[1].enabled || !options[1].skills.some((entry) => entry.skillId === skillId)) return false;
   const skill = applySkillTraining(runState, skillId, `campfire:${sourceId}`);
@@ -374,7 +383,8 @@ export function createBattleRewardOffer(runState, battleId, battleType = "normal
   const offer = {
     battleId, battleType, status: "pending", statChoices: statOffer.choices, requiredStatSelections: statOffer.requiredSelections,
     selectedStatIds: [],
-    extraChoices: battleType === "elite" && skillOptions.length ? [ELITE_BONUS_REWARDS[0].id] : [],
+    extraChoices: battleType === "elite" && skillOptions.length
+      ? [ELITE_BONUS_REWARDS[0].id, ...(canDeclineNewSkill(runState) ? ["skip_skill"] : [])] : [],
     upgradeableSkills: skillOptions,
   };
   runState.rewardOffers[battleId] = offer;
@@ -408,7 +418,8 @@ export function applyBattleBonusReward(runState, battleId, extraChoiceId, skillI
   const offer = runState.rewardOffers[battleId];
   if (!offer || offer.battleType !== "elite" || offer.status !== "awaiting_bonus" || !has(offer.extraChoices, extraChoiceId)) return false;
   if (extraChoiceId === "skill_upgrade" && !has(offer.upgradeableSkills, skillId)) return false;
-  const bonus = applySkillTraining(runState, skillId, `elite:${battleId}`);
+  if (extraChoiceId === "skip_skill" && !canDeclineNewSkill(runState)) return false;
+  const bonus = extraChoiceId === "skip_skill" ? { skippedSkill: true } : applySkillTraining(runState, skillId, `elite:${battleId}`);
   if (!bonus) return false;
   offer.status = "applied";
   offer.extraChoiceId = extraChoiceId;

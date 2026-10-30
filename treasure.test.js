@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { STARTING_CHARACTERS } from "./characters.js";
 import { executeAttack, getCritChance, getDodgeChance, initializeBattle, simulateBattle } from "./battle.js";
-import { chooseRoute, claimCampaignTreasure, finishBattle, getCampaignTreasureOffer, getRouteOptions, prepareBattle, resolveCampaignEvent, resolveStageTwoCampfire, startCampaignEventBattle } from "./campaign.js";
+import { chooseRoute, claimCampaignTreasure, completeLocation, finishBattle, getCampaignTreasureOffer, getRouteOptions, prepareBattle, resolveCampaignEvent, resolveStageTwoCampfire, startCampaignEventBattle } from "./campaign.js";
 import { claimTreasure, createAdventureEventResult, createRunCharacterState, getCampfireOptions, getTreasureCombatModifiers, resolveAdventureEvent, resolveCampfire } from "./progression.js";
 import { TREASURE_DATA } from "./skills.js";
 import { createStageTwoDirectBattleCampaign, createStageTwoTestCampaign } from "./dev/stage2-config.js";
@@ -200,4 +200,26 @@ test("direct 80% theft keeps the cached offer on the event node until one recipi
   assert.equal(campaign.eventResolved, true);
   assert.equal(getCampaignTreasureOffer(campaign), null);
   assert.equal(claimCampaignTreasure(campaign, offer.choices[1], campaign.partyIds[1]), false);
+});
+
+test("treasury theft advances once for one- or two-person parties and returns to the route", () => {
+  for (const partySize of [1, 2]) {
+    const campaign = createStageTwoTestCampaign({ heroId: "naruto", partnerId: "eren", seed: 72 });
+    if (partySize === 1) campaign.partyIds = [campaign.playerId];
+    const question = getRouteOptions(campaign).find((node) => node.type === "question");
+    chooseRoute(campaign, question.id);
+    delete campaign.runCharacterState.eventResults[question.id];
+    campaign.pendingEvent = createAdventureEventResult(campaign.runCharacterState, question.id, "kings_treasury");
+    campaign.random = () => .1;
+    assert.equal(resolveCampaignEvent(campaign, "treasury_steal").result.treasureOffer, "small");
+    assert.equal(resolveCampaignEvent(campaign, "treasury_steal"), false);
+    const offer = getCampaignTreasureOffer(campaign);
+    assert.equal(offer.choices.length, 2);
+    assert.ok(claimCampaignTreasure(campaign, offer.choices[0], campaign.playerId));
+    assert.equal(claimCampaignTreasure(campaign, offer.choices[0], campaign.playerId), false);
+    assert.equal(completeLocation(campaign), "route");
+    assert.equal(campaign.activeNode, null);
+    assert.equal(campaign.step, 13);
+    assert.equal(getRouteOptions(campaign).length > 0, true);
+  }
 });

@@ -274,6 +274,23 @@ export const STARTING_CHARACTERS = [
       death: { type: "frames", frames: { down: "assets/kaneki/death.png" }, loop: false },
     },
   },
+  {
+    id: "tang", name: "唐僧", team: "ally", role: "召唤师", row: "back", position: "back",
+    hp: 700, atk: 300, def: 30, spd: 10,
+    baseStats: { maxHp: 700, atk: 300, def: 30, spd: 10, critRate: 0.05, critMultiplier: 1.5 },
+    activeSkills: ["journey-west"], passiveSkillId: "tang-flesh", attackType: "magic",
+    asset: "assets/tang/tang_idle.png", rosterOrder: 0,
+    skillAnimationMap: { "journey-west": "skill1", "tang-meditation-strike": "skill1" },
+    poseSequence: [{ state: "landed", caption: "", duration: 450 }, { state: "ready", caption: "", duration: 750 }],
+    animations: {
+      idle: { type: "frames", frames: { idle: "assets/tang/tang_idle.png" } },
+      fall: { type: "frames", frames: { landing: "assets/tang/tang_landing.png" }, durationsMs: [700] },
+      pose: { type: "frames", frames: { landed: "assets/tang/tang_landing.png", ready: "assets/tang/tang_idle.png" } },
+      meditate: { type: "frames", frames: { sit: "assets/tang/tang_meditate.png" } },
+      skill1: { type: "frames", frames: { cast: "assets/tang/tang_skill1.png" }, durationsMs: [650] },
+      death: { type: "frames", frames: { down: "assets/tang/tang_death.png" } },
+    },
+  },
 ];
 
 // Elite combat definitions are data-driven; campaign.js chooses one once when an elite node is entered.
