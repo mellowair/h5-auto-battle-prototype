@@ -53,7 +53,7 @@ export function chooseTangSummon(level, summonedKinds = [], random = Math.random
 const whole = (value) => Math.max(1, Math.floor(value));
 
 export function tangSummonStats(kind, summoner) {
-  if (kind === "wukong") return { hp: 3000, atk: 500, def: 250, spd: 250 };
+  if (kind === "wukong") return { hp: 4300, atk: 500, def: 250, spd: 250 };
   const growth = summoner.tangGrowth ?? { maxHp: 0, atk: 0, def: 0, spd: 0 };
   const scaled = (base, extra, multiplier) => whole(base * multiplier + extra * Math.min(multiplier, 1));
   if (kind === "white-horse") return { hp: scaled(700, growth.maxHp, 1.5), atk: scaled(300, growth.atk, .5), def: scaled(30, growth.def, 2), spd: scaled(10, growth.spd, 5) };

@@ -23,7 +23,7 @@ export const SKILL_DATA = {
   "shaseng-staff": { id: "shaseng-staff", name: "梭罗宝杖", type: "active", maxLevel: 1,
     levels: { 1: { chance: 1, multiplier: 1.5, attackFormula: "atk_plus_current_def", targetRule: "all_living", effectType: "damage", attackType: "magic" } } },
   "wukong-fate": { id: "wukong-fate", name: "天命人", type: "active", maxLevel: 1,
-    levels: { 1: { chance: 1, effectType: "alternating" } } },
+    levels: { 1: { chance: 1, effectType: "alternating", trueDamage: 888 } } },
   "reiner-sat-down": {
     id: "reiner-sat-down", name: "莱纳我坐了", type: "active",
     description: "50% 概率释放；下一个完整战斗回合受到的最终伤害减少 25%，重复释放只刷新持续时间。",

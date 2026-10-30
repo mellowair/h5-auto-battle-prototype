@@ -50,7 +50,7 @@ test("summon stats use only retained run growth with the B+ inheritance caps", (
   assert.deepEqual(tangSummonStats("white-horse", source), { hp: 1050, atk: 150, def: 60, spd: 50 });
   assert.deepEqual(tangSummonStats("bajie", source), { hp: 2100, atk: 100, def: 75, spd: 20 });
   assert.deepEqual(tangSummonStats("shaseng", source), { hp: 1750, atk: 200, def: 90, spd: 30 });
-  assert.deepEqual(tangSummonStats("wukong", source), { hp: 3000, atk: 500, def: 250, spd: 250 });
+  assert.deepEqual(tangSummonStats("wukong", source), { hp: 4300, atk: 500, def: 250, spd: 250 });
   const growthA = { maxHp: 300, atk: 100, def: 20, spd: 10 };
   const growthB = { maxHp: 800, atk: 250, def: 60, spd: 30 };
   assert.deepEqual(tangSummonStats("white-horse", { ...source, tangGrowth: growthA }), { hp: 1350, atk: 200, def: 80, spd: 60 });
@@ -59,7 +59,7 @@ test("summon stats use only retained run growth with the B+ inheritance caps", (
   assert.deepEqual(tangSummonStats("white-horse", { ...source, tangGrowth: growthB }), { hp: 1850, atk: 275, def: 120, spd: 80 });
   assert.deepEqual(tangSummonStats("bajie", { ...source, tangGrowth: growthB }), { hp: 2900, atk: 183, def: 135, spd: 50 });
   assert.deepEqual(tangSummonStats("shaseng", { ...source, tangGrowth: growthB }), { hp: 2550, atk: 366, def: 150, spd: 60 });
-  assert.deepEqual(tangSummonStats("wukong", { ...source, tangGrowth: growthB }), { hp: 3000, atk: 500, def: 250, spd: 250 });
+  assert.deepEqual(tangSummonStats("wukong", { ...source, tangGrowth: growthB }), { hp: 4300, atk: 500, def: 250, spd: 250 });
   assert.equal(tangSummonStats("bajie", { ...source, tangGrowth: growthA, defenseBuff: 20, currentRound: 2, shieldHp: 100 }).def, 95);
 });
 
@@ -96,11 +96,12 @@ test("Tang Flesh level two heals from actual summon damage and level one does no
   assert.ok(level2.finalCharacters.find((unit) => unit.id === "tang").currentHp <= 700);
 });
 
-test("Wukong alternates one round of charge and a single 666 true-damage strike", () => {
+test("Wukong alternates one round of charge and a single 888 true-damage strike", () => {
   const result = run(10, .95, { enemyHp: 4000 });
   assert.equal(result.events.find((event) => event.type === "summon")?.character.name, "孙悟空");
+  assert.equal(result.events.find((event) => event.type === "summon")?.character.maxHp, 4300);
   assert.ok(result.events.some((event) => event.type === "wukong-charge" && event.round === 2 && event.reductionRound === 3));
-  assert.ok(result.events.some((event) => event.skillId === "wukong-fate" && event.round === 3 && event.trueDamage && event.damage === 666));
+  assert.ok(result.events.some((event) => event.skillId === "wukong-fate" && event.round === 3 && event.trueDamage && event.damage === 888));
   assert.ok(result.events.some((event) => event.wukongTeleportAttack && event.skillId === "wukong-fate"));
   const frames = tangSummonVisual("wukong").animations;
   for (const path of [frames.charge.frames.charge, frames.skillAttack.frames.teleport, frames.skillAttack.frames.strike, frames.death.frames.down])
