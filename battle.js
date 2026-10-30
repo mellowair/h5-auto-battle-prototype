@@ -739,7 +739,7 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
           const victim = chooseTarget(state, attacker, random);
           if (victim) {
             const summoner = state.characters.find((unit) => unit.id === attacker.summonerId);
-            const trueDamage = Math.max(0, Math.floor((summoner?.atk ?? 0) * selectedSkill.summonerAtkMultiplier));
+            const trueDamage = Math.max(0, Math.floor((attacker.atk + (summoner?.atk ?? 0)) * selectedSkill.combinedAtkMultiplier));
             const hit = resolveTrueDamageSkill(state, attacker, victim, selectedSkill, trueDamage);
             hit.round = state.round;
             hit.wukongTeleportAttack = true;

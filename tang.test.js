@@ -15,7 +15,7 @@ const enemy = (hp = 5000, atk = 1) => ({ id: "test-enemy", name: "测试敌人",
 const run = (level, roll = .9, options = {}) => simulateBattle([
   { ...tang, hp: 700, maxHp: 700, currentHp: options.hp ?? 700, passiveLevel: options.passiveLevel ?? 1,
     atk: options.atk ?? tang.atk, skills: [journey(level)], critChance: 0, rosterOrder: 0 },
-  enemy(options.enemyHp ?? 5000, options.enemyAtk ?? 1),
+  { ...enemy(options.enemyHp ?? 5000, options.enemyAtk ?? 1), def: options.enemyDef ?? 0 },
 ], () => roll);
 
 test("Tang joins both selectable stages with the new landing frame and exact base stats", () => {
@@ -96,21 +96,22 @@ test("Tang Flesh level two heals from actual summon damage and level one does no
   assert.ok(level2.finalCharacters.find((unit) => unit.id === "tang").currentHp <= 700);
 });
 
-test("Wukong charges, protects Tang for two rounds, then deals 2.5 times Tang's ATK as true damage", () => {
+test("Wukong charges, protects Tang for one round, then deals 0.9 times combined ATK as true damage", () => {
   const result = run(10, .95, { enemyHp: 4000 });
   assert.equal(result.events.find((event) => event.type === "summon")?.character.name, "孙悟空");
   assert.equal(result.events.find((event) => event.type === "summon")?.character.maxHp, 4300);
   assert.ok(result.events.some((event) => event.type === "wukong-charge" && event.round === 2 && event.reductionRound === 3
-    && event.summonerId === "tang" && event.defenseBonus === 130 && event.defenseUntilRound === 3));
-  assert.ok(result.events.some((event) => event.skillId === "wukong-fate" && event.round === 3 && event.trueDamage && event.damage === 750));
-  assert.ok(run(10, .95, { enemyHp: 5000, atk: 420 }).events.some((event) => event.skillId === "wukong-fate" && event.damage === 1050));
+    && event.summonerId === "tang" && event.defenseBonus === 80 && event.defenseDurationRounds === 1 && event.defenseUntilRound === 2));
+  assert.ok(result.events.some((event) => event.skillId === "wukong-fate" && event.round === 3 && event.trueDamage && event.damage === 720));
+  assert.ok(run(10, .95, { enemyHp: 5000, atk: 420 }).events.some((event) => event.skillId === "wukong-fate" && event.damage === 828));
+  assert.ok(run(10, .95, { enemyHp: 5000, enemyDef: 1000 }).events.some((event) => event.skillId === "wukong-fate" && event.trueDamage && event.damage === 720));
   assert.ok(result.events.some((event) => event.wukongTeleportAttack && event.skillId === "wukong-fate"));
   const frames = tangSummonVisual("wukong").animations;
   for (const path of [frames.charge.frames.charge, frames.skillAttack.frames.teleport, frames.skillAttack.frames.strike, frames.death.frames.down])
     assert.ok(existsSync(new URL(`./${path}`, import.meta.url)), path);
 });
 
-test("Wukong's Tang DEF buff affects current and next battle round, then expires", () => {
+test("Wukong's Tang DEF buff affects only the charge round, then expires", () => {
   let rolls = 0;
   const result = simulateBattle([
     { ...tang, hp: 2000, maxHp: 2000, currentHp: 2000, row: "front", skills: [], skill: null,
@@ -121,5 +122,5 @@ test("Wukong's Tang DEF buff affects current and next battle round, then expires
     { ...enemy(10000, 260), def: 1000, rosterOrder: 2 },
   ], () => ++rolls === 1 ? 0 : .99);
   const hits = result.events.filter((event) => event.type === "attack" && event.attackerId === "test-enemy" && event.targetId === "tang");
-  assert.deepEqual(hits.slice(0, 3).map((event) => [event.round, event.damage]), [[1, 80], [2, 80], [3, 160]]);
+  assert.deepEqual(hits.slice(0, 3).map((event) => [event.round, event.damage]), [[1, 98], [2, 160], [3, 160]]);
 });

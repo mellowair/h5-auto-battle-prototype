@@ -221,7 +221,7 @@ function displaySkillEffect(skill, context = {}) {
   if (skill?.id === "horse-hoof") return `${chance} · 以 ATK + SPD 造成 1 倍伤害`;
   if (skill?.id === "bajie-rake") return `${chance} · 以 ATK + 当前 HP 的 20% 造成 1 倍伤害`;
   if (skill?.id === "shaseng-staff") return `${chance} · 以 ATK + 当前 DEF 造成 1.5 倍伤害，攻击敌方全体`;
-  if (skill?.id === "wukong-fate") return `${chance} · 成功释放时交替发动：首次蓄力，下回合受到的伤害减少 80%，唐僧 DEF +${skill.summonerDefenseBonus}（持续 ${skill.summonerDefenseDurationRounds} 回合）；再次瞬移到目标面前，造成唐僧当前 ATK ×${skill.summonerAtkMultiplier} 的真实伤害`;
+  if (skill?.id === "wukong-fate") return `${chance} · 成功释放时交替发动：首次蓄力，下回合受到的伤害减少 80%，唐僧 DEF +${skill.summonerDefenseBonus}（持续 ${skill.summonerDefenseDurationRounds} 回合）；再次瞬移到目标面前，造成（悟空当前 ATK + 唐僧当前 ATK）×${skill.combinedAtkMultiplier} 的真实伤害`;
   if (skill?.effectType === "buff") return `${chance} · 防御 +${skill.defenseBonus ?? 0}，持续 ${skill.durationTurns ?? 1} 回合`;
   if (skill?.id === "shadow-clone-rush") return `影分身 ${skill.cloneCount ?? skill.level ?? 1} 个 · 伤害倍率 ${skill.multiplier ?? 1}× · ${chance}`;
   if (skill?.id === "rasengan" || skill?.multiplierFormula) {
