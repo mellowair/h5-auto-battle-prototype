@@ -88,6 +88,12 @@ function applyNormalDamageReduction(target, damage) {
   return Math.max(1, Math.floor(damage * (1 - Math.min(.99, target.damageReductionBonus ?? 0))));
 }
 
+function combatDefense(character, round) {
+  return character.def
+    + ((character.defenseBuffUntilRound ?? -1) >= round ? character.defenseBuff ?? 0 : 0)
+    + ((character.wukongDefenseBuffUntilRound ?? -1) >= round ? character.wukongDefenseBuff ?? 0 : 0);
+}
+
 export function getDodgeChance(character) {
   const normal = Number.isFinite(character.normalDodgeRate) ? character.normalDodgeRate
     : COMBAT_RULES.baseDodgeChance + character.spd * COMBAT_RULES.dodgePerSpeed + (character.dodgeRateBonus ?? 0);
@@ -228,7 +234,7 @@ export function detonateDueBombs(state) {
     const targets = state.characters.filter((entry) => entry.team === primary.team && entry.alive && entry.currentHp > 0);
     for (const target of targets) {
       const hpBefore = target.currentHp;
-      const defense = target.def + ((target.defenseBuffUntilRound ?? -1) >= state.round ? target.defenseBuff ?? 0 : 0);
+      const defense = combatDefense(target, state.round);
       const damage = bomb.accumulatedDamage > 0
         ? applyNormalDamageReduction(target, calculateDamage({ atk: bomb.accumulatedDamage }, { def: defense * .6 })) : 0;
       target.currentHp = Math.max(0, hpBefore - damage);
@@ -356,7 +362,7 @@ export function executeAttack(state, attacker, target, random = Math.random, att
     ? attacker.atk + attacker.def + currentDefenseBonus
     : skill?.attackFormula === "atk_plus_spd" ? attacker.atk + attacker.spd
     : skill?.attackFormula === "atk_plus_current_hp_fraction" ? attacker.atk + Math.floor(attacker.currentHp * skill.hpFraction) : attacker.atk;
-  const targetEffectiveDef = target.def + ((target.defenseBuffUntilRound ?? -1) >= (state.round ?? 1) ? target.defenseBuff ?? 0 : 0);
+  const targetEffectiveDef = combatDefense(target, state.round ?? 1);
   const critMultiplier = (attacker.critMultiplier ?? COMBAT_RULES.critMultiplier)
     + (attacker.passiveSkillId === "kaneki-one-eye" && attacker.passiveLevel >= 2 ? SKILL_DATA["kaneki-one-eye"].levels[2].critDamageBonus : 0);
   let damage = dodged ? 0 : calculateDamage({ ...attacker, atk: skillAttackPower }, { ...target, def: targetEffectiveDef * (1 - (skill?.ignoreDefenseFraction ?? 0)) }, skillMultiplier * (critical ? critMultiplier : 1));
@@ -545,7 +551,7 @@ function resolveCloneSplash(state, attacker, primary, skill, random) {
   const base = Math.floor(primary.calculatedDamage * skill.splashRatio);
   for (const target of state.characters.filter((unit) => unit.team !== attacker.team && unit.id !== primary.targetId && unit.alive && unit.currentHp > 0)) {
     const dodged = !attacker.unavoidableAttack && random() < getSkillDodgeChance(target);
-    let damage = dodged ? 0 : applyTojiExhaustion(target, applyNormalDamageReduction(target, calculateDamage({ atk: base }, { def: target.def + ((target.defenseBuffUntilRound ?? -1) >= state.round ? target.defenseBuff ?? 0 : 0) })));
+    let damage = dodged ? 0 : applyTojiExhaustion(target, applyNormalDamageReduction(target, calculateDamage({ atk: base }, { def: combatDefense(target, state.round) })));
     const shieldAbsorbed = Math.min(damage, target.shieldHp ?? 0);
     target.shieldHp = Math.max(0, (target.shieldHp ?? 0) - shieldAbsorbed);
     damage -= shieldAbsorbed;
@@ -697,6 +703,7 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
     }
     for (const character of state.characters) {
       if ((character.defenseBuffUntilRound ?? -1) < state.round) character.defenseBuff = 0;
+      if ((character.wukongDefenseBuffUntilRound ?? -1) < state.round) character.wukongDefenseBuff = 0;
     }
     for (const orderedActor of getActionOrder(state)) {
       const attacker = state.characters.find((c) => c.id === orderedActor.id);
@@ -718,12 +725,22 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
         attacker.wukongSkillCasts = (attacker.wukongSkillCasts ?? 0) + 1;
         if (attacker.wukongSkillCasts % 2) {
           attacker.wukongReductionRound = state.round + 1;
+          const summoner = state.characters.find((unit) => unit.id === attacker.summonerId && unit.alive);
+          if (summoner) {
+            summoner.wukongDefenseBuff = selectedSkill.summonerDefenseBonus;
+            summoner.wukongDefenseBuffUntilRound = state.round + selectedSkill.summonerDefenseDurationRounds - 1;
+          }
           events.push({ type: "wukong-charge", attackerId: attacker.id, round: state.round,
-            reductionRound: attacker.wukongReductionRound, skillName: "天命人" });
+            reductionRound: attacker.wukongReductionRound, skillName: "天命人",
+            summonerId: summoner?.id ?? null, defenseBonus: summoner?.wukongDefenseBuff ?? 0,
+            defenseDurationRounds: selectedSkill.summonerDefenseDurationRounds,
+            defenseUntilRound: summoner?.wukongDefenseBuffUntilRound ?? null });
         } else {
           const victim = chooseTarget(state, attacker, random);
           if (victim) {
-            const hit = resolveTrueDamageSkill(state, attacker, victim, selectedSkill, selectedSkill.trueDamage);
+            const summoner = state.characters.find((unit) => unit.id === attacker.summonerId);
+            const trueDamage = Math.max(0, Math.floor((summoner?.atk ?? 0) * selectedSkill.summonerAtkMultiplier));
+            const hit = resolveTrueDamageSkill(state, attacker, victim, selectedSkill, trueDamage);
             hit.round = state.round;
             hit.wukongTeleportAttack = true;
             events.push(hit);

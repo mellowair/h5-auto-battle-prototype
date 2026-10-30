@@ -221,7 +221,7 @@ function displaySkillEffect(skill, context = {}) {
   if (skill?.id === "horse-hoof") return `${chance} · 以 ATK + SPD 造成 1 倍伤害`;
   if (skill?.id === "bajie-rake") return `${chance} · 以 ATK + 当前 HP 的 20% 造成 1 倍伤害`;
   if (skill?.id === "shaseng-staff") return `${chance} · 以 ATK + 当前 DEF 造成 1.5 倍伤害，攻击敌方全体`;
-  if (skill?.id === "wukong-fate") return `${chance} · 成功释放时交替发动：首次蓄力，下回合受到的伤害减少 80%；再次瞬移到目标面前，造成 ${skill.trueDamage} 点真实伤害`;
+  if (skill?.id === "wukong-fate") return `${chance} · 成功释放时交替发动：首次蓄力，下回合受到的伤害减少 80%，唐僧 DEF +${skill.summonerDefenseBonus}（持续 ${skill.summonerDefenseDurationRounds} 回合）；再次瞬移到目标面前，造成唐僧当前 ATK ×${skill.summonerAtkMultiplier} 的真实伤害`;
   if (skill?.effectType === "buff") return `${chance} · 防御 +${skill.defenseBonus ?? 0}，持续 ${skill.durationTurns ?? 1} 回合`;
   if (skill?.id === "shadow-clone-rush") return `影分身 ${skill.cloneCount ?? skill.level ?? 1} 个 · 伤害倍率 ${skill.multiplier ?? 1}× · ${chance}`;
   if (skill?.id === "rasengan" || skill?.multiplierFormula) {
@@ -1217,6 +1217,9 @@ function clearEffects() {
 function playEvent(event, finish) {
   if (Number.isFinite(event.round) && event.round !== battleStatusState.currentRound) {
     battleStatusState.currentRound = event.round;
+    viewState?.characters?.forEach((character) => {
+      if ((character.wukongDefenseBuffUntilRound ?? -1) < event.round) character.wukongDefenseBuff = 0;
+    });
     const armor = document.querySelector('[data-character="armored-titan"]');
     if (armor?.dataset.armorPoseRound && Number(armor.dataset.armorPoseRound) < event.round) {
       delete armor.dataset.armorPoseRound;
@@ -1494,7 +1497,12 @@ function playEvent(event, finish) {
     return finish();
   }
   if (event.type === "wukong-charge") {
-    addLog(`<b>孙悟空</b> 使用「天命人」蓄力：下个完整回合受到伤害减少 80%。`, "log-skill");
+    addLog(`<b>孙悟空</b> 使用「天命人」蓄力：下个完整回合受到伤害减少 80%；唐僧 DEF +${event.defenseBonus}，持续 ${event.defenseDurationRounds} 回合。`, "log-skill");
+    const summoner = viewState.characters.find((unit) => unit.id === event.summonerId);
+    if (summoner) {
+      summoner.wukongDefenseBuff = event.defenseBonus;
+      summoner.wukongDefenseBuffUntilRound = event.defenseUntilRound;
+    }
     const actor = viewState.characters.find((unit) => unit.id === event.attackerId);
     const fighter = document.querySelector(`[data-character="${event.attackerId}"]`);
     if (fighter && actor) showFighterFrame(fighter, actor, "charge", "charge");
