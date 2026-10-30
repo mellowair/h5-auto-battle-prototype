@@ -196,8 +196,9 @@ export function changeBorosPhase(state, character) {
     character.atk += 80;
     character.def -= 40;
     character.spd += 100;
+    character.lifesteal = (character.lifesteal ?? 0) + .10;
   }
-  return { phase: next, atk: character.atk, def: character.def, spd: character.spd };
+  return { phase: next, atk: character.atk, def: character.def, spd: character.spd, lifesteal: character.lifesteal ?? 0 };
 }
 
 function accumulateBombDamage(state, targetId, actualDamage) {

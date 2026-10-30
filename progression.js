@@ -589,8 +589,11 @@ export function resolveAdventureEvent(runState, sourceId, choiceId = null, rando
         series.sea = { chapter1Completed: true, permanentExcluded: true, lastChoice: choiceId };
       } else if (choiceId === "sea_begin") {
         record.data.phase = "choices";
+        // The first option commits the first exchange. Later choices may add
+        // more tiers or finish, but can no longer leave with zero exchanges.
+        record.data.selectedTiers.push(0);
         keepPending = true;
-        result = { continued: true, choicesMade: 0 };
+        result = { continued: true, choicesMade: 1 };
       } else return false;
     } else if (record.data.phase === "choices") {
       if (choiceId === "sea_sacrifice") {

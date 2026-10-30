@@ -59,7 +59,7 @@ export const SKILL_DATA = {
     maxLevel: 1, levels: { 1: {} },
   },
   "boros-cosmic-overlord": {
-    id: "boros-cosmic-overlord", name: "宇宙霸主", type: "passive", description: "阶段一减伤；阶段二每个完整回合速度+10；阶段三入场强化攻击和速度，此后每个完整回合攻击+30。",
+    id: "boros-cosmic-overlord", name: "宇宙霸主", type: "passive", description: "阶段一减伤；阶段二每个完整回合速度+10；阶段三入场强化攻击和速度并获得10%吸血，此后每个完整回合攻击+30。",
     maxLevel: 1, levels: { 1: {} },
   },
   "gilgamesh-enuma-elish": {
@@ -232,7 +232,7 @@ export const ADVENTURE_EVENT_DATA = {
     image: "assets/events/event_scroll_jiraiya.png", effectText: "跟随白发老人学习一项新技能，或选择离开。",
     containsBattle: false, providesReward: true, requiresChoice: true,
   },
-  sea_beyond: { id: "sea_beyond", name: "海的那边……", type: "sea_choice", description: "围城里的你，渴望翻过矗立的城墙去看看海。", image: "assets/events/event_sea_beyond.png", effectText: "选择前往后，会连续决定承担多少次代价；结果在结束探索后揭晓。", containsBattle: false, providesReward: true, requiresChoice: true },
+  sea_beyond: { id: "sea_beyond", name: "海的那边……", type: "sea_choice", description: "围城里的你，渴望翻过矗立的城墙去看看海。", image: "assets/events/event_sea_beyond.png", effectText: "选择前往后先以生命换取一项属性，随后可决定是否继续；每次结果在选择后揭晓。", containsBattle: false, providesReward: true, requiresChoice: true },
   sea_beyond_2: { id: "sea_beyond_2", name: "海的那边……", type: "sea_sequel", description: "你孤身一人来到海的那边，结果却与你想象中截然不同，你所仇恨在意的一切到底是什么呢？……海浪拍打着岸边，你望向远方，下定决心。", image: "assets/events/event_sea_beyond_2.png", effectText: "你将如何选择？", containsBattle: false, providesReward: true, requiresChoice: true },
   old_scroll_2: { id: "old_scroll_2", name: "老头的卷轴", type: "scroll_sequel", description: "又遇到这个老头了，似乎手里面还拿着一本什么天堂？……", image: "assets/events/event_old_scroll_2.png", effectText: "你将如何回应？", containsBattle: false, providesReward: true, requiresChoice: true },
   anteiku_2: { id: "anteiku_2", name: "安定区", type: "anteiku_sequel", description: "再次回来时，街区已经被封锁，年迈的店长告诉你，平静的日子已经一去不返。", image: "assets/events/event_anteiku_2.png", effectText: "你将如何选择？", containsBattle: false, providesReward: true, requiresChoice: true },

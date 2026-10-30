@@ -202,6 +202,26 @@ test("Predator levels use ATK+SPD, current pre-hit HP threshold and independent 
   assert.equal(dodged.critical, false);
 });
 
+test("Predator Lv4 grants 50 lasting max HP only when its hit kills", () => {
+  const run = createRunCharacterState(kaneki, "kaneki-predator");
+  const fighter = unit({ passiveSkillId: null, skills: [skillAt("kaneki-predator", 4)] });
+  const state = initializeBattle([fighter, enemy({ currentHp: 100 })], { runCharacterStates: { kaneki: run } });
+  const hero = state.characters[0], victim = state.characters[1];
+  const before = run.maxHp;
+  const hit = executeAttack(state, hero, victim, rolls(0, .99, .99));
+  assert.equal(hit.skillId, "kaneki-predator");
+  assert.equal(hit.predatorKillBonus, 50);
+  assert.equal(hero.maxHp, before + 50);
+  assert.equal(run.maxHp, before + 50, "the run state carries the gain into later battles");
+  assert.equal(hero.currentHp, before, "max HP growth does not heal");
+  const next = initializeBattle([unit({ maxHp: run.maxHp, hp: run.maxHp })]);
+  assert.equal(next.characters[0].maxHp, before + 50);
+  const survivor = enemy({ currentHp: 1000 });
+  const nonlethal = executeAttack(state, hero, survivor, rolls(0, .99, .99));
+  assert.equal(nonlethal.predatorKillBonus, 0);
+  assert.equal(run.maxHp, before + 50);
+});
+
 test("1000-7 reacts only to effective damage and its bonuses reset with a new battle", () => {
   for (const level of [1, 2, 3, 4]) {
     const actor = unit({ skills: [skillAt("kaneki-1000-7", level)] });

@@ -34,7 +34,6 @@ test("series chapters respect choices, stage exclusions, permanent exclusions, s
   assert.equal(getAvailableAdventureEventIds(state).includes("sea_beyond_2"), false);
   createAdventureEventResult(state, "sea-a", "sea_beyond", () => 0);
   resolveAdventureEvent(state, "sea-a", "sea_begin");
-  resolveAdventureEvent(state, "sea-a", "sea_sacrifice");
   resolveAdventureEvent(state, "sea-a", "sea_finish");
   assert.deepEqual(state.eventSeries.sea.rewards, [{ stat: "atk", amount: 30 }]);
   assert.equal(getAvailableAdventureEventIds(state).includes("sea_beyond"), false);

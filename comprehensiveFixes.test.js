@@ -81,7 +81,6 @@ test("Sea Beyond displays the cached first-chapter roll and settles that same ro
   assert.deepEqual(getSeaBeyondOfferDetails(createAdventureEventResult(state, "sea-preview", "sea_beyond", () => .99)), details,
     "reopening the same event must not redraw the offer");
   resolveAdventureEvent(state, "sea-preview", "sea_begin");
-  resolveAdventureEvent(state, "sea-preview", "sea_sacrifice");
   const settled = resolveAdventureEvent(state, "sea-preview", "sea_finish");
   assert.equal(settled.result.hpLoss, details[0].hpLoss);
   assert.deepEqual(settled.result.gains, [{ stat: "atk", amount: 30 }]);

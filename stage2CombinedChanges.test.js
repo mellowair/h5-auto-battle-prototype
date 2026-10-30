@@ -48,7 +48,6 @@ test("fall and sea keep main-only HP costs while granting stage-two positive out
   const seaPartnerHp = sea.partyStates.eren.maxHp;
   const seaPartnerAtk = sea.partyStates.eren.atk;
   assert.ok(resolveCampaignEvent(sea, "sea_begin"));
-  assert.ok(resolveCampaignEvent(sea, "sea_sacrifice"));
   assert.ok(resolveCampaignEvent(sea, "sea_finish"));
   assert.equal(sea.partyStates.eren.maxHp, seaPartnerHp);
   assert.equal(sea.partyStates.eren.atk, seaPartnerAtk + 30);

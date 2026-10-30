@@ -98,9 +98,15 @@ test("Boros thresholds are strict, phases never reverse, and crossing both thres
   boss.currentHp = 2501;
   assert.equal(changeBorosPhase(state, boss), null);
   boss.currentHp = 2500;
-  assert.deepEqual(changeBorosPhase(state, boss), { phase: 3, atk: 630, def: 120, spd: 250 });
+  assert.deepEqual(changeBorosPhase(state, boss), { phase: 3, atk: 630, def: 120, spd: 250, lifesteal: .1 });
   assert.equal(changeBorosPhase(state, boss), null);
   assert.deepEqual([boss.atk, boss.def, boss.spd], [630, 120, 250]);
+  assert.equal(boss.lifesteal, .1);
+  const hero = state.characters[0];
+  const hpBeforeAttack = boss.currentHp;
+  const attack = executeAttack(state, boss, hero, () => .99, { skill: null });
+  assert.equal(attack.treasureLifesteal, Math.floor(attack.actualDamage * .1));
+  assert.equal(boss.currentHp, hpBeforeAttack + attack.treasureLifesteal);
   const skipped = initializeBattle([ally("hero"), foe(STAGE_TWO_BOSS_DATA)]);
   skipped.round = 1; skipped.characters[1].currentHp = 2300;
   assert.equal(changeBorosPhase(skipped, skipped.characters[1]).phase, 3);

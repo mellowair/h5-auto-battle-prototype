@@ -471,7 +471,6 @@ test("sea beyond uses three percentage sacrifice tiers and random stat rewards, 
  const initialMax=eren.maxHp, initialAtk=eren.atk, initialDef=eren.def, initialSpd=eren.spd;
  assert.equal(resolveAdventureEvent(eren,source,"sea_begin").status,"pending");
  assert.equal(resolveAdventureEvent(eren,source,"sea_sacrifice").status,"pending");
- assert.equal(resolveAdventureEvent(eren,source,"sea_sacrifice").status,"pending");
  assert.equal(eren.maxHp,initialMax,"intermediate selections do not apply effects before results are shown");
  const completed=resolveAdventureEvent(eren,source,"sea_finish");
  assert.equal(completed.status,"completed"); assert.equal(completed.result.hpLoss,950); assert.equal(completed.result.hpLossPercent,50);
@@ -484,10 +483,15 @@ test("sea beyond uses three percentage sacrifice tiers and random stat rewards, 
  const allThree=createAdventureEventResult(narutoRun,"sea-all","sea_beyond",()=>0);
  resolveAdventureEvent(narutoRun,"sea-all","sea_begin");
  resolveAdventureEvent(narutoRun,"sea-all","sea_sacrifice");
- resolveAdventureEvent(narutoRun,"sea-all","sea_sacrifice");
  const final=resolveAdventureEvent(narutoRun,"sea-all","sea_sacrifice");
  assert.equal(final.status,"completed"); assert.equal(final.result.hpLoss,1440); assert.equal(final.result.hpLossPercent,90); assert.equal(final.result.choicesUsed,3);
  assert.equal(narutoRun.maxHp,160); assert.equal(narutoRun.atk,170+30+50+70); assert.equal(narutoRun.def,70);
+ const firstOnly=makeNaruto();
+ createAdventureEventResult(firstOnly,"sea-first","sea_beyond",()=>0);
+ assert.equal(resolveAdventureEvent(firstOnly,"sea-first","sea_begin").result.choicesMade,1);
+ assert.equal(resolveAdventureEvent(firstOnly,"sea-first","sea_finish").result.choicesUsed,1);
+ assert.deepEqual(firstOnly.eventSeries.sea.rewards,[{stat:"atk",amount:30}]);
+ assert.equal(getAvailableAdventureEventIds(firstOnly).includes("sea_beyond_2"),true);
  const declined=makeNaruto();
  createAdventureEventResult(declined,"sea-declined","sea_beyond",()=>0);
  resolveAdventureEvent(declined,"sea-declined","sea_pass");

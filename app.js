@@ -862,7 +862,7 @@ function renderAllyStatusIcons() {
   }
   if (battleStatusState.borosPhase) {
     enemyStatuses.push({ id: "boros-phase", name: "宇宙霸主", image: "assets/stage2-enemies/boros/stage1.png", tone: "danger",
-      description: `波罗斯当前为阶段${["", "一 · 铠甲", "二 · 能量释放", "三 · 最终形态"][battleStatusState.borosPhase]}。` });
+      description: `波罗斯当前为阶段${["", "一 · 铠甲", "二 · 能量释放", "三 · 最终形态"][battleStatusState.borosPhase]}。${battleStatusState.borosPhase === 3 ? "本阶段吸血 +10%。" : ""}` });
   }
   if (battleStatusState.armoredShield) {
     const shield = battleStatusState.armoredShield;
@@ -1298,6 +1298,7 @@ function playEvent(event, finish) {
         target.atk = event.phaseChange.atk;
         target.def = event.phaseChange.def;
         target.spd = event.phaseChange.spd;
+        target.lifesteal = event.phaseChange.lifesteal;
         if (target.phaseAssets?.[target.borosPhase]) {
           target.asset = target.phaseAssets[target.borosPhase];
           document.querySelector(`[data-character="${target.id}"] .sprite`)?.setAttribute("src", target.asset);
@@ -2006,9 +2007,10 @@ function playEvent(event, finish) {
       target.atk = event.phaseChange.atk;
       target.def = event.phaseChange.def;
       target.spd = event.phaseChange.spd;
+      target.lifesteal = event.phaseChange.lifesteal;
       battleStatusState.borosPhase = event.phaseChange.phase;
       renderAllyStatusIcons();
-      addLog(`<b>波罗斯</b> 进入阶段${event.phaseChange.phase === 2 ? "二 · 能量释放" : "三 · 最终形态"}！ATK ${target.atk}、DEF ${target.def}、SPD ${target.spd}。`, "log-enemy");
+      addLog(`<b>波罗斯</b> 进入阶段${event.phaseChange.phase === 2 ? "二 · 能量释放" : "三 · 最终形态"}！ATK ${target.atk}、DEF ${target.def}、SPD ${target.spd}${event.phaseChange.phase === 3 ? "、吸血 +10%" : ""}。`, "log-enemy");
     }
     if (event.bombAttached) {
       battleStatusState.bombs.push({ ...event.bombAttached, targetName: target.name });
@@ -2106,6 +2108,7 @@ function playEvent(event, finish) {
     if (Number.isFinite(event.targetDef)) target.def = event.targetDef;
     if (Number.isFinite(event.predatorKillBonus) && event.predatorKillBonus > 0) {
       attacker.maxHp += event.predatorKillBonus;
+      updateHealth(attacker);
       addLog(`<b>${attacker.name}</b> 捕食者击杀：本局最大 HP +${event.predatorKillBonus}。`, "log-skill");
     }
     for (const granted of event.shieldsGranted ?? []) {
@@ -2436,7 +2439,7 @@ function beginBattle() {
     addLog(`迪达拉的 C0 每个完整行动回合积累 ${boss?.c0DamagePerRound ?? 70} 点真实伤害；C4 迦楼罗有 ${c4Chance}% 概率造成 1.2 倍伤害并降低目标 DEF 20 点。`, "log-enemy");
   }
   if (prepared.battle.type === "boss" && campaign.stageId === 2) {
-    addLog("波罗斯阶段一受到伤害减少 10%；阶段二每个完整回合 SPD +10；阶段三入场 ATK +80、DEF -40、SPD +100，之后每个完整回合 ATK +30。", "log-enemy");
+    addLog("波罗斯阶段一受到伤害减少 10%；阶段二每个完整回合 SPD +10；阶段三入场 ATK +80、DEF -40、SPD +100、吸血 +10%，之后每个完整回合 ATK +30。", "log-enemy");
   }
   const startFight = () => {
     if (battleStartedToken === token || token !== generation || campaign?.status !== "combat") return;
@@ -3292,16 +3295,12 @@ function renderAdventureEvent() {
     }
     if (record.data.scrollPhase !== "intro") choices.push(decisionChoice("scroll_leave", "看起来不像好人，溜了", ""));
   } else if (record.eventId === "sea_beyond") {
-    const offers = getSeaBeyondOfferDetails(record);
-    const statNames = { atk: "攻击", def: "防御", spd: "速度" };
-    const offerText = (offer) => `第 ${offer.index + 1} 次：主角最大生命值 -${offer.hpLossPercent}%（-${offer.hpLoss}）；${campaign.partyIds.length > 1 ? "全队" : ""}${statNames[offer.rewardStat]} +${offer.rewardAmount}`;
     if (record.data.phase === "intro") {
-      choices.push(decisionChoice("sea_begin", "是，我想看看海", "翻过城墙，继续向海的那边前进。接下来会连续面临选择。"));
-      choices.push(decisionChoice("sea_pass", "还是留在墙内", "放弃这次探索，不承担代价。"));
+      choices.push(decisionChoice("sea_begin", "是，我想看看海", ""));
+      choices.push(decisionChoice("sea_pass", "还是留在墙内", ""));
     } else {
-      const tierIndex = record.data.selectedTiers.length;
-      choices.push(decisionChoice("sea_sacrifice", "继续前往海的另一边", offerText(offers[tierIndex])));
-      choices.push(decisionChoice("sea_finish", tierIndex ? "就到这里，领取已积累的力量" : "算了，结束探索", tierIndex ? `确认之前 ${tierIndex} 次选择，并揭晓最终结果。` : "尚未承担代价，结束这次探索。"));
+      choices.push(decisionChoice("sea_sacrifice", "继续前往海的另一边", ""));
+      choices.push(decisionChoice("sea_finish", "就到这里，领取已积累的力量", ""));
     }
   } else if (record.eventId === "sea_beyond_2") {
     choices.push(decisionChoice("sea_stay", "留在这里", ""));
@@ -3336,15 +3335,20 @@ function renderAdventureEvent() {
   else choices.push(decisionChoice("__confirm__", "继续前进", record.effectText));
   // Event choices reveal outcomes only after selection; phase-two skill lists
   // are shown after the initial decision and still expose only names.
-  if (record.eventId !== "sea_beyond") for (const choice of choices) choice.description = "";
+  for (const choice of choices) choice.description = "";
   const eventDescription = record.eventId === "fate_gate"
     ? `${record.description} ${record.data.skillChoices.length ? record.effectText : "当前没有已学习且可触发的技能；确认后正常结束事件。"}`
     : record.eventId === "fall_rock"
       ? `${record.description} ${record.effectText}`
     : record.eventId === "sea_beyond" && record.data.phase === "intro"
-      ? `${record.description}\n${getSeaBeyondOfferDetails(record).map((offer) => `第 ${offer.index + 1} 次：主角最大生命值 -${offer.hpLossPercent}%（-${offer.hpLoss}）；${campaign.partyIds.length > 1 ? "全队" : ""}${({ atk: "攻击", def: "防御", spd: "速度" })[offer.rewardStat]} +${offer.rewardAmount}`).join("\n")}`
+      ? `${record.description}\n选择第一项会以最大生命值换取一项随机属性；选择后可决定是否继续兑换。具体代价与所得属性在选择后揭晓。`
+    : record.eventId === "sea_beyond" && record.data.phase === "choices"
+      ? `${record.description}\n已选择的兑换（离开时结算）：\n${record.data.selectedTiers.map((index) => {
+          const offer = getSeaBeyondOfferDetails(record)[index];
+          return `第 ${index + 1} 次：主角最大生命值 -${offer.hpLossPercent}%（-${offer.hpLoss}）；${campaign.partyIds.length > 1 ? "全队" : ""}${({ atk: "攻击", def: "防御", spd: "速度" })[offer.rewardStat]} +${offer.rewardAmount}`;
+        }).join("\n")}`
     : record.description;
-  $("#decision-copy").classList.toggle("sea-offer-preview", record.eventId === "sea_beyond" && record.data.phase === "intro");
+  $("#decision-copy").classList.toggle("sea-offer-preview", record.eventId === "sea_beyond");
   renderDecisionScreen(record.name, eventDescription, choices, "确认选择", (id) => resolveVisibleEvent(id === "__confirm__" ? null : id),
     "ACT 01 · ADVENTURE", record.image, { autoConfirmChoiceIds: record.eventId === "kings_treasury" ? ["treasury_steal"] : [] });
 }
