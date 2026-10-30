@@ -336,8 +336,9 @@ export function executeAttack(state, attacker, target, random = Math.random, att
   }
   const shieldsGranted = [];
   if (skill?.teamShield) for (const ally of state.characters.filter((unit) => unit.team === attacker.team && unit.alive && unit.currentHp > 0)) {
-    ally.shieldHp = (ally.shieldHp ?? 0) + skill.teamShield;
-    shieldsGranted.push({ targetId: ally.id, amount: skill.teamShield, total: ally.shieldHp });
+    const previous = ally.shieldHp ?? 0;
+    ally.shieldHp = Math.max(previous, skill.teamShield);
+    shieldsGranted.push({ targetId: ally.id, amount: ally.shieldHp - previous, total: ally.shieldHp, cap: skill.teamShield });
   }
   const directDamageSkill = skill && !skill.normalAttack && (skill.effectType ?? "damage") === "damage";
   const dodgeChance = directDamageSkill ? getSkillDodgeChance(target) : getDodgeChance(target);

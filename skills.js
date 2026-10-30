@@ -89,7 +89,7 @@ export const SKILL_DATA = {
       1: { hitsPerTrigger: 2, critRateBonus: 0.07, attackBonus: 10, dodgeRateBonus: 0 },
       2: { hitsPerTrigger: 2, critRateBonus: 0.07, attackBonus: 20, dodgeRateBonus: 0 },
       3: { hitsPerTrigger: 2, critRateBonus: 0.14, attackBonus: 25, dodgeRateBonus: 0 },
-      4: { hitsPerTrigger: 1, critRateBonus: 0.07, attackBonus: 15, dodgeRateBonus: 0.05 },
+      4: { hitsPerTrigger: 1, critRateBonus: 0.07, attackBonus: 15, dodgeRateBonus: 0.03 },
     },
   },
   "c4-garuda": {
@@ -153,13 +153,13 @@ export const SKILL_DATA = {
     },
   },
   "eren-tatakae": {
-    id: "eren-tatakae", name: "塔塔开", type: "active", description: "触发时以 ATK + 当前 DEF 作为攻击力并造成倍率伤害；下回合嘲讽敌方单体攻击。Lv.4 为每名存活队友提供 100 点护盾。",
+    id: "eren-tatakae", name: "塔塔开", type: "active", description: "触发时以 ATK + 当前 DEF 作为攻击力并造成倍率伤害；下回合嘲讽敌方单体攻击。Lv.4 将每名存活队友的护盾刷新至最多 200 点，不叠加。",
     triggerType: "on_action", targetRule: "front_priority_random", passive: false, unlockMethod: "character_choice", maxLevel: 4,
     levels: {
       1: { chance: 0.30, multiplier: 1.3, attackFormula: "atk_plus_current_def", effectType: "damage", tauntNextRound: true },
       2: { chance: 0.35, multiplier: 1.4, attackFormula: "atk_plus_current_def", effectType: "damage", tauntNextRound: true },
       3: { chance: 0.40, multiplier: 1.55, attackFormula: "atk_plus_current_def", effectType: "damage", tauntNextRound: true },
-      4: { chance: 0.50, multiplier: 1.7, attackFormula: "atk_plus_current_def", effectType: "damage", tauntNextRound: true, teamShield: 100 },
+      4: { chance: 0.50, multiplier: 1.7, attackFormula: "atk_plus_current_def", effectType: "damage", tauntNextRound: true, teamShield: 200 },
     },
   },
   "shield-bash": {

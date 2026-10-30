@@ -231,8 +231,15 @@ test("level-four Tatakae shields every living teammate and level-four Free Will 
     enemy("foe", { hp: 10000, currentHp: 10000, rosterOrder: 2 })]);
   state.round = 1;
   const shieldEvent = executeAttack(state, state.characters[0], state.characters[2], () => .99, { skill: tatakae });
-  assert.deepEqual(shieldEvent.shieldsGranted.map((entry) => entry.amount), [100, 100]);
-  assert.equal(state.characters[1].shieldHp, 100);
+  assert.deepEqual(shieldEvent.shieldsGranted.map((entry) => entry.amount), [200, 200]);
+  assert.equal(state.characters[1].shieldHp, 200);
+  const repeated = executeAttack(state, state.characters[0], state.characters[2], () => .99, { skill: tatakae });
+  assert.deepEqual(repeated.shieldsGranted.map((entry) => entry.amount), [0, 0]);
+  assert.equal(state.characters[1].shieldHp, 200, "repeated casts cannot stack the shield");
+  state.characters[1].shieldHp = 75;
+  const refreshed = executeAttack(state, state.characters[0], state.characters[2], () => .99, { skill: tatakae });
+  assert.equal(refreshed.shieldsGranted[1].amount, 125);
+  assert.equal(state.characters[1].shieldHp, 200);
   const freeWill = { ...SKILL_DATA["eren-free-will"], ...SKILL_DATA["eren-free-will"].levels[4], level: 4 };
   const freeState = initializeBattle([ally("eren", { skills: [freeWill], hp: 10000, currentHp: 10000 }),
     enemy("foe", { hp: 10000, currentHp: 10000 })]);

@@ -210,7 +210,7 @@ function displaySkillEffect(skill, context = {}) {
   if (skill?.id === "kaneki-predator") return `${chance} · (ATK + SPD) × ${skill.multiplier ?? 1} · 目标 HP 严格低于 ${Math.round(skill.guaranteedCritBelowHpRatio * 100)}% 时命中必定暴击`;
   if (skill?.id === "kaneki-1000-7") return `每受到 ${skill.hitsPerTrigger} 次有效伤害：本场暴击率 +${Math.round(skill.critRateBonus * 100)} 个百分点、ATK +${skill.attackBonus ?? 0}${skill.dodgeRateBonus ? `、闪避率 +${Math.round(skill.dodgeRateBonus * 100)} 个百分点` : ""}；可累加`;
   if (skill?.id === "eren-free-will") return `${chance} · 普通攻击 · DEF +${skill.defenseBonus ?? 0}（本场最多 ${skill.maxDefenseStacks} 层） · 每触发 ${skill.healEveryTriggers} 次恢复最大 HP 的 ${Math.round(skill.healMaxHpFraction * 100)}%${skill.extraTrueDamageEvery ? ` · 每第 ${skill.extraTrueDamageEvery} 次释放追加真实伤害` : ""}`;
-  if (skill?.id === "eren-tatakae") return `${chance} · 攻击力按 ATK + 当前 DEF 计算 · ${skill.multiplier ?? 1}×伤害 · 下回合嘲讽敌方单体攻击${skill.teamShield ? ` · 每名存活队友护盾 +${skill.teamShield}` : ""}`;
+  if (skill?.id === "eren-tatakae") return `${chance} · 攻击力按 ATK + 当前 DEF 计算 · ${skill.multiplier ?? 1}×伤害 · 下回合嘲讽敌方单体攻击${skill.teamShield ? ` · 每名存活队友护盾刷新至最多 ${skill.teamShield} 点（不叠加）` : ""}`;
   if (skill?.id === "eren-2000-years") return "Lv.1 每场免疫首次受击；Lv.2 每场免疫前两次受击，并一次性增加最大 HP 400。";
   if (skill?.id === "journey-west") {
     const weights = { 1: [100, 0, 0, 0], 2: [80, 20, 0, 0], 3: [60, 40, 0, 0], 4: [40, 60, 0, 0], 5: [20, 80, 0, 0], 6: [0, 80, 20, 0], 7: [0, 60, 40, 0], 8: [0, 40, 60, 0], 9: [0, 20, 80, 0], 10: [0, 30, 45, 25] };
@@ -2116,7 +2116,7 @@ function playEvent(event, finish) {
       if (ally) { ally.shieldHp = granted.total; updateHealth(ally); }
     }
     if (Number.isFinite(event.targetShield)) { target.shieldHp = event.targetShield; updateHealth(target); }
-    if (event.shieldsGranted?.length) addLog(`<b>${attacker.name}</b> 为存活队友各提供 ${event.shieldsGranted[0].amount} 点护盾。`, "log-skill");
+    if (event.shieldsGranted?.length) addLog(`<b>${attacker.name}</b> 将存活队友护盾刷新至最多 ${event.shieldsGranted[0].cap} 点。`, "log-skill");
     if (event.shieldAbsorbed) addLog(`<b>${target.name}</b> 的护盾吸收 ${event.shieldAbsorbed} 点伤害。`, "log-skill");
     if (event.extraTrueDamage) addLog(`<b>${attacker.name}</b> 自由意志追加 ${event.extraTrueDamage.actualDamage} 点真实伤害。`, "log-skill");
     if (event.weaknessApplied) {

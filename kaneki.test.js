@@ -223,6 +223,7 @@ test("Predator Lv4 grants 50 lasting max HP only when its hit kills", () => {
 });
 
 test("1000-7 reacts only to effective damage and its bonuses reset with a new battle", () => {
+  assert.equal(SKILL_DATA["kaneki-1000-7"].levels[4].dodgeRateBonus, .03);
   for (const level of [1, 2, 3, 4]) {
     const actor = unit({ skills: [skillAt("kaneki-1000-7", level)] });
     const foe = enemy({ atk: 20 });
