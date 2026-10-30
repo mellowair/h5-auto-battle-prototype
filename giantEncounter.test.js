@@ -25,8 +25,10 @@ function eventCampaign(step = 3, random = () => 0) {
 
 test("giant encounter enters the equal-weight question pool and uses real copied assets", () => {
   const campaign = eventCampaign();
-  assert.equal(getAvailableAdventureEventIds(campaign.runCharacterState, 7).includes("giant_encirclement"), false);
-  assert.ok(getAvailableAdventureEventIds(campaign.runCharacterState, 8).includes("giant_encirclement"));
+  const fresh = { ...campaign.runCharacterState, eventResults: {} };
+  assert.equal(getAvailableAdventureEventIds(fresh, 7).includes("giant_encirclement"), false);
+  assert.ok(getAvailableAdventureEventIds(fresh, 8).includes("giant_encirclement"));
+  assert.equal(getAvailableAdventureEventIds(campaign.runCharacterState, 8).includes("giant_encirclement"), false);
   assert.equal(ADVENTURE_EVENT_DATA.giant_encirclement.description, "那一天，人类想起了被巨人支配的恐惧");
   assert.deepEqual([EVENT_ENEMY_DATA.dina.hp, EVENT_ENEMY_DATA.dina.atk, EVENT_ENEMY_DATA.dina.def, EVENT_ENEMY_DATA.dina.spd], [1000, 80, 60, 5]);
   assert.deepEqual([EVENT_ENEMY_DATA.dina.summonPassive.firstRound, EVENT_ENEMY_DATA.dina.summonPassive.everyRounds], [2, 6]);
@@ -39,7 +41,7 @@ test("giant encounter enters the equal-weight question pool and uses real copied
 
 test("giant encounter draw uses actual entered-room step and filters before sampling", () => {
   const campaign = eventCampaign();
-  const run = campaign.runCharacterState;
+  const run = { ...campaign.runCharacterState, eventResults: {} };
   for (let step = 1; step <= 7; step += 1) {
     assert.equal(getAvailableAdventureEventIds(run, step).includes("giant_encirclement"), false);
     assert.notEqual(chooseAdventureEventId(run, () => 0.999, step), "giant_encirclement");

@@ -5,6 +5,7 @@ const copy = (value) => value == null ? value : JSON.parse(JSON.stringify(value)
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 const rngIndex = (length, random) => Math.min(length - 1, Math.floor(Math.max(0, Math.min(0.999999999999, finite(random(), 0))) * length));
 const has = (list, value) => Array.isArray(list) && list.includes(value);
+const SINGLE_ENCOUNTER_EVENTS = new Set(["death_note", "fate_gate", "giant_encirclement", "kings_treasury"]);
 
 function ensureRunState(state) {
   if (!state || typeof state !== "object") throw new TypeError("runCharacterState is required");
@@ -190,6 +191,7 @@ function applySkillTraining(runState, skillId, sourceId) {
 export function getAvailableAdventureEventIds(runState, step = 1, partyStates = [runState], stageId = 1) {
   ensureRunState(runState);
   const series = runState.eventSeries;
+  const encountered = new Set(Object.values(runState.eventResults).map((record) => record.eventId));
   const eligible = (key, chapter, extra = true) => {
     const progress = series[key] ?? {};
     if (progress.permanentExcluded || progress.blockedStageId === stageId || !extra) return false;
@@ -198,6 +200,7 @@ export function getAvailableAdventureEventIds(runState, step = 1, partyStates = 
   const sea = series.sea ?? {};
   return Object.keys(ADVENTURE_EVENT_DATA).filter((eventId) =>
     !ADVENTURE_EVENT_DATA[eventId].containsBattle
+    && (!SINGLE_ENCOUNTER_EVENTS.has(eventId) || !encountered.has(eventId))
     && (eventId !== "kings_treasury" || stageId === 2)
     && (eventId !== "giant_encirclement" || step >= 8)
     && (eventId !== "scroll" || eligible("scroll", 1, partyStates.some((state) => getUnlearnedActiveSkills(state).length > 0)))
@@ -486,6 +489,7 @@ export function createAdventureEventResult(runState, sourceId, eventId, random =
   if (runState.eventResults[sourceId]) return copy(runState.eventResults[sourceId]);
   const config = ADVENTURE_EVENT_DATA[eventId];
   if (!config) throw new RangeError(`unknown adventure event: ${eventId}`);
+  if (SINGLE_ENCOUNTER_EVENTS.has(eventId) && Object.values(runState.eventResults).some((record) => record.eventId === eventId)) return null;
   if (eventId === "scroll" && !partyStates.some((state) => getUnlearnedActiveSkills(state).length)) return null;
   if (eventId === "fall_rock" && (runState.fallRockCompleted || runState.fallRockCount >= config.stages.length)) return null;
   if (eventId === "sea_beyond" && Object.values(runState.eventResults).some((event) => event.eventId === "sea_beyond")) return null;

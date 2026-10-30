@@ -60,18 +60,20 @@ test("treasury choice caches two real rewards and each branch is claimed once", 
   assert.equal(new Set(smallOffer.choices).size, 2);
   assert.ok(claimTreasure(run, "treasury-a", smallOffer.choices[0], run, run.characterId));
   assert.equal(claimTreasure(run, "treasury-a", smallOffer.choices[1], run, run.characterId), false);
-  createAdventureEventResult(run, "treasury-b", "kings_treasury");
-  const fight = resolveAdventureEvent(run, "treasury-b", "treasury_advance");
+  assert.equal(createAdventureEventResult(run, "treasury-b", "kings_treasury"), null);
+  const battleRun = createRunCharacterState(CHARACTER_DATA[0]);
+  createAdventureEventResult(battleRun, "treasury-b", "kings_treasury");
+  const fight = resolveAdventureEvent(battleRun, "treasury-b", "treasury_advance");
   assert.equal(fight.result.pendingBattle, true);
-  assert.ok(startAdventureBattle(run, "treasury-b"));
-  const result = completeAdventureBattle(run, "treasury-b", "victory", () => .2);
+  assert.ok(startAdventureBattle(battleRun, "treasury-b"));
+  const result = completeAdventureBattle(battleRun, "treasury-b", "victory", () => .2);
   assert.equal(result.status, "awaiting_reward");
-  assert.equal(completeAdventureBattle(run, "treasury-b", "victory"), false);
-  const royalOffer = run.eventResults["treasury-b"].data.treasureOffer;
+  assert.equal(completeAdventureBattle(battleRun, "treasury-b", "victory"), false);
+  const royalOffer = battleRun.eventResults["treasury-b"].data.treasureOffer;
   assert.equal(royalOffer.tier, "royal");
   assert.equal(new Set(royalOffer.choices).size, 2);
-  assert.ok(claimTreasure(run, "treasury-b", royalOffer.choices[0], run, run.characterId));
-  assert.equal(claimTreasure(run, "treasury-b", royalOffer.choices[1], run, run.characterId), false);
+  assert.ok(claimTreasure(battleRun, "treasury-b", royalOffer.choices[0], battleRun, battleRun.characterId));
+  assert.equal(claimTreasure(battleRun, "treasury-b", royalOffer.choices[1], battleRun, battleRun.characterId), false);
   assert.equal(EVENT_ENEMY_DATA.gilgamesh.hp, 2800);
 });
 

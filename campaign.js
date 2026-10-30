@@ -4,7 +4,7 @@ import { createSeededRandom, generateRouteMap, ROUTE_MAP_FINAL_STEP } from "./ro
 import {
   applyAdventureBattleBonusReward, applyAdventureBattleStatReward, applyBattleBonusReward,
   advanceTemporaryEffectsAfterBattle, applyAdventurePartyOutcome, applyBattleStatReward, chooseAdventureEventId, completeAdventureBattle, createAdventureEventResult,
-  canDeclineNewSkill, createBattleRewardOffer, createRunCharacterState, getCampfireOptions, getSkillAtLevel,
+  canDeclineNewSkill, createBattleRewardOffer, createRunCharacterState, getAvailableAdventureEventIds, getCampfireOptions, getSkillAtLevel,
   getTemporaryCombatModifiers, getTemporaryEffects, getTreasureCombatModifiers, getUnlearnedActiveSkills, getUpgradeableSkills, getSkillTrainingChoices, grantGiantSpinalFluid, grantAdventureSpecialReward, claimTreasure, learnActiveSkill, upgradeActiveSkill,
   createStatUpgradeChoices, applyStatUpgrade, healRunCharacter, resolveAdventureEvent, resolveCampfire, startAdventureBattle, upgradePassiveSkill,
 } from "./progression.js";
@@ -64,6 +64,12 @@ function legalChildren(campaign) {
 
 function generateRouteOptions(campaign) {
   const children = legalChildren(campaign);
+  if (campaign.runCharacterState && children.some((node) => node.type === "question") &&
+    !getAvailableAdventureEventIds(campaign.runCharacterState, campaign.step,
+      campaign.partyIds.map((id) => campaign.partyStates[id]), campaign.stageId).length) {
+    // A question node must never point to an exhausted event pool.
+    for (const node of children) if (node.type === "question") node.type = "battle";
+  }
   campaign.routeMap.nodes.forEach((node) => {
     if (node.status === "pending") node.status = "locked";
   });

@@ -498,12 +498,15 @@ test("sea beyond uses three percentage sacrifice tiers and random stat rewards, 
  assert.equal(getAvailableAdventureEventIds(declined).includes("sea_beyond"),false,"declining still consumes the run's single appearance");
 });
 
-test("death note rolls once, refreshes to exactly two real battle advances, and clears", () => {
+test("death note rolls once, lasts two real battles, and cannot refresh in the same run", () => {
  const bad=makeNaruto(); createAdventureEventResult(bad,"death-bad","death_note",()=>0); const event=resolveAdventureEvent(bad,"death-bad","death_note_open"); assert.equal(event.result.blessing,"player_damage_increased"); assert.equal(getTemporaryCombatModifiers(bad).damageTakenMultiplier,1.5); assert.equal(getTemporaryCombatModifiers(bad).damageDealtMultiplier,1);
  const row=getTemporaryEffectDisplayRows(bad).find(effect=>effect.id==="death_note"); assert.deepEqual([row.statName,row.amountText,row.durationText,row.polarity],["受到伤害","×1.5","剩余 2 场战斗","debuff"]);
  advanceTemporaryEffectsAfterBattle(bad); assert.equal(bad.temporaryEffects[0].battlesRemaining,1); advanceTemporaryEffectsAfterBattle(bad); assert.equal(getTemporaryCombatModifiers(bad).damageTakenMultiplier,1);
  const good=makeNaruto(); createAdventureEventResult(good,"death-good","death_note",()=>0.9); resolveAdventureEvent(good,"death-good","death_note_open"); assert.equal(getTemporaryCombatModifiers(good).damageDealtMultiplier,2);
- createAdventureEventResult(good,"death-refresh","death_note",()=>0.9); resolveAdventureEvent(good,"death-refresh","death_note_open"); assert.equal(good.temporaryEffects.length,1); assert.equal(good.temporaryEffects[0].battlesRemaining,2);
+ advanceTemporaryEffectsAfterBattle(good); assert.equal(good.temporaryEffects[0].battlesRemaining,1);
+ assert.equal(createAdventureEventResult(good,"death-refresh","death_note",()=>0.9),null);
+ assert.equal(resolveAdventureEvent(good,"death-refresh","death_note_open"),false);
+ assert.equal(good.temporaryEffects.length,1); assert.equal(good.temporaryEffects[0].battlesRemaining,1);
 });
 
 test("Death Note pass, harm, and boon all settle once; the event UI handles non-stat effects", () => {

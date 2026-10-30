@@ -383,6 +383,26 @@ test("a question event completes once and advances directly to a fresh route", (
   assert.equal(chooseRoute(campaign, oldNode.id), null);
 });
 
+test("an exhausted adventure pool turns reachable question rooms into battles", () => {
+  const campaign = createCampaign(() => 0, { seed: 7 });
+  startCampaign(campaign);
+  campaign.candidateIds = ["naruto", "eren"];
+  selectStartingCharacter(campaign, "naruto");
+  const state = campaign.runCharacterState;
+  for (const eventId of ["death_note", "fate_gate", "giant_encirclement", "kings_treasury"])
+    state.eventResults[`seen:${eventId}`] = { eventId, status: "completed" };
+  for (const key of ["scroll", "sea", "anteiku", "rock"])
+    state.eventSeries[key] = { permanentExcluded: true };
+  state.fallRockCompleted = true;
+  beginJourney(campaign);
+  assert.deepEqual(getAvailableAdventureEventIds(state, 1, [state], 1), []);
+  const options = getRouteOptions(campaign);
+  assert.ok(options.length);
+  assert.ok(options.every((node) => node.type !== "question"));
+  assert.ok(chooseRoute(campaign, options[0].id));
+  assert.equal(campaign.status, "combat");
+});
+
 test("Sea Beyond remains the same active event through chained choices, then completes once", () => {
   let started = null;
   for (let seed = 0; seed < 3000 && !started; seed += 1) {

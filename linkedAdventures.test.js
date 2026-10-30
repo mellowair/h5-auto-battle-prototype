@@ -29,6 +29,31 @@ function eventCampaign(eventId, series = {}, heroId = "naruto", partnerId = "ere
   return campaign;
 }
 
+test("single-chapter adventures appear only once per run, including declines and pending battles", () => {
+  for (const [eventId, choiceId] of [["death_note", "death_note_pass"], ["fate_gate", "fate_accept"],
+    ["giant_encirclement", "giant_escape"], ["kings_treasury", "treasury_leave"]]) {
+    const state = run();
+    const source = `first:${eventId}`;
+    const first = createAdventureEventResult(state, source, eventId, () => 0, [state], 2);
+    assert.ok(first, eventId);
+    assert.deepEqual(createAdventureEventResult(state, source, eventId), first, "same node keeps its cached event");
+    assert.equal(getAvailableAdventureEventIds(state, 12, [state], 2).includes(eventId), false, eventId);
+    assert.equal(createAdventureEventResult(state, `again:${eventId}`, eventId, () => 0, [state], 2), null);
+    const settled = resolveAdventureEvent(state, source, choiceId, () => 0);
+    assert.ok(settled, eventId);
+    assert.equal(getAvailableAdventureEventIds(state, 12, [state], 2).includes(eventId), false);
+    assert.equal(getAvailableAdventureEventIds(run(), 12, undefined, 2).includes(eventId), true,
+      "a new run can encounter the event again");
+  }
+  const state = run();
+  createAdventureEventResult(state, "treasury-fight", "kings_treasury", () => 0, [state], 2);
+  resolveAdventureEvent(state, "treasury-fight", "treasury_advance");
+  assert.equal(state.eventResults["treasury-fight"].status, "pending_battle");
+  assert.equal(getAvailableAdventureEventIds(state, 12, [state], 2).includes("kings_treasury"), false);
+  assert.equal(getAvailableAdventureEventIds(run(), 12).includes("fall_rock"), true,
+    "the existing staged event remains repeatable for its chapters");
+});
+
 test("series chapters respect choices, stage exclusions, permanent exclusions, skill levels and reset", () => {
   const state = run();
   assert.equal(getAvailableAdventureEventIds(state).includes("sea_beyond_2"), false);
