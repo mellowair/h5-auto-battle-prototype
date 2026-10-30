@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { EVENT_ENEMY_DATA, NORMAL_ENEMY_APPEARANCES, STARTING_CHARACTERS } from "./characters.js";
 import { getActionOrder, initializeBattle, isBattleOver, simulateBattle, summonAtRoundStart } from "./battle.js";
 import { beginJourney, chooseRoute, claimCampaignReward, completeLocation, createCampaign, finishBattle, getCampaignRewardOffer, getRouteEnemyGrowth, getRouteMap, getRouteOptions, prepareBattle, resolveCampaignEvent, selectStartingCharacter, startCampaign, startCampaignEventBattle } from "./campaign.js";
@@ -238,9 +238,10 @@ test("summoned giants take real turns in the precomputed battle and have separat
   assert.equal(result.outcome, "victory");
 });
 
-test("music stays disabled without files and one looped player handles play, pause, and switching", async () => {
-  assert.ok(musicTracks.every((track) => track.src === null));
-  const absent = createMusicController(musicTracks, class { constructor() { throw new Error("should not load"); } });
+test("two supplied tracks exist and one looped player handles play, pause, and switching", async () => {
+  assert.equal(musicTracks.length, 2);
+  assert.ok(musicTracks.every((track) => existsSync(new URL(`./${track.src}`, import.meta.url))));
+  const absent = createMusicController([{ name: "未配置", src: null }], class { constructor() { throw new Error("should not load"); } });
   assert.equal(absent.getState().available, false);
   assert.equal(await absent.play(), false);
   let instances = 0;
@@ -250,7 +251,7 @@ test("music stays disabled without files and one looped player handles play, pau
     async play() { this.paused = false; this.listeners.play?.(); }
     pause() { this.paused = true; this.listeners.pause?.(); }
   }
-  const controller = createMusicController([{ name: "一", src: "a.mp3" }, { name: "二", src: "b.ogg" }], FakeAudio);
+  const controller = createMusicController(musicTracks, FakeAudio);
   assert.equal(await controller.play(), true);
   assert.equal(await controller.select(1), true);
   assert.equal(controller.getState().playing, true);

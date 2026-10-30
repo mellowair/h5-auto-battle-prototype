@@ -1,8 +1,6 @@
-// Fill in the two relative src paths after the user supplies audio files.
-// Null paths are intentionally never requested by the browser.
 export const musicTracks = [
-  { id: "track-1", name: "曲目 1", src: null },
-  { id: "track-2", name: "曲目 2", src: null },
+  { id: "leaving-home", name: "Leaving Home · Yo La Tengo", src: "assets/audio/leaving-home.mp3" },
+  { id: "part-of-a-whole", name: "Part of a Whole · The Toxic Avenger", src: "assets/audio/part-of-a-whole.mp3" },
 ];
 
 export function createMusicController(tracks = musicTracks, AudioClass = globalThis.Audio, onChange = () => {}) {
