@@ -88,7 +88,7 @@ test("Sea Beyond displays the cached first-chapter roll and settles that same ro
   assert.deepEqual(state.eventSeries.sea.rewards, [{ stat: "atk", amount: 30 }]);
   createAdventureEventResult(state, "sea-sequel", "sea_beyond_2");
   resolveAdventureEvent(state, "sea-sequel", "sea_stay");
-  assert.equal(state.atk, beforeAtk + 90, "chapter two adds twice the saved first-chapter gain");
+  assert.equal(state.atk, beforeAtk + 60, "chapter two grants the saved first-chapter gain again without HP loss");
   assert.match(readFileSync(new URL("./app.js", import.meta.url), "utf8"), /getSeaBeyondOfferDetails\(record\)/);
 });
 

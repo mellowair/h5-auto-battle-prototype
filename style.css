@@ -337,6 +337,7 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .squad-slot { min-height: 48px; display: flex; justify-content: center; align-items: center; gap: 5px; border: 1.5px solid #d7ded2; border-radius: 5px; font-size: 9px; font-weight: 900; }
 .active-slot { position: relative; gap: 2px; padding: 2px; color: #526c55; background: #f2f7e9; border-color: #aac89b; cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent; }.active-slot:hover { background: #eaf4df; border-color: #8eb77f; }.active-slot:focus-visible { outline: 3px solid #e2aa49; outline-offset: 2px; }
 .active-slot img { width: 24px; height: 32px; object-fit: contain; image-rendering: pixelated; }.slot-hint { position: absolute; top: 1px; right: 2px; color: #8ca184; font-size: 6px; }
+.summon-slot { background: #eef5ed; border-color: #94b6a0; }.summon-slot.is-dead { opacity: .55; }
 .empty-slot { flex-direction: column; gap: 0; color: #b5bdb2; background: repeating-linear-gradient(135deg, #fbfaf2 0 5px, #f4f3eb 5px 10px); border-style: dashed; }
 .empty-slot b, .empty-skill b { color: #aeb9aa; font-size: 15px; line-height: 16px; }
 .empty-slot span { font: 500 7px Consolas, monospace; }

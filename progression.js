@@ -628,7 +628,7 @@ export function resolveAdventureEvent(runState, sourceId, choiceId = null, rando
     } else return false;
   } else if (record.eventId === "sea_beyond_2") {
     if (choiceId === "sea_stay") {
-      result = { gains: record.data.previousRewards.map(({ stat, amount }) => ({ stat, amount: amount * 2 })) };
+      result = { gains: record.data.previousRewards.map(({ stat, amount }) => ({ stat, amount })) };
     } else if (choiceId === "sea_home") result = { maxHpGainFraction: .10 };
     else return false;
     applySharedEventEffect(runState, sourceId, result);

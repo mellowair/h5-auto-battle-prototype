@@ -41,7 +41,7 @@ test("series chapters respect choices, stage exclusions, permanent exclusions, s
   const sequel = createAdventureEventResult(state, "sea-b", "sea_beyond_2");
   assert.equal(sequel.name, "海的那边……");
   resolveAdventureEvent(state, "sea-b", "sea_stay");
-  assert.equal(state.atk, naruto.atk + 90);
+  assert.equal(state.atk, naruto.atk + 60);
   assert.equal(getAvailableAdventureEventIds(state).includes("sea_beyond_2"), false);
 
   const declined = run();
@@ -99,12 +99,20 @@ test("Sea sequel uses actual previous gains and its other choice raises each par
   const a = run();
   a.eventSeries.sea = { chapter1Completed: true, rewards: [{ stat: "spd", amount: 50 }, { stat: "def", amount: 40 }] };
   createAdventureEventResult(a, "sea-extra", "sea_beyond_2");
-  const hp = a.currentHp;
-  resolveAdventureEvent(a, "sea-extra", "sea_stay");
-  assert.equal(a.spd, naruto.spd + 100);
-  assert.equal(a.def, naruto.def + 80);
+  const hp = a.currentHp, maxHp = a.maxHp;
+  const repeated = resolveAdventureEvent(a, "sea-extra", "sea_stay");
+  assert.deepEqual(repeated.result.gains, [{ stat: "spd", amount: 50 }, { stat: "def", amount: 40 }]);
+  assert.equal(a.spd, naruto.spd + 50);
+  assert.equal(a.def, naruto.def + 40);
   assert.equal(a.currentHp, hp);
+  assert.equal(a.maxHp, maxHp, "the second chapter does not charge max HP again");
   assert.equal(resolveAdventureEvent(a, "sea-extra", "sea_stay"), false);
+
+  const shared = eventCampaign("sea_beyond_2", { sea: { chapter1Completed: true, rewards: [{ stat: "atk", amount: 30 }] } });
+  const sharedBefore = shared.partyIds.map((id) => ({ atk: shared.partyStates[id].atk, maxHp: shared.partyStates[id].maxHp }));
+  assert.ok(resolveCampaignEvent(shared, "sea_stay"));
+  assert.deepEqual(shared.partyIds.map((id) => ({ atk: shared.partyStates[id].atk, maxHp: shared.partyStates[id].maxHp })),
+    sharedBefore.map(({ atk, maxHp }) => ({ atk: atk + 30, maxHp })));
 
   const c = eventCampaign("sea_beyond_2", { sea: { chapter1Completed: true, rewards: [{ stat: "atk", amount: 30 }] } });
   const before = c.partyIds.map((id) => c.partyStates[id].maxHp);

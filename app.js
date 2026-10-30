@@ -218,6 +218,10 @@ function displaySkillEffect(skill, context = {}) {
     return `必定尝试召唤 · 白龙马 ${horse}% / 八戒 ${bajie}% / 沙僧 ${shaseng}% / 孙悟空 ${wukong}% · 召唤物技能触发率 ${(skill.level ?? 1) * 10}%`;
   }
   if (skill?.id === "tang-flesh") return "有存活召唤物时受到伤害减少 20%；Lv.2 召唤物按实际造成伤害的 20% 治疗唐僧。";
+  if (skill?.id === "horse-hoof") return `${chance} · 以 ATK + SPD 造成 1 倍伤害`;
+  if (skill?.id === "bajie-rake") return `${chance} · 以 ATK + 当前 HP 的 20% 造成 1 倍伤害`;
+  if (skill?.id === "shaseng-staff") return `${chance} · 以 ATK + 当前 DEF 造成 1.5 倍伤害，攻击敌方全体`;
+  if (skill?.id === "wukong-fate") return `${chance} · 成功释放时交替发动：首次蓄力，下回合受到的伤害减少 80%；再次瞬移到目标面前，造成 666 点真实伤害`;
   if (skill?.effectType === "buff") return `${chance} · 防御 +${skill.defenseBonus ?? 0}，持续 ${skill.durationTurns ?? 1} 回合`;
   if (skill?.id === "shadow-clone-rush") return `影分身 ${skill.cloneCount ?? skill.level ?? 1} 个 · 伤害倍率 ${skill.multiplier ?? 1}× · ${chance}`;
   if (skill?.id === "rasengan" || skill?.multiplierFormula) {
@@ -810,7 +814,7 @@ function updateHealth(character) {
   row.classList.toggle("is-dead", !character.alive);
   const fighter = document.querySelector(`[data-character="${character.id}"]`);
   fighter?.classList.toggle("is-dead", !character.alive);
-  if (squadSide === "enemy") renderSquad();
+  if (squadSide === "enemy" || character.tangSummonKind) renderSquad();
 }
 
 function renderAllyStatusIcons() {
@@ -916,7 +920,35 @@ function renderAllyStatusIcons() {
   renderDetail(allyDetail, selected && allyStatuses.includes(selected) ? selected : null);
   renderDetail(enemyDetail, selected && enemyStatuses.includes(selected) ? selected : null);
 }
+function openTangSummonDetail(unit) {
+  detailCharacterId = unit.id;
+  const skill = unit.skills?.[0];
+  const skillMarkup = skill
+    ? `<div class="detail-skill-row"><div class="detail-skill-icon">技</div><div class="detail-skill-copy"><b>${skill.name}</b><p>${skill.description ?? ""} ${displaySkillEffect(skill)}</p></div></div>`
+    : "";
+  $("#character-detail").innerHTML =
+    `<div class="detail-profile"><div class="detail-portrait"><img src="${unit.asset}" alt="${unit.name}"></div>` +
+    `<div class="detail-name"><h3>${unit.name}</h3><p>唐僧召唤物 · 前排</p><span class="detail-team ally">${unit.alive ? "战斗中" : "已倒地"}</span></div></div>` +
+    `<div class="detail-stats" aria-label="召唤物属性">` +
+    `<div class="stat-card"><span>生命 HP</span><b>${unit.currentHp} / ${unit.maxHp}</b></div>` +
+    `<div class="stat-card"><span>攻击 ATK</span><b>${unit.atk}</b></div>` +
+    `<div class="stat-card"><span>防御 DEF</span><b>${unit.def}</b></div>` +
+    `<div class="stat-card"><span>速度 SPD</span><b>${unit.spd}</b></div>` +
+    `<div class="stat-card"><span>闪避率</span><b>${(getDodgeChance(unit) * 100).toFixed(1)}%</b></div>` +
+    `<div class="stat-card"><span>技能闪避率</span><b>${(getSkillDodgeChance(unit) * 100).toFixed(1)}%</b></div>` +
+    `<div class="stat-card"><span>暴击率</span><b>${(getCritChance(unit) * 100).toFixed(1)}%</b></div>` +
+    `<div class="stat-card"><span>暴击倍率</span><b>${(unit.critMultiplier ?? COMBAT_RULES.critMultiplier).toFixed(1)}×</b></div></div>` +
+    `<section class="detail-skill"><h3>召唤物技能</h3>${skillMarkup}</section>`;
+  if (!characterDialog.open) {
+    if (typeof characterDialog.showModal === "function") characterDialog.showModal();
+    else characterDialog.setAttribute("open", "");
+  }
+}
+
 function openCharacterDetail(characterId) {
+  const summon = campaign?.status === "combat"
+    ? viewState.characters.find((unit) => unit.id === characterId && unit.team === "ally" && unit.tangSummonKind) : null;
+  if (summon) return openTangSummonDetail(summon);
   const character = [...STARTING_CHARACTERS, ...CHARACTER_DATA].find((entry) => entry.id === characterId);
   if (!character) return;
 
@@ -2854,7 +2886,9 @@ function renderSquad() {
     tab.onclick = () => { if (!tab.disabled) { squadSide = tab.dataset.squadSide; renderSquad(); } };
   }
   const enemies = inCombat ? viewState.characters.filter((unit) => unit.team === "enemy") : [];
-  panel.querySelector(".reserve-heading span").textContent = squadSide === "enemy" ? `${enemies.length} 名敌人` : `${campaign.partyIds.length} / 4`;
+  const summons = inCombat ? viewState.characters.filter((unit) => unit.team === "ally" && unit.tangSummonKind) : [];
+  panel.querySelector(".reserve-heading span").textContent = squadSide === "enemy" ? `${enemies.length} 名敌人`
+    : summons.length ? `${campaign.partyIds.length} 名队员 · ${summons.length} 名召唤物` : `${campaign.partyIds.length} / 4`;
   const slots = panel.querySelector(".squad-slots");
   slots.replaceChildren();
   slots.classList.toggle("is-enemy-view", squadSide === "enemy");
@@ -2883,7 +2917,17 @@ function renderSquad() {
     button.addEventListener("click", () => openCharacterDetail(id));
     slots.append(button);
   }
-  for (let index = campaign.partyIds.length; index < 4; index++) {
+  for (const summon of summons) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `squad-slot active-slot summon-slot${summon.alive ? "" : " is-dead"}`;
+    button.dataset.characterDetail = summon.id;
+    button.innerHTML = `<img src="${summon.asset}" alt=""><span></span><span class="slot-hint">查看</span>`;
+    button.querySelector("span:not(.slot-hint)").textContent = summon.name;
+    button.addEventListener("click", () => openCharacterDetail(summon.id));
+    slots.append(button);
+  }
+  for (let index = campaign.partyIds.length + summons.length; index < 4; index++) {
     const empty = document.createElement("div");
     empty.className = "squad-slot empty-slot";
     empty.innerHTML = "<b>＋</b><span>预留</span>";
