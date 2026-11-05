@@ -48,6 +48,23 @@ test("Eren can choose one configured skill and prepare a battle with his passive
   assert.equal(prepared.roster[0].attackType, "melee");
 });
 
+test("evolved allies use only their second-stage name and artwork in battle", () => {
+  for (const [id, evolvedName] of [["naruto", "九尾鸣人"], ["eren", "进击巨人"], ["tang", "金蝉子"], ["kaneki", "白发金木"]]) {
+    const campaign = createCampaign(() => 0, { seed: 77 });
+    startCampaign(campaign);
+    campaign.candidateIds = [id];
+    assert.ok(selectStartingCharacter(campaign, id, null));
+    assert.ok(chooseStartingSkill(campaign, STARTING_CHARACTERS.find((entry) => entry.id === id).activeSkills[0]), `skill selection for ${id}`);
+    beginJourney(campaign);
+    campaign.partyStates[id].evolution = { phase: 2, name: id === "eren" ? "始祖巨人" : evolvedName };
+    campaign.currentBattle = { type: "normal", step: 1, enemies: ["guard"], enemyNames: { guard: "巡逻守卫" } };
+    campaign.status = "combat";
+    const ally = prepareBattle(campaign).roster.find((unit) => unit.id === id);
+    assert.equal(ally.name, evolvedName);
+    assert.match(ally.asset, new RegExp(`^assets/evolved/${id}/`));
+  }
+});
+
 test("fall rock's permanent attack and critical gains enter the next battle once", () => {
   const campaign = createCampaign(() => 0, { seed: 78 });
   assert.equal(startCampaign(campaign), true);
@@ -293,7 +310,7 @@ test("different-length branches enter one shared room at their actual encounter 
       completeLocation(campaign);
     }
     const selected = travelTo(campaign, "join-1");
-    assert.equal(selected.battle.type, "normal");
+    assert.equal(selected.battle.type, campaign.activeNode.type === "elite" ? "elite" : "normal");
     assert.equal(campaign.activeNode.id, "join-1");
     assert.equal(chooseRoute(campaign, "join-1"), null);
     const step = selected.battle.step;
@@ -551,7 +568,15 @@ test("Fate Gate waits through a noncombat node and guarantees one stable learned
   completeLocation(campaign);
   assert.deepEqual(campaign.runCharacterState.nextBattleSkillGuarantee, { sourceId: "test-fate", skillIds: ["shadow-clone-rush", "rasengan"] });
 
-  const battleNode = getRouteOptions(campaign).find((node) => node.type === "battle");
+  let battleNode = getRouteOptions(campaign).find((node) => ["battle", "elite"].includes(node.type));
+  if (!battleNode) {
+    const campfire = getRouteOptions(campaign).find((node) => node.type === "campfire");
+    assert.ok(campfire);
+    chooseRoute(campaign, campfire.id);
+    assert.ok(resolveCampaignEvent(campaign, "rest"));
+    completeLocation(campaign);
+    battleNode = getRouteOptions(campaign).find((node) => ["battle", "elite"].includes(node.type));
+  }
   assert.ok(battleNode);
   chooseRoute(campaign, battleNode.id);
   const prepared = prepareBattle(campaign);
@@ -617,8 +642,8 @@ test("Boss follows the shared campfire and battle tail at the actual encounter s
   assert.equal(deidara.name, "迪达拉");
   assert.equal(deidara.role, "爆破艺术家");
   assert.equal(deidara.asset, "assets/deidara-v2/idle/idle_1.png", "the boss battle uses the new Deidara sprite");
-  assert.equal(deidara.c0DamagePerRound, 70);
-  assert.deepEqual([deidara.maxHp, deidara.atk, deidara.def, deidara.spd], [1700, 120, 40, 75]);
+  assert.equal(deidara.c0DamagePerRound, 100);
+  assert.deepEqual([deidara.maxHp, deidara.atk, deidara.def, deidara.spd], [1400, 120, 40, 75]);
   assert.equal(deidara.skill.id, "c4-garuda");
   assert.equal(deidara.skill.chance, 1);
   assert.equal(deidara.skill.multiplier, 1.2);
@@ -626,6 +651,18 @@ test("Boss follows the shared campfire and battle tail at the actual encounter s
   finishBattle(campaign, "victory", campaign.playerHp - 10);
   assert.equal(finishBattle(campaign, "victory", campaign.playerHp - 10), false, "the final battle callback cannot settle twice");
   assert.equal(completeSettlement(campaign), "stage_transition");
+});
+
+test("first-stage ordinary encounters are single through step six, then retain later templates", () => {
+  for (let step = 1; step <= 6; step++) {
+    const { campaign, node } = campaignForEncounterStep(step, "battle");
+    const transition = travelTo(campaign, node.id);
+    assert.equal(transition.type, "battle");
+    assert.equal(transition.battle.enemies.length, 1, `step ${step}`);
+  }
+  const { campaign, node } = campaignForEncounterStep(9, "battle");
+  const transition = travelTo(campaign, node.id);
+  assert.deepEqual(transition.battle.enemies, ["guard", "mage"]);
 });
 
 test("defeat ends the run and route actions cannot advance it", () => {

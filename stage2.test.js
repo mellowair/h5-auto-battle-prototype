@@ -132,7 +132,8 @@ test("second-stage map is independent and ends in Boros, not Deidara", () => {
   assert.deepEqual(prepared.roster.filter((entry) => entry.team === "enemy").map((entry) => entry.id), ["boros"]);
   const allies = prepared.roster.filter((entry) => entry.team === "ally");
   assert.equal(finishBattle(campaign, "victory", allies[0].currentHp, [], allies).next, "victory");
-  assert.equal(completeSettlement(campaign), "victory");
+  assert.equal(completeSettlement(campaign), "stage_transition");
+  assert.equal(campaign.stageTransition.phase, "stage2_skill");
 });
 
 test("second-stage elite nodes draw Toji, Kira, or one shared titan duo encounter with one reward", () => {

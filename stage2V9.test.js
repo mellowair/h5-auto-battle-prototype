@@ -227,7 +227,7 @@ test("Gilgamesh first cast weakens only the next round and all four casts repeat
   assert.equal(sequence.events.some((event) => event.type === "gilgamesh-rest"), false);
 });
 
-test("level-four Tatakae shields every living teammate and level-four Free Will adds fourth-cast true damage", () => {
+test("level-four Tatakae shields every living teammate and level-four Free Will adds third-cast true damage", () => {
   const tatakae = { ...SKILL_DATA["eren-tatakae"], ...SKILL_DATA["eren-tatakae"].levels[4], level: 4 };
   const state = initializeBattle([ally("eren", { skills: [tatakae] }), ally("partner", { rosterOrder: 1 }),
     enemy("foe", { hp: 10000, currentHp: 10000, rosterOrder: 2 })]);
@@ -248,8 +248,8 @@ test("level-four Tatakae shields every living teammate and level-four Free Will 
   for (let round = 1; round <= 8; round += 1) {
     freeState.round = round;
     const event = executeAttack(freeState, freeState.characters[0], freeState.characters[1], () => .99, { skill: freeWill });
-    assert.equal(Boolean(event.extraTrueDamage), round === 4 || round === 8);
-    if (round === 4) assert.equal(event.extraTrueDamage.requested, Math.floor((40 + 100) * .8));
+    assert.equal(Boolean(event.extraTrueDamage), round === 3 || round === 6);
+    if (round === 3) assert.equal(event.extraTrueDamage.requested, 40 + 75);
     if (round === 8) assert.equal(event.freeWillDefenseStacks, 4);
   }
 });

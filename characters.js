@@ -21,6 +21,13 @@ export const STAGE_TWO_NORMAL_ENEMY_TIERS = Object.freeze([
   Object.freeze({ maxStep: Infinity, guard: Object.freeze({ hp: 1900, atk: 160, def: 110, spd: 70 }), mage: Object.freeze({ hp: 1500, atk: 200, def: 70, spd: 50 }) }),
 ]);
 
+// Third-stage ordinary encounters use stage-local steps and final combat stats.
+export const STAGE_THREE_NORMAL_ENEMY_TIERS = Object.freeze([
+  Object.freeze({ maxStep: 6, guard: Object.freeze({ hp: 2400, atk: 250, def: 140, spd: 75 }), mage: Object.freeze({ hp: 1800, atk: 320, def: 105, spd: 90 }) }),
+  Object.freeze({ maxStep: 12, guard: Object.freeze({ hp: 2800, atk: 310, def: 160, spd: 85 }), mage: Object.freeze({ hp: 2100, atk: 390, def: 120, spd: 100 }) }),
+  Object.freeze({ maxStep: Infinity, guard: Object.freeze({ hp: 3200, atk: 370, def: 180, spd: 95 }), mage: Object.freeze({ hp: 2400, atk: 460, def: 140, spd: 110 }) }),
+]);
+
 // Encounter-only enemies. Their combat copies are created in campaign.js.
 export const EVENT_ENEMY_DATA = Object.freeze({
   suzuya: {
@@ -52,6 +59,47 @@ export const EVENT_ENEMY_DATA = Object.freeze({
     animations: { idle: { type: "frames", frames: { idle: "assets/event-enemies/gilgamesh.png" } }, enuma: { type: "frames", frames: { raise: "assets/event-enemies/gilgamesh-sword.png" } } },
     skillVisualTimelines: { enuma: { chargeMs: 700, launchMs: 500, fallMs: 1000, impactMs: 1700, totalMs: 2200, beamOriginX: .40, beamOriginY: .38, beamAngle: -120, beamScale: 1.4, fallScale: 2.5, effect: "assets/event-enemies/gilgamesh-beam.png" } },
   },
+  arima: {
+    id: "arima", name: "有马贵将", team: "enemy", role: "白色死神", row: "front", position: "front",
+    hp: 3500, atk: 500, def: 140, spd: 140, attackType: "melee", stageThreeKind: "arima",
+    asset: NORMAL_ENEMY_APPEARANCES.lubu.asset, visualId: "lubu", activeSkills: ["arima-pierce"],
+    extraPassiveSkillIds: ["arima-insight", "arima-crit", "arima-guard"],
+  },
+});
+
+// Trial-only opponents. The six ordinary opponents still use temporary art.
+// Their stage-two row-template stats are assigned in campaign.js.
+export const TRIAL_ENEMY_DATA = Object.freeze({
+  heracles: { id: "heracles", name: "赫拉克勒斯", team: "enemy", type: "elite", role: "诸神试炼 · 力量", row: "front", position: "front",
+    hp: 3000, atk: 550, def: 200, spd: 100, asset: "assets/trial-enemies/赫拉克勒斯.png", visualId: "heracles", attackType: "melee",
+    activeSkills: ["heracles-nine-heads"], trialPassive: "heracles", rosterOrder: 2,
+    skillAnimationMap: { "heracles-nine-heads": "nineHeads" },
+    animations: { idle: { type: "frames", frames: { idle: "assets/trial-enemies/赫拉克勒斯.png" } },
+      meleeAttack: { type: "frames", frames: { punch: "assets/trial-enemies/赫拉克勒斯攻击.png" }, impactFrames: ["punch"] },
+      nineHeads: { type: "frames", frames: { charge: "assets/trial-enemies/赫拉克勒斯蓄力.png", strike: "assets/trial-enemies/赫拉克勒斯技能.png" }, durationsMs: [500, 450] } } },
+  odin: { id: "odin", name: "奥丁", team: "enemy", type: "elite", role: "诸神试炼 · 智慧", row: "back", position: "back",
+    hp: 2500, atk: 500, def: 100, spd: 100, asset: "assets/trial-enemies/奥丁.png", visualId: "odin", attackType: "magic", attackAnimation: "magicAttack",
+    activeSkills: ["odin-gungnir"], trialPassive: "odin", rosterOrder: 2,
+    projectileAsset: "assets/trial-enemies/奥丁施法素材.png",
+    skillAnimationMap: { "odin-gungnir": "gungnir" },
+    animations: { idle: { type: "frames", frames: { idle: "assets/trial-enemies/奥丁.png" } },
+      magicAttack: { type: "frames", frames: { cast: "assets/trial-enemies/奥丁施法1.png" } },
+      gungnir: { type: "frames", frames: { cast: "assets/trial-enemies/奥丁施法1.png" } },
+      passive1: { type: "frames", frames: { trigger: "assets/trial-enemies/奥丁被动1.png" } },
+      passive2: { type: "frames", frames: { trigger: "assets/trial-enemies/奥丁被动2.png" } },
+      death: { type: "frames", frames: { down: "assets/trial-enemies/奥丁倒地.png" } } } },
+  zhang_jiao: { id: "zhang_jiao", name: "张角", team: "enemy", role: "试炼敌人", row: "back", position: "back",
+    asset: NORMAL_ENEMY_APPEARANCES.mage.asset, visualId: "mage", attackType: "magic", activeSkills: ["zhang-jiao-lightning"] },
+  jogo: { id: "jogo", name: "漏壶", team: "enemy", role: "试炼敌人", row: "back", position: "back",
+    asset: NORMAL_ENEMY_APPEARANCES.mage.asset, visualId: "mage", attackType: "magic", trialPassive: "jogo" },
+  esdeath: { id: "esdeath", name: "艾斯德斯", team: "enemy", role: "试炼敌人", row: "back", position: "back",
+    asset: NORMAL_ENEMY_APPEARANCES.mage.asset, visualId: "mage", attackType: "magic", trialPassive: "esdeath" },
+  hidan: { id: "hidan", name: "飞段", team: "enemy", role: "试炼敌人", row: "front", position: "front",
+    asset: NORMAL_ENEMY_APPEARANCES.giant.asset, visualId: "giant", attackType: "melee", trialPassive: "hidan" },
+  ah_fu: { id: "ah_fu", name: "阿福", team: "enemy", role: "试炼敌人", row: "front", position: "front",
+    asset: NORMAL_ENEMY_APPEARANCES.giant.asset, visualId: "giant", attackType: "melee", trialPassive: "ah_fu" },
+  scorpion_lailai: { id: "scorpion_lailai", name: "蝎子莱莱", team: "enemy", role: "试炼敌人", row: "front", position: "front",
+    asset: NORMAL_ENEMY_APPEARANCES.giant.asset, visualId: "giant", attackType: "melee", trialPassive: "scorpion_lailai" },
 });
 
 // All balance values and lineup order live here.
@@ -107,13 +155,13 @@ export const CHARACTER_DATA = [
   {
     id: "guard", name: "守卫", team: "enemy", role: "守卫", row: "front", position: "front",
     hp: 500, atk: 60, def: 40, spd: 30, baseStats: { maxHp: 500, atk: 60, def: 40, spd: 30, critRate: 0.05, critMultiplier: 1.5 },
-    activeSkills: ["shield-bash", "guardian-stance"], passiveSkillId: "steadfast-guard", skill: null, attackType: "melee", deathPose: "cute-flop",
+    activeSkills: [], passiveSkillId: null, skill: null, attackType: "melee", deathPose: "cute-flop",
     asset: NORMAL_ENEMY_APPEARANCES.giant.asset, rosterOrder: 1,
   },
   {
     id: "mage", name: "法师", team: "enemy", role: "法师", row: "back", position: "back",
     hp: 400, atk: 70, def: 20, spd: 30, baseStats: { maxHp: 400, atk: 70, def: 20, spd: 30, critRate: 0.05, critMultiplier: 1.5 },
-    activeSkills: ["firebolt", "arcane-ward"], passiveSkillId: "mana-spark", skill: null, attackType: "magic", deathPose: "cute-flop",
+    activeSkills: [], passiveSkillId: null, skill: null, attackType: "magic", deathPose: "cute-flop",
     asset: NORMAL_ENEMY_APPEARANCES.mage.asset, rosterOrder: 2,
   },
 ];
@@ -276,8 +324,8 @@ export const STARTING_CHARACTERS = [
   },
   {
     id: "tang", name: "唐僧", team: "ally", role: "召唤师", row: "back", position: "back",
-    hp: 700, atk: 300, def: 30, spd: 10,
-    baseStats: { maxHp: 700, atk: 300, def: 30, spd: 10, critRate: 0.05, critMultiplier: 1.5 },
+    hp: 900, atk: 300, def: 30, spd: 10,
+    baseStats: { maxHp: 900, atk: 300, def: 30, spd: 10, critRate: 0.05, critMultiplier: 1.5 },
     activeSkills: ["journey-west"], passiveSkillId: "tang-flesh", attackType: "magic",
     asset: "assets/tang/tang_idle.png", rosterOrder: 0,
     skillAnimationMap: { "journey-west": "skill1", "tang-meditation-strike": "skill1" },
@@ -353,6 +401,27 @@ export const ELITE_ENEMY_DATA = [
     asset: "assets/stage2-enemies/colossal-titan.png", attackType: "melee", smokeAsset: "assets/stage2-enemies/colossal-smoke.png",
     periodicPassive: { id: "colossal-steam-wave", name: "蒸汽波", everyRounds: 4, allyDamage: 300, armoredDamage: 100, onlyPeriodicActions: true },
   },
+  { id: "shin", name: "心", type: "elite", stageId: 3, eliteEncounterId: "shin-noi", team: "enemy",
+    role: "精英", row: "front", position: "front", hp: 3500, atk: 400, def: 160, spd: 120,
+    attackType: "melee", asset: "assets/stage3-elites/shin_idle.png", visualId: "shin", activeSkills: ["shin-strike"],
+    projectileAsset: "assets/stage3-elites/shin_hammer.png", skillAnimationMap: { "shin-strike": "hammerThrow" },
+    animations: {
+      idle: { type: "frames", frames: { idle: "assets/stage3-elites/shin_idle.png" } },
+      run: { type: "frames", frames: { step: "assets/stage3-elites/shin_idle.png" } },
+      meleeAttack: { type: "frames", frames: { punch: "assets/stage3-elites/shin_punch.png" }, impactFrames: ["punch"] },
+      hammerThrow: { type: "frames", frames: { charge: "assets/stage3-elites/shin_skill_1.png", throw: "assets/stage3-elites/shin_skill_2.png" } },
+    },
+    extraPassiveSkillIds: ["stage3-resurrection"] },
+  { id: "noi", name: "能井", type: "elite", stageId: 3, eliteEncounterId: "shin-noi", team: "enemy",
+    role: "精英", row: "front", position: "front", hp: 4000, atk: 360, def: 130, spd: 100,
+    attackType: "melee", asset: "assets/stage3-elites/noi_idle.png", visualId: "noi", activeSkills: ["noi-heal"],
+    animations: {
+      idle: { type: "frames", frames: { idle: "assets/stage3-elites/noi_idle.png" } },
+      run: { type: "frames", frames: { step: "assets/stage3-elites/noi_idle.png" } },
+      meleeAttack: { type: "frames", frames: { punch: "assets/stage3-elites/noi_punch.png" }, impactFrames: ["punch"] },
+      heal: { type: "frames", frames: { cast: "assets/stage3-elites/noi_heal.png" } },
+    },
+    extraPassiveSkillIds: ["stage3-resurrection"] },
 ];
 
 export const STAGE_TWO_BOSS_DATA = Object.freeze({
@@ -385,13 +454,52 @@ export const STAGE_TWO_BOSS_DATA = Object.freeze({
   },
 });
 
+// Stage-three presentation is independent of combat stats and route scaling.
+export const STAGE_THREE_BOSS_DATA = Object.freeze({
+  id: "makima", name: "玛奇玛", type: "boss", team: "enemy", role: "支配恶魔",
+  row: "back", position: "back", hp: 3700, atk: 250, def: 150, spd: 160,
+  attackType: "ranged", asset: "assets/stage3-enemies/makima_hover_idle.png", visualId: "makima", stageThreeKind: "makima",
+  attackAnimation: "hoverAttack",
+  animations: {
+    idle: { type: "frames", frames: { hover: "assets/stage3-enemies/makima_hover_idle.png" } },
+    hoverAttack: { type: "frames", frames: { cast: "assets/stage3-enemies/makima_hover_attack.png" } },
+    landing: { type: "frames", frames: { land: "assets/stage3-enemies/makima_landing.png" } },
+    groundIdle: { type: "frames", frames: { stand: "assets/stage3-enemies/makima_ground_idle.png" } },
+    groundAttack: { type: "frames", frames: { strike: "assets/stage3-enemies/makima_ground_attack.png" } },
+  },
+  summonAuraAsset: "assets/effects/makima_summon_circle.png",
+  extraPassiveSkillIds: ["makima-weapons", "makima-control", "makima-angel", "makima-bang"],
+});
+
+export const STAGE_THREE_MINIONS = Object.freeze({
+  "makima-bomb": { id: "makima-bomb", name: "炸弹恶魔", team: "enemy", row: "front", position: "front",
+    hp: 1400, atk: 300, def: 130, spd: 130, attackType: "melee", stageThreeMinion: true,
+    asset: "assets/stage3-enemies/makima_bomb_idle.png", visualId: "makima-bomb", activeSkills: ["bomb-demon-boom"],
+    animations: { idle: { type: "frames", frames: { idle: "assets/stage3-enemies/makima_bomb_idle.png" } } } },
+  "flamethrower-devil": { id: "flamethrower-devil", name: "喷火器恶魔", team: "enemy", row: "front", position: "front",
+    hp: 1800, atk: 120, def: 130, spd: 100, attackType: "melee", stageThreeMinion: true, stageThreeKind: "burn",
+    asset: "assets/stage3-enemies/flamethrower_idle.png", visualId: "flamethrower-devil",
+    extraPassiveSkillIds: ["stage3-burn"] },
+  "katana-devil": { id: "katana-devil", name: "刀之恶魔", team: "enemy", row: "front", position: "front",
+    hp: 2200, atk: 200, def: 150, spd: 120, attackType: "melee", stageThreeMinion: true, stageThreeKind: "bleed",
+    asset: "assets/stage3-enemies/katana_idle.png", visualId: "katana-devil",
+    extraPassiveSkillIds: ["stage3-bleed"] },
+  quanxi: { id: "quanxi", name: "光熙", team: "enemy", row: "front", position: "front",
+    hp: 1500, atk: 450, def: 100, spd: 300, attackType: "melee", stageThreeMinion: true, stageThreeKind: "quanxi",
+    asset: "assets/stage3-enemies/quanxi_idle.png", visualId: "quanxi",
+    animations: { meleeAttack: { type: "frames", frames: {
+      flash: "assets/stage3-enemies/quanxi_flash.png", strike: "assets/stage3-enemies/quanxi_attack.png",
+    } } },
+    extraPassiveSkillIds: ["quanxi-finisher"] },
+});
+
 // Encounter definitions scale the existing enemy templates without changing
 // their base character data. Normal battles select the front-row appearance separately.
 export const CAMPAIGN_BATTLES = [
   { number: 1, type: "normal", title: "风车原野", location: "风车原野", description: "击退拦路的敌人。", enemies: ["guard"], enemyNames: { guard: "巨人" } },
   { number: 2, type: "normal", title: "溪谷小径", location: "溪谷小径", description: "穿过溪谷，继续前进。", enemies: ["mage"], enemyNames: { mage: "小法师" } },
   { number: 3, type: "normal-hard", title: "古木关隘", location: "古木关隘", description: "更强的敌人守着关口。", enemies: ["guard", "mage"], enemyNames: { guard: "巨人", mage: "小法师" } },
-  { number: 5, type: "boss", title: "迪达拉", location: "迪达拉的艺术现场", description: "击败迪达拉，完成第一大关。", enemies: ["guard"], enemyNames: { guard: "迪达拉" }, enemyBaseStats: { guard: { hp: 1700, atk: 120, def: 40, spd: 75 } }, enemyMechanics: { guard: { c0DamagePerRound: 70 } } },
+  { number: 5, type: "boss", title: "迪达拉", location: "迪达拉的艺术现场", description: "击败迪达拉，完成第一大关。", enemies: ["guard"], enemyNames: { guard: "迪达拉" }, enemyBaseStats: { guard: { hp: 1400, atk: 120, def: 40, spd: 75 } }, enemyMechanics: { guard: { c0DamagePerRound: 100 } } },
 ];
 
 export const ADVENTURE_EVENTS = [

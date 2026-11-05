@@ -161,7 +161,7 @@ test("legacy passive evaluator remains once-per-battle for passive skills using 
 });
 
 test("Naruto skill levels carry the requested clone count, damage multiplier, and trigger chance", () => {
-  const expected = [[1, 1.3, 0.45], [2, 1.6, 0.50], [3, 1.9, 0.55], [4, 2.2, 0.65]];
+  const expected = [[1, 1.3, 0.55], [2, 1.6, 0.60], [3, 1.9, 0.65], [4, 2.2, 0.75]];
   for (const [level, multiplier, chance] of expected) {
     assert.equal(SKILL_DATA["shadow-clone-rush"].levels[level].multiplier, multiplier);
     assert.equal(SKILL_DATA["shadow-clone-rush"].levels[level].cloneCount, level);
@@ -239,12 +239,12 @@ test("temporary effects power clickable status icons, while character details om
 test("skill upgrades expose the next level's actual chance and damage values", () => {
   const run = makeNaruto();
   const before = getSkillAtLevel(run, "shadow-clone-rush");
-  assert.equal(before.chance, 0.45);
+  assert.equal(before.chance, 0.55);
   assert.equal(before.multiplier, 1.3);
   upgradeActiveSkill(run, "shadow-clone-rush", "clone-upgrade");
   const after = getSkillAtLevel(run, "shadow-clone-rush");
   assert.equal(after.level, 2);
-  assert.equal(after.chance, 0.50);
+  assert.equal(after.chance, 0.60);
   assert.equal(after.multiplier, 1.6);
   assert.equal(after.cloneCount, 2);
 });
@@ -442,7 +442,7 @@ test("Anteiku coffee heals 15 percent and grants DEF plus 30 only for the next b
 });
 
 test("event images point to copied local resources and decision UI renders them", () => {
-  assert.equal(Object.keys(ADVENTURE_EVENT_DATA).length, 13);
+  assert.equal(Object.keys(ADVENTURE_EVENT_DATA).length, 14);
   const app=readFileSync(new URL("./app.js",import.meta.url),"utf8"), html=readFileSync(new URL("./index.html",import.meta.url),"utf8"), css=readFileSync(new URL("./style.css",import.meta.url),"utf8");
   assert.match(app,/eventImage\.src = image/); assert.match(html,/id="decision-event-image"/); assert.match(css,/\.decision-event-image\[hidden\]\s*\{\s*display:\s*none/);
   for (const id of ["sea_beyond","death_note","fate_gate","giant_encirclement","kings_treasury"]) { const event=ADVENTURE_EVENT_DATA[id]; assert.ok(event.image.startsWith("assets/events/")); const png=readFileSync(new URL("./"+event.image,import.meta.url)); assert.equal(png.toString("ascii",1,4),"PNG"); assert.ok(png.readUInt32BE(16)>=256); assert.ok(png.readUInt32BE(20)>=256); }

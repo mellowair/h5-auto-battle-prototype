@@ -79,6 +79,7 @@ export function createRunCharacterState(character, initialSkillId) {
     passiveLevel: 1,
     skillLevels: skillId ? { [skillId]: 1 } : {},
     statOffers: {}, rewardOffers: {}, eventResults: {}, consumedActions: [],
+    statPointChoices: { maxHp: 0, atk: 0, def: 0, spd: 0 },
     completedCampfires: [], passiveUses: {}, battleStartPassiveChecks: {}, skillHistory: [], temporaryEffects: [],
     fallRockCount: 0, fallRockCompleted: false, permanentEffects: [], eventSeries: {},
   };
@@ -127,7 +128,7 @@ export function claimTreasure(runState, sourceId, treasureId, recipientState, re
   if (treasure.maxHp) recipientState.maxHp = Math.max(1, recipientState.maxHp + treasure.maxHp);
   recipientState.currentHp = Math.min(recipientState.currentHp, recipientState.maxHp);
   if (treasure.critRateBonus) recipientState.critRate = Math.min(COMBAT_RULES.maxCritChance, recipientState.critRate + treasure.critRateBonus);
-  if (treasure.id === "angel_breath") recipientState.currentHp = recipientState.maxHp;
+  if (treasure.id === "angel_breath" && !(recipientState.divinePunishment?.battlesLeft > 0)) recipientState.currentHp = recipientState.maxHp;
   recipientState.permanentEffects.push({ id: treasure.id, name: treasure.name, description: treasure.description, sourceId });
   offer.claimed = true;
   offer.treasureId = treasureId;
@@ -149,7 +150,7 @@ export function upgradePassiveSkill(runState, sourceId) {
   ensureRunState(runState);
   const skill = SKILL_DATA[runState.passiveSkillId];
   const key = makeActionKey("passive-upgrade", sourceId);
-  if (!skill?.passive || (runState.passiveLevel ?? 1) >= 2 || !recordAction(runState, key)) return false;
+  if (!skill?.passive || (runState.passiveLevel ?? 1) >= (skill.maxLevel ?? 1) || !recordAction(runState, key)) return false;
   runState.passiveLevel = 2;
   const maxHpBonus = skill.levels[2]?.maxHpBonus ?? 0;
   if (maxHpBonus) runState.maxHp += maxHpBonus;
@@ -161,7 +162,8 @@ export function getUpgradeableSkills(runState) {
   ensureRunState(runState);
   return runState.learnedActiveSkills.filter((id) => {
     const config = SKILL_DATA[id];
-    return config?.type === "active" && (runState.skillLevels[id] ?? 1) < config.maxLevel;
+    const cap = id === "journey-west" && runState.evolution?.phase !== 2 ? 10 : config?.maxLevel;
+    return config?.type === "active" && (runState.skillLevels[id] ?? 1) < cap;
   });
 }
 
@@ -208,6 +210,7 @@ export function getAvailableAdventureEventIds(runState, step = 1, partyStates = 
       state.learnedActiveSkills.some((id) => (state.skillLevels[id] ?? 0) >= 4))))
     && (eventId !== "coffee_shop" || eligible("anteiku", 1))
     && (eventId !== "anteiku_2" || eligible("anteiku", 2, stageId >= 2 && stageId <= 3 && Boolean(series.anteiku?.chapter2Unlocked)))
+    && (eventId !== "anteiku_3" || stageId === 3 && Boolean(series.anteiku?.chapter2Completed) && !series.anteiku?.chapter3Completed)
     && (eventId !== "big_rock" || eligible("rock", 1))
     && (eventId !== "giant_rock_2" || eligible("rock", 2, stageId >= 2 && Boolean(series.rock?.chapter2Unlocked)))
     && (eventId !== "fall_rock" || (!runState.fallRockCompleted && runState.fallRockCount < ADVENTURE_EVENT_DATA.fall_rock.stages.length))
@@ -315,7 +318,13 @@ export function applyStatUpgrade(runState, sourceId, upgradeId) {
   const requiredSelections = Math.max(1, Math.floor(finite(offer.requiredSelections, 1)));
   const actionKey = makeActionKey("stat", `${sourceId}:${upgradeId}`);
   if (offer.selectedIds.length >= requiredSelections || has(offer.selectedIds, upgradeId) || !actionAvailable(runState, actionKey)) return false;
-  for (const [stat, value] of Object.entries(upgrade.effects)) runState[stat] += value;
+  for (const [stat, value] of Object.entries(upgrade.effects)) {
+    runState[stat] += value;
+    if (["maxHp", "atk", "def", "spd"].includes(stat)) {
+      runState.statPointChoices ??= { maxHp: 0, atk: 0, def: 0, spd: 0 };
+      runState.statPointChoices[stat] = (runState.statPointChoices[stat] ?? 0) + 1;
+    }
+  }
   runState.currentHp = Math.max(0, Math.min(runState.maxHp, runState.currentHp));
   offer.selectedIds.push(upgradeId);
   offer.status = offer.selectedIds.length >= requiredSelections ? "applied" : "pending";
@@ -327,7 +336,7 @@ export function applyStatUpgrade(runState, sourceId, upgradeId) {
 export function healRunCharacter(runState, amount, sourceId) {
   ensureRunState(runState);
   if (!sourceId || !actionAvailable(runState, makeActionKey("heal", sourceId))) return null;
-  const healing = Math.max(0, Math.floor(finite(amount)));
+  const healing = runState.divinePunishment?.battlesLeft > 0 ? 0 : Math.max(0, Math.floor(finite(amount)));
   const before = runState.currentHp;
   runState.currentHp = Math.min(getMaxHp(runState), before + healing);
   recordAction(runState, makeActionKey("heal", sourceId));
@@ -349,8 +358,11 @@ export function upgradeActiveSkill(runState, skillId, sourceId) {
   ensureRunState(runState);
   const config = SKILL_DATA[skillId];
   const level = runState.skillLevels[skillId] ?? 1;
-  if (!sourceId || !config || config.type !== "active" || !has(runState.learnedActiveSkills, skillId) || level >= config.maxLevel || !actionAvailable(runState, makeActionKey(`skill:${skillId}`, sourceId))) return false;
+  const cap = skillId === "journey-west" && runState.evolution?.phase !== 2 ? 10 : config?.maxLevel;
+  if (!sourceId || !config || config.type !== "active" || !has(runState.learnedActiveSkills, skillId) || level >= cap || !actionAvailable(runState, makeActionKey(`skill:${skillId}`, sourceId))) return false;
   runState.skillLevels[skillId] = level + 1;
+  if (skillId === "journey-west" && runState.evolution?.phase === 2)
+    runState.atk += (config.levels[level + 1]?.attackBonus ?? 0) - (config.levels[level]?.attackBonus ?? 0);
   runState.skillHistory.push({ skillId, level: level + 1, sourceId, kind: "upgrade" });
   recordAction(runState, makeActionKey(`skill:${skillId}`, sourceId));
   return getSkillAtLevel(runState, skillId);
@@ -358,7 +370,8 @@ export function upgradeActiveSkill(runState, skillId, sourceId) {
 
 export function getCampfireOptions(runState) {
   ensureRunState(runState);
-  const cannotHeal = runState.permanentEffects.some((effect) => effect.id === "stone_mask");
+  const blockedByDivine = runState.divinePunishment?.battlesLeft > 0;
+  const cannotHeal = blockedByDivine || runState.permanentEffects.some((effect) => effect.id === "stone_mask");
   const healFraction = CAMPFIRE_RULES.rest.healFraction +
     (runState.permanentEffects.some((effect) => effect.id === "drip_coffee") ? .15 : 0);
   const eligible = getSkillTrainingChoices(runState).map((id) => ({
@@ -367,7 +380,7 @@ export function getCampfireOptions(runState) {
     nextEffect: copy(SKILL_DATA[id].levels[(runState.skillLevels[id] ?? 0) + 1]),
   }));
   return [
-    { id: CAMPFIRE_RULES.rest.id, name: CAMPFIRE_RULES.rest.name, enabled: true, healAmount: cannotHeal ? 0 : Math.floor(getMaxHp(runState) * healFraction), blockedBy: cannotHeal ? "stone_mask" : null },
+    { id: CAMPFIRE_RULES.rest.id, name: CAMPFIRE_RULES.rest.name, enabled: true, healAmount: cannotHeal ? 0 : Math.floor(getMaxHp(runState) * healFraction), blockedBy: cannotHeal ? (blockedByDivine ? "divine_punishment" : "stone_mask") : null },
     { id: CAMPFIRE_RULES.skillUpgrade.id, name: CAMPFIRE_RULES.skillUpgrade.name, enabled: eligible.length > 0, skills: eligible, reason: eligible.length ? null : "主动技能已全部学习并达到各自最高等级。" },
   ];
 }
@@ -493,7 +506,7 @@ export function createAdventureEventResult(runState, sourceId, eventId, random =
   if (eventId === "scroll" && !partyStates.some((state) => getUnlearnedActiveSkills(state).length)) return null;
   if (eventId === "fall_rock" && (runState.fallRockCompleted || runState.fallRockCount >= config.stages.length)) return null;
   if (eventId === "sea_beyond" && Object.values(runState.eventResults).some((event) => event.eventId === "sea_beyond")) return null;
-  if (["sea_beyond_2", "old_scroll_2", "anteiku_2", "giant_rock_2"].includes(eventId) &&
+  if (["sea_beyond_2", "old_scroll_2", "anteiku_2", "anteiku_3", "giant_rock_2"].includes(eventId) &&
     !getAvailableAdventureEventIds(runState, 1, partyStates, stageId).includes(eventId)) return null;
   const record = { sourceId, eventId, name: config.name, description: config.description, image: config.image, effectText: config.effectText, status: config.containsBattle ? "pending_battle" : "pending", type: config.type, containsBattle: config.containsBattle, data: { stageId } };
   if (eventId === "fall_rock") {
@@ -548,7 +561,7 @@ function nextBattleEffect(sourceId, statusId, name, stat, amount) {
 function applySharedEventEffect(runState, sourceId, result) {
   if (result.effect && !runState.temporaryEffects.some((effect) => effect.sourceId === sourceId))
     runState.temporaryEffects.push(copy(result.effect));
-  if (result.healFraction) {
+  if (result.healFraction && !(runState.divinePunishment?.battlesLeft > 0)) {
     const restored = Math.min(runState.maxHp - runState.currentHp, Math.floor(runState.maxHp * result.healFraction));
     runState.currentHp += restored;
     result.restored = restored;
@@ -675,6 +688,20 @@ export function resolveAdventureEvent(runState, sourceId, choiceId = null, rando
       result = { skipped: true };
     } else return false;
     series.scroll.lastChoice = choiceId;
+  } else if (record.eventId === "anteiku_3") {
+    if (choiceId === "anteiku_arima") {
+      record.containsBattle = true;
+      record.data.battleType = "normal";
+      record.status = "pending_battle";
+      keepPending = true;
+      result = { pendingBattle: true, encounter: "有马贵将" };
+    } else if (choiceId === "anteiku_weapon") {
+      applyAnteikuWeaponPenalty(runState, sourceId);
+      result = { weaponPenalty: true, maxHpFraction: .30, attackFraction: .30 };
+    } else return false;
+    series.anteiku ??= {};
+    series.anteiku.chapter3Completed = true;
+    series.anteiku.lastChoice = choiceId;
   } else if (record.eventId === "coffee_shop" || record.eventId === "anteiku_2") {
     const sequel = record.eventId === "anteiku_2";
     series.anteiku ??= {};
@@ -745,7 +772,7 @@ export function resolveAdventureEvent(runState, sourceId, choiceId = null, rando
       attackGain, atk: runState.atk, critRateGain: runState.critRate - previousCritRate, critRate: runState.critRate };
   } else return false;
   if (!result) return false;
-  if (["sea_beyond_2", "old_scroll_2", "coffee_shop", "anteiku_2", "big_rock", "giant_rock_2"].includes(record.eventId))
+  if (["sea_beyond_2", "old_scroll_2", "coffee_shop", "anteiku_2", "anteiku_3", "big_rock", "giant_rock_2"].includes(record.eventId))
     record.data.choiceId = choiceId;
   if (!keepPending) record.status = "completed";
   record.result = result;
@@ -759,6 +786,11 @@ export function applyAdventurePartyOutcome(member, record) {
   if (!record || record.status !== "completed" || !record.result || record.result.skipped) return false;
   const key = makeActionKey("party-event", record.sourceId);
   if (!actionAvailable(member, key)) return false;
+  if (record.eventId === "anteiku_3" && record.data.choiceId === "anteiku_weapon") {
+    if (!applyAnteikuWeaponPenalty(member, record.sourceId)) return false;
+    recordAction(member, key);
+    return true;
+  }
   if (["coffee_shop", "big_rock", "anteiku_2", "giant_rock_2", "sea_beyond_2"].includes(record.eventId)) {
     if (!record.result.effect && !record.result.healFraction && !record.result.maxHpGainFraction && !record.result.gains?.length) return false;
     applySharedEventEffect(member, record.sourceId, { ...record.result, gains: copy(record.result.gains) });
@@ -772,6 +804,19 @@ export function applyAdventurePartyOutcome(member, record) {
     for (const { stat, amount } of record.result.gains) member[stat] += amount;
   } else return false;
   recordAction(member, key);
+  return true;
+}
+
+function applyAnteikuWeaponPenalty(member, sourceId) {
+  ensureRunState(member);
+  if (!recordAction(member, makeActionKey("anteiku-weapon", sourceId))) return false;
+  const lostMaxHp = member.maxHp - Math.max(1, Math.floor(member.maxHp * .7));
+  const lostAtk = member.atk - Math.max(0, Math.floor(member.atk * .7));
+  member.maxHp -= lostMaxHp;
+  member.currentHp = Math.min(member.currentHp, member.maxHp);
+  member.atk -= lostAtk;
+  member.permanentEffects.push({ id: "anteiku_weapon", name: "一部分被做成武器", sourceId,
+    description: `本局最大 HP -${lostMaxHp}、ATK -${lostAtk}。` });
   return true;
 }
 
@@ -795,6 +840,17 @@ export function grantAdventureSpecialReward(member, sourceId, rewardId) {
   const reward = rewardId === "drip_coffee"
     ? { id: rewardId, name: "挂耳咖啡", description: "篝火恢复额外增加最大 HP 的 15%。" }
     : { id: rewardId, name: "六耳真身", description: "本局普通攻击和主动技能攻击无法被敌人闪避。" };
+  member.permanentEffects.push({ ...reward, sourceId });
+  return reward;
+}
+
+export function grantQuinque(member, sourceId, rewardId) {
+  ensureRunState(member);
+  if (!["quinque_guard", "quinque_crit"].includes(rewardId) ||
+    !recordAction(member, makeActionKey("quinque", sourceId))) return false;
+  const reward = rewardId === "quinque_guard"
+    ? { id: rewardId, name: "库因克 · 防御", description: "被普通攻击命中时，50% 概率抵挡一半伤害。" }
+    : { id: rewardId, name: "库因克 · 暴击", description: "生命低于 60% 时暴击率增加 30 个百分点。" };
   member.permanentEffects.push({ ...reward, sourceId });
   return reward;
 }
@@ -828,6 +884,7 @@ export function completeAdventureBattle(runState, sourceId, outcome, random = Ma
     createTreasureOffer(runState, sourceId, record.data.choiceId === "treasury_advance" ? "royal" : "small", random);
   }
   if (record.eventId === "anteiku_2" && record.data.choiceId === "anteiku_fight") record.data.specialRewardId = "drip_coffee";
+  if (record.eventId === "anteiku_3" && record.data.choiceId === "anteiku_arima") record.data.quinquePending = true;
   if (record.eventId === "giant_rock_2" && record.data.choiceId === "rock_fight") record.data.specialRewardId = "six_ear_true_form";
   const battleId = `event:${sourceId}`;
   const reward = createBattleRewardOffer(runState, battleId, record.data.battleType, random);

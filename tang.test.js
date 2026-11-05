@@ -13,13 +13,13 @@ const journey = (level) => ({ ...SKILL_DATA["journey-west"], ...SKILL_DATA["jour
 const enemy = (hp = 5000, atk = 1) => ({ id: "test-enemy", name: "测试敌人", team: "enemy", row: "front",
   hp, atk, def: 0, spd: 1, critChance: 0, normalDodgeRate: 0, skillDodgeRate: 0, rosterOrder: 1 });
 const run = (level, roll = .9, options = {}) => simulateBattle([
-  { ...tang, hp: 700, maxHp: 700, currentHp: options.hp ?? 700, passiveLevel: options.passiveLevel ?? 1,
+  { ...tang, hp: 900, maxHp: 900, currentHp: options.hp ?? 900, passiveLevel: options.passiveLevel ?? 1,
     atk: options.atk ?? tang.atk, skills: [journey(level)], critChance: 0, rosterOrder: 0 },
   { ...enemy(options.enemyHp ?? 5000, options.enemyAtk ?? 1), def: options.enemyDef ?? 0 },
-], () => roll);
+], typeof roll === "function" ? roll : () => roll);
 
 test("Tang joins both selectable stages with the new landing frame and exact base stats", () => {
-  assert.deepEqual([tang.hp, tang.atk, tang.def, tang.spd, tang.row], [700, 300, 30, 10, "back"]);
+  assert.deepEqual([tang.hp, tang.atk, tang.def, tang.spd, tang.row], [900, 300, 30, 10, "back"]);
   for (const name of ["tang_landing", "tang_idle", "tang_meditate", "tang_skill1", "tang_death"])
     assert.ok(existsSync(new URL(`./assets/tang/${name}.png`, import.meta.url)));
   for (const kind of ["white-horse", "bajie", "shaseng", "wukong"])
@@ -34,7 +34,7 @@ test("all ten summon weights, unique kinds, and only specified guarantees", () =
   for (const [level, weights] of Object.entries(TANG_SUMMON_WEIGHTS)) {
     assert.equal(weights.reduce((a, b) => a + b, 0), 100, `level ${level}`);
     assert.equal(SKILL_DATA["journey-west"].levels[level].chance, 1);
-    assert.equal(SKILL_DATA["journey-west"].levels[level].summonSkillChance, Number(level) / 10);
+    assert.equal(SKILL_DATA["journey-west"].levels[level].summonSkillChance, Number(level) * 0.07);
   }
   assert.deepEqual(TANG_SUMMON_WEIGHTS[10], [0, 30, 45, 25]);
   assert.equal(chooseTangSummon(2, ["white-horse"], () => .1), null);
@@ -46,20 +46,20 @@ test("all ten summon weights, unique kinds, and only specified guarantees", () =
 });
 
 test("summon stats use only retained run growth with the B+ inheritance caps", () => {
-  const source = { maxHp: 700, currentHp: 100, atk: 300, def: 30, spd: 10 };
-  assert.deepEqual(tangSummonStats("white-horse", source), { hp: 1050, atk: 150, def: 60, spd: 50 });
-  assert.deepEqual(tangSummonStats("bajie", source), { hp: 2100, atk: 100, def: 75, spd: 20 });
-  assert.deepEqual(tangSummonStats("shaseng", source), { hp: 1750, atk: 200, def: 90, spd: 30 });
-  assert.deepEqual(tangSummonStats("wukong", source), { hp: 4300, atk: 500, def: 250, spd: 250 });
+  const source = { maxHp: 900, currentHp: 100, atk: 300, def: 30, spd: 10 };
+  assert.deepEqual(tangSummonStats("white-horse", source), { hp: 1350, atk: 150, def: 60, spd: 50 });
+  assert.deepEqual(tangSummonStats("bajie", source), { hp: 2700, atk: 100, def: 75, spd: 20 });
+  assert.deepEqual(tangSummonStats("shaseng", source), { hp: 2250, atk: 200, def: 90, spd: 30 });
+  assert.deepEqual(tangSummonStats("wukong", source), { hp: 3000, atk: 500, def: 250, spd: 250 });
   const growthA = { maxHp: 300, atk: 100, def: 20, spd: 10 };
   const growthB = { maxHp: 800, atk: 250, def: 60, spd: 30 };
-  assert.deepEqual(tangSummonStats("white-horse", { ...source, tangGrowth: growthA }), { hp: 1350, atk: 200, def: 80, spd: 60 });
-  assert.deepEqual(tangSummonStats("bajie", { ...source, tangGrowth: growthA }), { hp: 2400, atk: 133, def: 95, spd: 30 });
-  assert.deepEqual(tangSummonStats("shaseng", { ...source, tangGrowth: growthA }), { hp: 2050, atk: 266, def: 110, spd: 40 });
-  assert.deepEqual(tangSummonStats("white-horse", { ...source, tangGrowth: growthB }), { hp: 1850, atk: 275, def: 120, spd: 80 });
-  assert.deepEqual(tangSummonStats("bajie", { ...source, tangGrowth: growthB }), { hp: 2900, atk: 183, def: 135, spd: 50 });
-  assert.deepEqual(tangSummonStats("shaseng", { ...source, tangGrowth: growthB }), { hp: 2550, atk: 366, def: 150, spd: 60 });
-  assert.deepEqual(tangSummonStats("wukong", { ...source, tangGrowth: growthB }), { hp: 4300, atk: 500, def: 250, spd: 250 });
+  assert.deepEqual(tangSummonStats("white-horse", { ...source, tangGrowth: growthA }), { hp: 1650, atk: 200, def: 80, spd: 60 });
+  assert.deepEqual(tangSummonStats("bajie", { ...source, tangGrowth: growthA }), { hp: 3000, atk: 133, def: 95, spd: 30 });
+  assert.deepEqual(tangSummonStats("shaseng", { ...source, tangGrowth: growthA }), { hp: 2550, atk: 266, def: 110, spd: 40 });
+  assert.deepEqual(tangSummonStats("white-horse", { ...source, tangGrowth: growthB }), { hp: 2150, atk: 275, def: 120, spd: 80 });
+  assert.deepEqual(tangSummonStats("bajie", { ...source, tangGrowth: growthB }), { hp: 3500, atk: 183, def: 135, spd: 50 });
+  assert.deepEqual(tangSummonStats("shaseng", { ...source, tangGrowth: growthB }), { hp: 3050, atk: 366, def: 150, spd: 60 });
+  assert.deepEqual(tangSummonStats("wukong", { ...source, tangGrowth: growthB }), { hp: 3000, atk: 500, def: 250, spd: 250 });
   assert.equal(tangSummonStats("bajie", { ...source, tangGrowth: growthA, defenseBuff: 20, currentRound: 2, shieldHp: 100 }).def, 95);
 });
 
@@ -69,10 +69,10 @@ test("battle preparation excludes short combat buffs and current HP loss from Ta
   state.currentHp = 200;
   state.temporaryEffects.push({ sourceId: "test-def-buff", stat: "def", amount: 40, battlesRemaining: 1 });
   const rosterTang = prepareBattle(campaign).roster.find((unit) => unit.id === "tang");
-  assert.deepEqual(rosterTang.tangGrowth, { maxHp: 500, atk: 50, def: 40, spd: 20 });
+  assert.deepEqual(rosterTang.tangGrowth, { maxHp: 300, atk: 50, def: 40, spd: 20 });
   assert.equal(rosterTang.currentHp, 200);
   assert.equal(rosterTang.def, 110);
-  assert.deepEqual(tangSummonStats("white-horse", rosterTang), { hp: 1550, atk: 175, def: 100, spd: 70 });
+  assert.deepEqual(tangSummonStats("white-horse", rosterTang), { hp: 1650, atk: 175, def: 100, spd: 70 });
 });
 
 test("successful summon meditates, acts independently from next speed order, and strikes every third later round", () => {
@@ -93,18 +93,19 @@ test("Tang Flesh level two heals from actual summon damage and level one does no
   assert.ok(level1.events.filter((event) => event.attackerId?.startsWith("tang-white-horse") && event.type === "attack")
     .every((event) => event.summonerHealedAmount === 0));
   assert.ok(level2.events.some((event) => event.summonerHealedAmount > 0 && event.summonerId === "tang"));
-  assert.ok(level2.finalCharacters.find((unit) => unit.id === "tang").currentHp <= 700);
+  assert.ok(level2.finalCharacters.find((unit) => unit.id === "tang").currentHp <= 900);
 });
 
-test("Wukong charges, protects Tang for one round, then deals 0.9 times combined ATK as true damage", () => {
-  const result = run(10, .95, { enemyHp: 4000 });
+test("Wukong charges with 20% resistance, then deals 666 true damage", () => {
+  const wukongRun = (options) => { let calls = 0; return run(10, () => calls++ < 2 ? .95 : .3, options); };
+  const result = wukongRun({ enemyHp: 4000 });
   assert.equal(result.events.find((event) => event.type === "summon")?.character.name, "孙悟空");
-  assert.equal(result.events.find((event) => event.type === "summon")?.character.maxHp, 4300);
+  assert.equal(result.events.find((event) => event.type === "summon")?.character.maxHp, 3000);
   assert.ok(result.events.some((event) => event.type === "wukong-charge" && event.round === 2 && event.reductionRound === 3
     && event.summonerId === "tang" && event.defenseBonus === 80 && event.defenseDurationRounds === 1 && event.defenseUntilRound === 2));
-  assert.ok(result.events.some((event) => event.skillId === "wukong-fate" && event.round === 3 && event.trueDamage && event.damage === 720));
-  assert.ok(run(10, .95, { enemyHp: 5000, atk: 420 }).events.some((event) => event.skillId === "wukong-fate" && event.damage === 828));
-  assert.ok(run(10, .95, { enemyHp: 5000, enemyDef: 1000 }).events.some((event) => event.skillId === "wukong-fate" && event.trueDamage && event.damage === 720));
+  assert.ok(result.events.some((event) => event.skillId === "wukong-fate" && event.round === 3 && event.trueDamage && event.damage === 666));
+  assert.ok(wukongRun({ enemyHp: 5000, atk: 420 }).events.some((event) => event.skillId === "wukong-fate" && event.damage === 666));
+  assert.ok(wukongRun({ enemyHp: 5000, enemyDef: 1000 }).events.some((event) => event.skillId === "wukong-fate" && event.trueDamage && event.damage === 666));
   assert.ok(result.events.some((event) => event.wukongTeleportAttack && event.skillId === "wukong-fate"));
   const frames = tangSummonVisual("wukong").animations;
   for (const path of [frames.charge.frames.charge, frames.skillAttack.frames.teleport, frames.skillAttack.frames.strike, frames.death.frames.down])

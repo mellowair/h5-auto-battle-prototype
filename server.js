@@ -35,9 +35,11 @@ const lanAddresses = Object.values(networkInterfaces()).flat()
   .filter((item) => item && item.family === "IPv4" && !item.internal && isPrivateIPv4(item.address))
   .map((item) => item.address);
 
-const localUrl = "http://127.0.0.1:8000";
-const openTarget = process.argv.includes("--open-dev") ? `${localUrl}/dev/stage2.html`
-  : process.argv.includes("--open") ? `${localUrl}/index.html?new=1` : null;
+const preferredPort = 8000;
+const openPath = process.argv.includes("--open-dev-stage3") ? "/dev/stage3.html"
+  : process.argv.includes("--open-dev") ? "/dev/stage2.html"
+  : process.argv.includes("--open") ? "/index.html?new=1" : null;
+let attemptedPort = preferredPort;
 
 function openBrowser(url) {
   if (process.platform !== "win32" || !url) return;
@@ -45,33 +47,35 @@ function openBrowser(url) {
   browser.unref();
 }
 
-server.on("error", async (error) => {
-  if (error.code !== "EADDRINUSE" || !openTarget) {
-    console.error("无法启动游戏服务器：", error.message);
-    process.exitCode = 1;
+server.on("error", (error) => {
+  if (error.code === "EADDRINUSE" && attemptedPort === preferredPort) {
+    attemptedPort = preferredPort + 1;
+    console.log(`端口 ${preferredPort} 已被占用，改用端口 ${attemptedPort}。`);
+    server.listen(attemptedPort, "0.0.0.0");
     return;
   }
-  try {
-    const response = await fetch(`${localUrl}/index.html`, { signal: AbortSignal.timeout(3000) });
-    const html = await response.text();
-    if (!response.ok || !html.includes('<title>闪烁</title>') || !html.includes('src="app.js"'))
-      throw new Error("8000 端口运行的不是《闪烁》游戏服务器");
-    console.log("游戏服务器已经运行，正在打开页面。");
-    openBrowser(openTarget);
-  } catch (reason) {
-    console.error(`8000 端口已被占用，无法打开《闪烁》：${reason.message}`);
-    process.exitCode = 1;
+  if (error.code === "EADDRINUSE" && attemptedPort === preferredPort + 1) {
+    attemptedPort = 0;
+    console.log(`端口 ${preferredPort + 1} 也已被占用，正在寻找空闲端口。`);
+    server.listen(0, "0.0.0.0");
+    return;
   }
+  console.error("无法启动游戏服务器：", error.message);
+  process.exitCode = 1;
 });
 
-server.listen(8000, "0.0.0.0", () => {
+server.on("listening", () => {
+  const port = server.address().port;
+  const localUrl = `http://127.0.0.1:${port}`;
   console.log(`Prototype ready at ${localUrl}`);
   if (lanAddresses.length) {
     console.log("Phone on the same Wi-Fi:");
-    for (const address of lanAddresses) console.log(`  http://${address}:8000`);
+    for (const address of lanAddresses) console.log(`  http://${address}:${port}`);
   } else {
     console.log("No private LAN IPv4 address found. Connect to Wi-Fi and restart the server.");
   }
   console.log("Press Ctrl+C to stop the server.");
-  openBrowser(openTarget);
+  if (openPath) openBrowser(`${localUrl}${openPath}`);
 });
+
+server.listen(preferredPort, "0.0.0.0");

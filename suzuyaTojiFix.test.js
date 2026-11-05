@@ -88,11 +88,11 @@ test("Toji takes 1.5x final normal and true damage without changing DEF or stack
   const [eren, toji] = battle.characters;
   battle.round = 1;
   toji.tojiExhausted = true;
-  eren.freeWillTriggers = 3;
+  eren.freeWillTriggers = 2;
   const hit = executeAttack(battle, eren, toji, () => .99, { skill: freeWill });
   assert.equal(hit.damage, 67, "normal damage multiplies after DEF mitigation");
-  assert.equal(hit.extraTrueDamage.requested, 100);
-  assert.equal(hit.extraTrueDamage.actualDamage, 150);
+  assert.equal(hit.extraTrueDamage.requested, 125);
+  assert.equal(hit.extraTrueDamage.actualDamage, 187);
   assert.equal(toji.def, 120);
   assert.equal(toji.tojiExhausted, true);
   const fresh = initializeBattle([unit("hero", "ally"), unit("toji", "enemy", tojiTemplate)]);

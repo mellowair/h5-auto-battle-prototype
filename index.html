@@ -152,6 +152,17 @@
         <div class="event-card"><div id="event-icon" class="event-icon" aria-hidden="true">✦</div><h2 id="event-title">奇遇地点</h2><p id="event-description"></p><p id="event-effect" class="event-effect"></p><button id="resolve-event-btn" class="control-btn primary event-button" type="button">触发奇遇</button></div>
       </section>
 
+      <section id="trial-screen" class="flow-screen trial-screen" aria-label="诸神试炼路线" hidden>
+        <header class="flow-header"><div><p class="eyebrow">ACT 03 · TRIAL</p><h1>试炼之地</h1></div><span id="trial-count" class="progress-chip">0 / 2</span></header>
+        <p class="flow-copy">三个挑战顺序已确定；完成任意两项即可离开。</p>
+        <div id="trial-map" class="trial-map" aria-label="试炼挑战路线"></div>
+      </section>
+      <details id="trial-progress-panel" class="trial-progress-panel" hidden>
+        <summary>试练进度 · <span id="trial-panel-count">0/2</span></summary>
+        <p>我曾从众神手中盗取火种，如今你也走到了命运的分叉路口。去完成试炼吧，那时你或将以凡人之驱比肩神明。</p>
+        <ul id="trial-panel-tasks"></ul>
+        <p id="trial-punishment-note"></p>
+      </details>
       <section id="ending-screen" class="flow-screen ending-screen" aria-label="大关结算" hidden>
         <div id="ending-mark" class="ending-mark" aria-hidden="true">★</div>
         <p class="eyebrow">ACT 01 · RESULT</p>

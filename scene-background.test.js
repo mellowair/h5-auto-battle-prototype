@@ -84,8 +84,8 @@ test("Eren starter animation frames are separate 96x112 transparent PNG assets",
   assert.match(css, /data-character="eren"\]\.is-melee-returning .*transform: scaleX\(-1\)/);
   assert.match(css, /@media \(max-width: 390px\)[\s\S]*?data-row="front"\] \{ left: calc\(18%/);
   assert.match(css, /@media \(max-width: 390px\)[\s\S]*?data-team="enemy"\]\[data-row="front"\] \{ left: calc\(66%/);
-  assert.equal((app.match(/startRunCycle\(sourceEl, attacker, actionTiming\.runFrameMs, playbackMultiplier\)/g) ?? []).length, 6,
-    "regular, skill, and Toji combo return paths use the same two-frame run cycle and playback speed");
+  assert.equal((app.match(/startRunCycle\(sourceEl, attacker, actionTiming\.runFrameMs, playbackMultiplier\)/g) ?? []).length, 7,
+    "regular, evolved skill, and Toji combo return paths use the same run cycle and playback speed");
   const erenManifest = JSON.parse(readFileSync(new URL("./assets/eren-v1/animation.json", import.meta.url), "utf8"));
   assert.deepEqual(erenManifest.actions.fall.frames.map((frame) => frame.durationMs), [2000, 680, 300]);
   assert.deepEqual(erenManifest.actions.meleeAttack.sequence, ["windup", "strike", "recover"]);

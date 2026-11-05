@@ -390,7 +390,7 @@ test("shadow clone damage at every level uses its configured multiplier in actua
 });
 
 test("shadow clone trigger checks use each updated level chance", () => {
-  for (const [level, chance] of [[1, 0.45], [2, 0.50], [3, 0.55], [4, 0.65]]) {
+  for (const [level, chance] of [[1, 0.55], [2, 0.60], [3, 0.65], [4, 0.75]]) {
     const skill = { ...SKILL_DATA["shadow-clone-rush"], ...SKILL_DATA["shadow-clone-rush"].levels[level], level };
     const makeDuel = () => {
       const state = initializeBattle([

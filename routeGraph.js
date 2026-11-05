@@ -65,16 +65,18 @@ function buildTopology(random) {
 // the existing every-route guarantees; every individual edge is checked later.
 function assignTypes(graph, random) {
   const [opening, middle, late] = graph.blocks;
+  const earlySharedElite = random() < .5;
   const questionLane = random() < 0.5 ? 0 : 1;
   opening.lanes.forEach((lane, index) => {
     lane[0].type = index === questionLane ? "question" : "battle";
-    lane[1].type = index === questionLane ? "battle" : "question";
+    lane[1].type = index === questionLane ? (random() < .3 ? "campfire" : "battle") : "question";
     if (lane[2]) {
       const roll = random();
-      lane[2].type = roll < 0.12 ? "elite" : roll < 0.32 ? "campfire" : "battle";
+      lane[2].type = lane[1].type === "campfire" ? "battle"
+        : roll < 0.12 ? "elite" : roll < 0.32 ? "campfire" : "battle";
     }
   });
-  opening.join.type = "battle";
+  opening.join.type = earlySharedElite ? "elite" : "battle";
   const campLane = random() < 0.5 ? 0 : 1;
   middle.lanes.forEach((lane, index) => {
     if (index === campLane) {
@@ -94,7 +96,7 @@ function assignTypes(graph, random) {
   longLane[0].type = shortLane[0].type === "battle" ? "campfire" : "battle";
   longLane[1].type = longLane[0].type === "campfire" ? "battle" : "question";
   longLane[2].type = random() < 0.15 ? "elite" : longLane[1].type === "question" ? "battle" : "question";
-  late.join.type = "battle";
+  late.join.type = earlySharedElite ? "battle" : "elite";
   graph.campfire.type = "campfire";
   graph.leadIn.type = "battle";
   return { eliteStep: middle.join.layer, campfireStep: graph.campfire.layer };
@@ -242,8 +244,9 @@ export function generateRouteMap(seed = 0, options = {}) {
     currentNodeId: "start-konoha", ...guarantees,
     guaranteedEliteStep: guarantees.eliteStep, visitedEdges: [], nodes: graph.nodes };
   if (!validateRouteMap(map)) throw new Error("Generated route map violates route or layout constraints");
-  if (options.stageId === 2) {
-    const rename = (id) => `stage2-${id === "start-konoha" ? "start" : id === "boss-deidara" ? "pending-end" : id}`;
+  if ((options.stageId ?? 1) >= 2) {
+    const prefix = `stage${options.stageId}`;
+    const rename = (id) => `${prefix}-${id === "start-konoha" ? "start" : id === "boss-deidara" ? "pending-end" : id}`;
     map.nodes.forEach((entry) => {
       entry.id = rename(entry.id);
       entry.nextNodeIds = entry.nextNodeIds.map(rename);

@@ -95,9 +95,9 @@ test("Boros thresholds are strict, phases never reverse, and crossing both thres
   assert.equal(changeBorosPhase(state, boss).phase, 2);
   boss.currentHp = 5000;
   assert.equal(changeBorosPhase(state, boss), null);
-  boss.currentHp = 2501;
+  boss.currentHp = 1601;
   assert.equal(changeBorosPhase(state, boss), null);
-  boss.currentHp = 2500;
+  boss.currentHp = 1600;
   assert.deepEqual(changeBorosPhase(state, boss), { phase: 3, atk: 630, def: 120, spd: 250, lifesteal: .1 });
   assert.equal(changeBorosPhase(state, boss), null);
   assert.deepEqual([boss.atk, boss.def, boss.spd], [630, 120, 250]);
@@ -108,7 +108,7 @@ test("Boros thresholds are strict, phases never reverse, and crossing both thres
   assert.equal(attack.treasureLifesteal, Math.floor(attack.actualDamage * .1));
   assert.equal(boss.currentHp, hpBeforeAttack + attack.treasureLifesteal);
   const skipped = initializeBattle([ally("hero"), foe(STAGE_TWO_BOSS_DATA)]);
-  skipped.round = 1; skipped.characters[1].currentHp = 2300;
+  skipped.round = 1; skipped.characters[1].currentHp = 1500;
   assert.equal(changeBorosPhase(skipped, skipped.characters[1]).phase, 3);
   assert.deepEqual([skipped.characters[1].atk, skipped.characters[1].def, skipped.characters[1].spd], [630, 120, 250]);
   const dead = initializeBattle([ally("hero"), foe(STAGE_TWO_BOSS_DATA)]);
@@ -134,17 +134,17 @@ test("Boros phase one reduces damage; phase two grows SPD once per full round; p
   state.round = 4;
   assert.equal(advanceBorosRound(state)[0].effectiveSpd, 180);
   assert.equal(boss.currentHp, hpAtTransition);
-  boss.currentHp = 2500;
+  boss.currentHp = 1600;
   changeBorosPhase(state, boss);
   assert.deepEqual(advanceBorosRound(state), []);
   assert.deepEqual([boss.atk, boss.def, boss.spd], [630, 120, 280]);
   state.round = 5;
   assert.equal(advanceBorosRound(state)[0].effectiveAtk, 660);
   assert.deepEqual(advanceBorosRound(state), []);
-  assert.equal(boss.currentHp, 2500);
+  assert.equal(boss.currentHp, 1600);
 });
 
-test("meteor casts alternate one target 1.3x and all targets 0.7x; final cannon hits all targets at 1.5x", () => {
+test("meteor casts alternate one target 1.3x and all targets 0.7x; final cannon hits all targets at 1.3x", () => {
   const heroA = ally("a", { hp: 100000, atk: 25, spd: 90 });
   const heroB = ally("b", { hp: 100000, atk: 25, spd: 70, rosterOrder: 1 });
   const phase2 = simulateBattle([heroA, heroB, foe(STAGE_TWO_BOSS_DATA, { currentHp: 3900 })], () => .49);
@@ -163,7 +163,7 @@ test("meteor casts alternate one target 1.3x and all targets 0.7x; final cannon 
   const phase3 = simulateBattle([heroA, heroB, foe(STAGE_TWO_BOSS_DATA, { currentHp: 1200 })], () => .49);
   const cannon = phase3.events.filter((entry) => entry.skillId === "boros-collapsing-star");
   assert.deepEqual(cannon.slice(0, 2).map((entry) => entry.targetId), ["a", "b"]);
-  assert.ok(cannon.every((entry) => entry.skillMultiplier === 1.5));
+  assert.ok(cannon.every((entry) => entry.skillMultiplier === 1.3));
   assert.ok(phase3.events.every((entry) => entry.type !== "boros-round-heal"));
 });
 

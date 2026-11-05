@@ -182,14 +182,14 @@ test("Predator levels use ATK+SPD, current pre-hit HP threshold and independent 
   assert.deepEqual([1, 2, 3, 4].map((level) => [SKILL_DATA["kaneki-predator"].levels[level].chance,
     SKILL_DATA["kaneki-predator"].levels[level].guaranteedCritBelowHpRatio]),
   [[0.50, 0.25], [0.55, 0.30], [0.55, 0.40], [0.60, 0.50]]);
-  assert.deepEqual([1, 2, 3, 4].map((level) => SKILL_DATA["kaneki-predator"].levels[level].multiplier), [1, 1, 1, 1]);
+  assert.deepEqual([1, 2, 3, 4].map((level) => SKILL_DATA["kaneki-predator"].levels[level].multiplier), [1, 1, 1.1, 1.3]);
   const attacker = unit({ skills: [skillAt("kaneki-predator", 4)] });
   const target = enemy({ currentHp: 240 });
   const hit = executeAttack({ characters: [attacker, target], round: 1 }, attacker, target, rolls(0, 0.99, 0.99));
   assert.equal(hit.skillAttackPower, 325);
   assert.equal(hit.critChance, 1);
   assert.equal(hit.critical, true);
-  assert.equal(hit.damage, Math.floor(325 * COMBAT_RULES.critMultiplier));
+  assert.equal(hit.damage, Math.floor(325 * 1.3 * COMBAT_RULES.critMultiplier));
   const boundaryAttacker = unit({ skills: [skillAt("kaneki-predator", 4)] });
   const boundaryTarget = enemy({ currentHp: 500 });
   const boundary = executeAttack({ characters: [boundaryAttacker, boundaryTarget], round: 1 },

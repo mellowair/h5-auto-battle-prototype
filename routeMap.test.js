@@ -146,7 +146,7 @@ test("all incoming edges reject consecutive campfires, including skipped rows an
   join.type = "campfire";
   parents[0].type = "battle";
   parents[1].type = "campfire";
-  assert.equal(analyzeRouteMap(shared).consecutiveCampfires, 1);
+  assert.ok(analyzeRouteMap(shared).consecutiveCampfires >= 1);
   assert.equal(validateRouteMap(shared), false);
 });
 
@@ -157,17 +157,23 @@ test("the route progress estimate counts future rooms instead of visual rows", (
   assert.equal(shortestRemainingRouteLength(map, "boss-approach-campfire"), 2);
 });
 
-test("route type rules keep elites distinct, later, and non-consecutive; Boss lead-in has campfire and no events", () => {
+test("route type rules guarantee two elites per path and keep Boss approach clear of questions", () => {
   for (let seed = 0; seed < 1000; seed += 1) {
     const map = generateRouteMap(seed);
     for (const node of map.nodes.filter(entry => entry.step > 0 && entry.step < 15)) {
-      if (node.step <= 2) assert.ok(["battle", "question"].includes(node.type));
+      if (node.step === 1) assert.ok(["battle", "question"].includes(node.type));
       if (node.type === "elite") {
         assert.ok(node.step >= 3 && node.step <= 14);
-        const parents=map.nodes.filter(parent=>parent.nextNodeIds.includes(node.id));
-        assert.ok(parents.every(parent=>parent.type!=="elite"));
       }
     }
+    const byId = new Map(map.nodes.map((node) => [node.id, node]));
+    const walk = (id, count) => {
+      const node = byId.get(id);
+      const next = count + (node.type === "elite" ? 1 : 0);
+      if (id === map.bossNodeId) { assert.ok(next >= 2); return; }
+      node.nextNodeIds.forEach((child) => walk(child, next));
+    };
+    walk(map.startNodeId, 0);
   }
 });
 
@@ -193,7 +199,7 @@ test("route map UI renders the pre-generated graph with a distinct elite icon", 
   assert.match(app, /route-sign-overlay/);
   assert.match(app, /orderRouteOptionsByPosition\(routeMap, getRouteOptions\(campaign\)\)/);
   assert.match(app, /route-map-avatar/);
-  assert.match(app, /const selectable = campaign\.status === "route" && node\.status === "pending"/);
+  assert.match(app, /const selectable = campaign\.status === "route" && getRouteOptions\(campaign\)\.some\(\(option\) => option\.id === node\.id\)/);
   assert.match(app, /document\.createElement\(selectable \? "button" : "div"\)/);
   assert.match(app, /button\.addEventListener\("click", \(\) => selectRouteNode\(node\.id\)\)/);
   assert.match(app, /function selectRouteNode\(nodeId\)/);

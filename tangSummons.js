@@ -4,6 +4,8 @@ export const TANG_SUMMON_WEIGHTS = Object.freeze({
   4: [40, 60, 0, 0], 5: [20, 80, 0, 0], 6: [0, 80, 20, 0],
   7: [0, 60, 40, 0], 8: [0, 40, 60, 0], 9: [0, 20, 80, 0],
   10: [0, 30, 45, 25],
+  11: [0, 30, 45, 25], 12: [0, 30, 30, 40],
+  13: [0, 30, 30, 40], 14: [0, 10, 10, 80],
 });
 
 export const TANG_SUMMON_IDS = Object.freeze(["white-horse", "bajie", "shaseng", "wukong"]);
@@ -53,11 +55,11 @@ export function chooseTangSummon(level, summonedKinds = [], random = Math.random
 const whole = (value) => Math.max(1, Math.floor(value));
 
 export function tangSummonStats(kind, summoner) {
-  if (kind === "wukong") return { hp: 4300, atk: 500, def: 250, spd: 250 };
+  if (kind === "wukong") return { hp: 3000, atk: 500, def: 250, spd: 250 };
   const growth = summoner.tangGrowth ?? { maxHp: 0, atk: 0, def: 0, spd: 0 };
   const scaled = (base, extra, multiplier) => whole(base * multiplier + extra * Math.min(multiplier, 1));
-  if (kind === "white-horse") return { hp: scaled(700, growth.maxHp, 1.5), atk: scaled(300, growth.atk, .5), def: scaled(30, growth.def, 2), spd: scaled(10, growth.spd, 5) };
-  if (kind === "bajie") return { hp: scaled(700, growth.maxHp, 3), atk: scaled(300, growth.atk, 1/3), def: scaled(30, growth.def, 2.5), spd: scaled(10, growth.spd, 2) };
-  if (kind === "shaseng") return { hp: scaled(700, growth.maxHp, 2.5), atk: scaled(300, growth.atk, 2/3), def: scaled(30, growth.def, 3), spd: scaled(10, growth.spd, 3) };
+  if (kind === "white-horse") return { hp: scaled(900, growth.maxHp, 1.5), atk: scaled(300, growth.atk, .5), def: scaled(30, growth.def, 2), spd: scaled(10, growth.spd, 5) };
+  if (kind === "bajie") return { hp: scaled(900, growth.maxHp, 3), atk: scaled(300, growth.atk, 1/3), def: scaled(30, growth.def, 2.5), spd: scaled(10, growth.spd, 2) };
+  if (kind === "shaseng") return { hp: scaled(900, growth.maxHp, 2.5), atk: scaled(300, growth.atk, 2/3), def: scaled(30, growth.def, 3), spd: scaled(10, growth.spd, 3) };
   return null;
 }

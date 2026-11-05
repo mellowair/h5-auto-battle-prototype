@@ -11,7 +11,7 @@
 }
 * { box-sizing: border-box; }
 body {
-  min-width: 320px; min-height: 100vh; margin: 0; padding: 12px 12px 18px;
+  min-width: 320px; min-height: 100vh; margin: 0; padding: 12px 12px 18px; padding-top: max(12px, env(safe-area-inset-top));
   background-color: #d9edf0;
   background-image: radial-gradient(#badde1 1px, transparent 1px);
   background-size: 12px 12px;
@@ -63,6 +63,24 @@ button { font: inherit; }
 .route-sign-pending { position: absolute; left: 50%; bottom: 5px; transform: translateX(-50%); padding: 2px 4px; color: #fff6dc; background: #563b38; border: 1px solid #d9b36b; font-size: 9px; font-weight: 900; white-space: nowrap; }
 .stage-interlude-screen { min-height: 450px; display: grid; place-items: center; margin: -16px; color: #f3dfad; background: #08090e; text-align: center; }
 .stage-interlude-screen p { max-width: 85%; font-size: clamp(16px, 4vw, 25px); font-weight: 900; letter-spacing: .12em; line-height: 1.8; }
+.stage-transition-screen.stage3-interlude .transition-hero { display: none; }
+.stage-transition-screen.stage3-interlude .transition-left { left: 14%; transform: translateX(0); }
+.stage-transition-screen.stage3-interlude .transition-right { right: 14%; transform: translateX(0); }
+.stage-transition-screen.stage3-interlude.stage3-close .transition-left { transform: translateX(60%); }
+.stage-transition-screen.stage3-interlude.stage3-close .transition-right { transform: translateX(-60%); }
+.stage-transition-screen.stage3-interlude .stage-transition-landscape::after { content: ""; position: absolute; left: 50%; bottom: 105px; width: 45px; height: 35px; transform: translateX(-50%) scale(0); background: #ec6783; clip-path: polygon(11% 0,33% 0,33% 14%,44% 14%,44% 28%,56% 28%,56% 14%,67% 14%,67% 0,89% 0,89% 14%,100% 14%,100% 57%,89% 57%,89% 71%,78% 71%,78% 86%,67% 86%,67% 100%,33% 100%,33% 86%,22% 86%,22% 71%,11% 71%,11% 57%,0 57%,0 14%,11% 14%); image-rendering: pixelated; transition: transform .35s steps(4,end); }
+.stage-transition-screen.stage3-interlude.stage3-heart .stage-transition-landscape::after { transform: translateX(-50%) scale(1); }
+.stage-transition-screen.stage3-interlude.stage3-fade { opacity: 0; transition: opacity .4s steps(8,end); }
+.trial-screen { display: flex; flex-direction: column; gap: 16px; }
+.trial-map { flex: 1; min-height: 350px; padding: 35px 12px; display: flex; flex-direction: column; justify-content: space-around; align-items: center; gap: 14px; border: 2px solid #8b895f; border-radius: 9px; background: linear-gradient(rgba(8,14,27,.35), rgba(8,14,27,.55)), url("assets/stage2-golden-tree.png") center / cover; }
+.trial-node { width: min(90%, 390px); min-height: 70px; padding: 12px; border: 3px solid #b8a676; border-radius: 7px; background: #f7f0d9; color: #293450; font: inherit; font-weight: 900; text-align: center; image-rendering: pixelated; }
+.trial-node[disabled] { opacity: .62; }
+.trial-node.is-current { border-color: #e7b543; box-shadow: 0 0 0 3px rgba(255,224,133,.3); cursor: pointer; }
+.trial-node small { display: block; margin-top: 5px; font-size: 11px; }
+.trial-progress-panel { position: fixed; z-index: 35; top: calc(env(safe-area-inset-top, 0px) + 54px); left: max(6px, env(safe-area-inset-left, 0px)); width: min(170px, 42vw); max-height: 52vh; overflow: auto; padding: 5px 7px; border: 2px solid #d4b870; border-radius: 5px; background: #f8f2df; color: #2c3650; box-shadow: 2px 3px 0 #4d5668; font-size: 11px; line-height: 1.45; }
+.trial-progress-panel summary { cursor: pointer; font-weight: 900; }
+.trial-progress-panel p { margin: 7px 0; }
+.trial-progress-panel ul { margin: 5px 0; padding-left: 17px; }
 .ending-screen.stage-two-pending { background-image: linear-gradient(rgba(14,19,26,.55), rgba(14,19,26,.72)), url("assets/stage2-golden-tree.png"); background-position: center; background-size: cover; }
 .brand-copy { flex: 1; }
 .eyebrow { margin: 0; color: #8391a1; font: 500 8px Consolas, monospace; letter-spacing: .1em; }
@@ -147,12 +165,23 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .fighter.is-summoning .sprite-wrap { animation: summon-jog .2s steps(2, end) infinite; }
 @keyframes giant-run-in { from { translate: 110vw 0; } to { translate: 0 0; } }
 @keyframes summon-jog { 0%, 100% { translate: 0 0; } 50% { translate: 0 -4px; } }
+.summon-portal { position: absolute; z-index: 1; left: 50%; bottom: 2px; width: 145px; height: 145px; translate: -50% 0; object-fit: contain; image-rendering: pixelated; pointer-events: none; animation: summon-portal-appear 220ms ease-out both; }
+.summon-portal[data-kind="wukong"] { width: 165px; height: 165px; }
+@keyframes summon-portal-appear { from { opacity: 0; scale: .72; } to { opacity: 1; scale: 1; } }
+.fighter.is-portal-pending .sprite-wrap, .fighter.is-portal-pending .fighter-name { opacity: 0; }
+.fighter.is-portal-rising .sprite-wrap { animation: summon-emerge var(--summon-rise-duration, 750ms) cubic-bezier(.18,.6,.32,1) both; }
+.fighter.is-portal-rising .fighter-name { animation: summon-name-appear var(--summon-rise-duration, 750ms) ease-out both; }
+@keyframes summon-emerge { from { translate: 0 54px; opacity: 0; } to { translate: 0 0; opacity: 1; } }
+@keyframes summon-name-appear { 0%, 60% { opacity: 0; } 100% { opacity: 1; } }
 .fighter-name { position: absolute; z-index: 4; bottom: -12px; left: 50%; transform: translateX(-50%); white-space: nowrap; padding: 2px 8px; color: #29344d; background: #fff6d7; border: 1.5px solid #39465e; border-radius: 4px; box-shadow: 2px 2px 0 rgba(41,52,77,.23); font-size: 11px; font-weight: 900; }
 .sprite-wrap { position: relative; z-index: 2; width: 82px; height: 103px; margin-top: 20px; display: grid; place-items: end center; }
-.fighter:not(.is-dead):not(.is-summoning):not(.is-melee-rushing):not(.is-punching):not(.is-hit):not(.is-dodging):not(.is-attacking):not(.is-casting):not(.is-kaneki-reactive):not(.is-steam-casting) .sprite-wrap { animation: idle-bob 2.4s steps(2,end) infinite; }
+.clone-protect-effect { position: absolute; z-index: 12; left: 50%; bottom: 10px; width: clamp(170px, 32vw, 255px); max-width: none; height: auto; transform: translateX(-50%); transform-origin: center bottom; image-rendering: pixelated; pointer-events: none; animation: clone-protect-appear var(--clone-protect-duration, 650ms) steps(6, end) both; }
+@keyframes clone-protect-appear { 0% { opacity: 0; scale: .8; } 20%, 68% { opacity: 1; scale: 1; } 100% { opacity: 0; scale: 1.08; } }
+.fighter:not(.is-dead):not(.is-summoning):not(.is-portal-pending):not(.is-portal-rising):not(.is-melee-rushing):not(.is-punching):not(.is-hit):not(.is-dodging):not(.is-attacking):not(.is-casting):not(.is-kaneki-reactive):not(.is-steam-casting) .sprite-wrap { animation: idle-bob 2.4s steps(2,end) infinite; }
 .fighter.is-steam-casting .sprite-wrap { animation: steam-fall var(--steam-duration, 650ms) steps(5,end) both; transform-origin: center bottom; }
 @keyframes steam-fall { 0%,100% { transform: rotate(0); } 45%,75% { transform: translateX(-12px) rotate(-18deg); } }
 .sprite-visual { position: absolute; z-index: 2; bottom: 5px; left: 50%; margin-left: calc(var(--visual-frame-width, 84px) * -.5); display: grid; place-items: end center; width: var(--visual-frame-width, 84px); height: var(--visual-frame-height, 98px); scale: var(--visual-scale, 1); translate: calc(var(--visual-offset-x, 0px) + var(--visual-action-offset-x, 0px)) calc(0px - var(--visual-offset-y, 0px) - var(--visual-stage-foot-offset-y, 0px) - var(--visual-action-offset-y, 0px)); transform-origin: center bottom; }
+.fighter[data-team="enemy"][data-controlled-by-makima="true"] .sprite-visual { transform: scaleX(-1); }
 .sprite { position: relative; z-index: 2; display: block; width: calc(var(--visual-frame-width, 84px) * .952381); height: var(--visual-frame-height, 98px); object-fit: contain; object-position: center bottom; image-rendering: pixelated; filter: drop-shadow(2px 3px 0 rgba(40,49,67,.2)); }
 .ground-shadow { position: absolute; z-index: 1; bottom: 8px; width: 60px; height: 9px; background: rgba(56,91,72,.22); border-radius: 50%; }
 .fighter-mage .sprite { filter: drop-shadow(2px 3px 0 rgba(40,49,67,.17)) saturate(.93); }
@@ -200,6 +229,14 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .elite-domain-banner { position: absolute; z-index: 8; left: 50%; top: 43%; transform: translate(-50%,-50%); padding: 8px 14px; color: #f4eaff; background: rgba(42,20,72,.92); border: 3px solid #bf8cff; box-shadow: 4px 4px 0 rgba(20,10,34,.8), 0 0 20px rgba(174,101,255,.75); font-size: clamp(22px,7vw,44px); font-weight: 1000; letter-spacing: .18em; text-shadow: 3px 3px #542b7e; white-space: nowrap; pointer-events: none; animation: domain-banner-in var(--domain-banner-duration, 2s) steps(5,end) both; }
 .fighter.is-melee-at-target { translate: var(--melee-x, 44px) 0; }
 .fighter.is-clone-melee-approaching { animation: melee-approach var(--approach-duration, 720ms) cubic-bezier(.25,.72,.28,1) forwards; }
+.fighter[data-character="kaneki"][data-evolution="2"].is-kaneki-glutton-approaching { animation: kaneki-glutton-arc var(--approach-duration, 720ms) cubic-bezier(.28,.55,.42,1) forwards; }
+@keyframes kaneki-glutton-arc { 0% { translate: 0 0; } 42% { translate: var(--kaneki-arc-mid-x, 40px) -58px; } 100% { translate: var(--melee-x, 70px) 0; } }
+.fighter[data-character="quanxi"].is-quanxi-hidden .sprite-wrap { opacity: 0; }
+.fighter[data-character="quanxi"].is-quanxi-behind { translate: var(--quanxi-behind-x, -90px) 0; z-index: 9; }
+.fighter[data-character="quanxi"] .sprite-action-frame[data-frame-name="flash"],
+.fighter[data-character="quanxi"] .sprite-action-frame[data-frame-name="strike"] { transform: scaleX(-1) scale(var(--action-frame-scale, 1)); transform-origin: center bottom; }
+.fighter[data-character="makima"].is-makima-landing .sprite-visual { animation: makima-landing var(--makima-landing-duration, 1000ms) ease-in both; }
+@keyframes makima-landing { from { translate: 0 -42px; } to { translate: 0 0; } }
 .fighter.is-clone-melee-returning { animation: melee-return var(--return-duration, 500ms) cubic-bezier(.2,.72,.25,1) forwards; }
 .fighter.is-punching .sprite { animation: punch-snap var(--impact-duration, 250ms) ease-out both; }
 .fighter.is-punching:not(.is-skill-posing) .sprite-action { animation: punch-snap var(--impact-duration, 250ms) ease-out both; }
@@ -214,6 +251,24 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .sprite-action.active { display: block; }
 .sprite-action-frame { position: absolute; inset: 0; display: none; width: 100%; height: 100%; object-fit: contain; object-position: center bottom; translate: 0 var(--action-frame-foot-shift, 0px); image-rendering: pixelated; pointer-events: none; }
 .sprite-action-frame.is-current { display: block; }
+.fighter[data-evolution="2"] .sprite-action-frame, .fighter[data-character="heracles"] .sprite-action-frame,
+.fighter[data-character="odin"] .sprite-action-frame { transform: scale(var(--action-frame-scale, 1)); transform-origin: center bottom; }
+.fighter[data-character="kaneki"][data-evolution="2"] .sprite-action-frame[data-frame-name="dash"] { transform: scaleX(-1) scale(var(--action-frame-scale, 1)); }
+.fighter[data-evolution="2"].is-melee-returning[data-character="naruto"] .sprite-action-frame,
+.fighter[data-evolution="2"].is-melee-returning[data-character="kaneki"] .sprite-action-frame,
+.fighter[data-evolution="2"].is-melee-returning[data-character="eren"] .sprite-action-frame { transform: scaleX(-1) scale(var(--action-frame-scale, 1)); }
+.fighter[data-character="eren"][data-evolution="2"].is-skill-posing .sprite-action-frame { transform: scale(var(--action-frame-scale, 1)); }
+.evolution-aura { position: absolute; z-index: -1; width: 125%; height: 125%; left: -12.5%; bottom: -8%; object-fit: contain; image-rendering: pixelated; pointer-events: none; filter: drop-shadow(0 0 5px #a22950); }
+.trial-projectile { position: absolute; z-index: 18; width: clamp(70px, 13vw, 140px); height: clamp(70px, 13vw, 140px); object-fit: contain; image-rendering: pixelated; pointer-events: none; transform: scaleX(-1); }
+.shin-hammer-projectile { position: absolute; z-index: 18; width: clamp(150px, 20vw, 210px); height: auto; image-rendering: pixelated; pointer-events: none; }
+.fighter[data-character="shin"] .sprite-action-frame[data-frame-name="throw"] { transform: scaleX(-1); }
+.fighter[data-character="shin"].is-melee-running .sprite-wrap,
+.fighter[data-character="noi"].is-melee-running .sprite-wrap { animation: summon-jog .24s steps(2, end) infinite; }
+.fighter[data-character="shin"].is-melee-returning .sprite-visual,
+.fighter[data-character="noi"].is-melee-returning .sprite-visual { transform: scaleX(-1); }
+.eren-warhammer-strike { position: absolute; z-index: 18; object-fit: contain; object-position: center bottom; image-rendering: pixelated; pointer-events: none; }
+.evolution-entrance { position: absolute; inset: 0; z-index: 30; background-position: center; background-size: cover; background-repeat: no-repeat; pointer-events: none; animation: eren-evolution-reveal 1.55s ease-out both; }
+@keyframes eren-evolution-reveal { 0% { opacity: 0; } 15%, 65% { opacity: 1; } 100% { opacity: 0; } }
 .fighter[data-character="kaneki"] .sprite-action-frame { transform: scale(var(--action-frame-scale, 1)); transform-origin: center bottom; }
 .fighter[data-character="toji"] .sprite-action-frame { transform: scale(var(--action-frame-scale, 1)); transform-origin: center bottom; }
 .fighter[data-character="armored-titan"] .sprite-action-frame { transform: scale(var(--action-frame-scale, 1)); transform-origin: center bottom; }
@@ -287,7 +342,7 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .fighter.is-casting .skill-burst { animation: burst var(--skill-duration, .56s) steps(3); background: radial-gradient(ellipse, transparent 35%, rgba(255,245,133,.65) 36% 40%, transparent 41%), repeating-conic-gradient(from 0deg at 50% 50%, transparent 0 12deg, rgba(255,211,92,.8) 13deg 18deg, transparent 19deg 45deg); }
 .battle-stamp { position: absolute; z-index: 6; top: 40%; left: 50%; transform: translate(-50%, 12px) scale(.75); opacity: 0; padding: 7px 14px; color: #fff7cf; background: #34344f; border: 3px solid #f8ca65; box-shadow: 3px 3px 0 #202942; font-size: 17px; font-weight: 900; text-shadow: 2px 2px #ba6349; pointer-events: none; white-space: nowrap; }
 .battle-stamp.show { animation: stamp-in .2s steps(3) forwards; }.battle-stamp.skill-stamp { top: 18%; font-size: 13px; color: #ffe98a; border-color: #ffe38a; }.battle-stamp.stamp-lose { color: #ffe9d7; border-color: #e27b70; }
-.character-dialog { width: min(390px, calc(100vw - 24px)); max-width: none; max-height: min(88vh, 620px); margin: auto; padding: 0; color: #29344d; background: #f6f3e8; border: 3px solid #26324b; border-radius: 12px; box-shadow: 0 8px 0 rgba(38,50,75,.22); }
+.character-dialog { width: min(390px, calc(100vw - 24px)); max-width: none; max-height: min(88vh, 620px); margin: auto; padding: 0; overflow-y: auto; color: #29344d; background: #f6f3e8; border: 3px solid #26324b; border-radius: 12px; box-shadow: 0 8px 0 rgba(38,50,75,.22); }
 .character-dialog::backdrop { background: rgba(26,36,54,.55); backdrop-filter: blur(2px); }
 .character-dialog-inner { padding: 15px; }
 .character-dialog-header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 10px; border-bottom: 1px dashed #cdd5c8; }
@@ -314,6 +369,12 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .detail-skill-copy { min-width: 0; color: #605341; font-size: 10px; }
 .detail-skill-copy b { color: #9b6e2a; font-size: 11px; }
 .detail-skill-copy p { margin: 4px 0 0; color: #877d68; font-size: 9px; line-height: 1.5; }
+.skill-detail-link, .skill-detail-nav button { margin-top: 9px; padding: 6px 9px; border: 1px solid #b6bba5; border-radius: 5px; background: #fffdf5; color: #435477; font: inherit; font-size: 10px; font-weight: 800; cursor: pointer; }
+.skill-detail-nav { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.skill-detail-nav button { margin: 0; }
+.skill-detail-nav button.is-active { background: #e5f0da; border-color: #8ba878; }
+.character-detail > h3 { margin: 12px 0 8px; }
+.character-detail .detail-skill p { line-height: 1.55; overflow-wrap: anywhere; }
 .stat-card b small { display: block; margin-top: 3px; color: #748178; font: 700 8px/1.3 "Trebuchet MS", sans-serif; text-align: right; }
 @keyframes cute-flop { 0% { transform: rotate(0) translateY(0) scale(1); } 32% { transform: rotate(-8deg) translateY(-5px) scale(1.02); } 66% { transform: rotate(96deg) translate(8px, 17px) scale(.92); } 82% { transform: rotate(82deg) translate(4px, 10px) scale(.96); } 100% { transform: rotate(90deg) translate(6px, 13px) scale(.94); } }
 @keyframes dizzy-star { 0%,100% { transform: rotate(-25deg) scale(.88); opacity: .78; } 50% { transform: rotate(25deg) scale(1.12); opacity: 1; } }
@@ -330,14 +391,17 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .shield-chip { display:inline-block; margin-left:5px; padding:1px 3px; color:#236289; background:#dbeff9; border:1px solid #8db9ce; font-size:9px; }
 .weakness-chip { display:inline-block; margin-left:5px; padding:1px 3px; color:#934c23; background:#f8e3cf; border:1px solid #c99462; font-size:9px; }
 .squad-slots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
-.squad-slots.is-enemy-view { grid-template-columns: repeat(auto-fit, minmax(min(100%, 145px), 1fr)); }
-.enemy-squad-card { display:grid; gap:3px; min-height:64px; width:100%; padding:6px; border:1px solid #c5b6aa; border-radius:5px; background:#fff7ef; color:#4e342c; font:inherit; font-size:10px; text-align:left; cursor:pointer; }
+.squad-slots.is-enemy-view { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.enemy-squad-card { background:#fff7ef; border-color:#c5b6aa; color:#4e342c; font:inherit; }
 .enemy-squad-card.is-dead { opacity:.55; }
 .enemy-squad-card b { font-size:11px; }
 .squad-slot { min-height: 48px; display: flex; justify-content: center; align-items: center; gap: 5px; border: 1.5px solid #d7ded2; border-radius: 5px; font-size: 9px; font-weight: 900; }
 .active-slot { position: relative; gap: 2px; padding: 2px; color: #526c55; background: #f2f7e9; border-color: #aac89b; cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent; }.active-slot:hover { background: #eaf4df; border-color: #8eb77f; }.active-slot:focus-visible { outline: 3px solid #e2aa49; outline-offset: 2px; }
 .active-slot img { width: 24px; height: 32px; object-fit: contain; image-rendering: pixelated; }.slot-hint { position: absolute; top: 1px; right: 2px; color: #8ca184; font-size: 6px; }
 .summon-slot { background: #eef5ed; border-color: #94b6a0; }.summon-slot.is-dead { opacity: .55; }
+.enemy-squad-card { background:#fff7ef; border-color:#c5b6aa; color:#4e342c; }
+.enemy-squad-card.is-dead { opacity:.55; }
+.enemy-squad-card > span:not(.slot-hint) { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .empty-slot { flex-direction: column; gap: 0; color: #b5bdb2; background: repeating-linear-gradient(135deg, #fbfaf2 0 5px, #f4f3eb 5px 10px); border-style: dashed; }
 .empty-slot b, .empty-skill b { color: #aeb9aa; font-size: 15px; line-height: 16px; }
 .empty-slot span { font: 500 7px Consolas, monospace; }
@@ -391,7 +455,7 @@ h2 { margin: 0; color: #3a455c; font-size: 11px; font-weight: 900; }
 @keyframes stamp-in { to { opacity: 1; transform: translate(-50%,0) scale(1); } }
 @keyframes log-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 390px) {
-  body { padding: 7px; }.game-shell { padding: 10px; border-width: 2px; }
+  body { padding: 7px; padding-top: max(7px, env(safe-area-inset-top)); }.game-shell { padding: 10px; border-width: 2px; }
   .arena { height: clamp(340px, 48vh, 430px); min-height: 330px; }
   .fighter[data-team="ally"][data-row="front"] { left: calc(18% + var(--formation-offset, 0%)); }
   .fighter[data-team="enemy"][data-row="front"] { left: calc(66% + var(--formation-offset, 0%)); }
