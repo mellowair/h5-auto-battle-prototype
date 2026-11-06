@@ -41,7 +41,7 @@ test("special presentations are visual only and respect the configured sequence"
   assert.ok(existsSync(new URL(`./${armor.animations.skill1.frames.hold}`, import.meta.url)));
   assert.equal(getAnimationFrameVisualScale(armor, "skill1", "hold"), 1.3);
   assert.match(app, /actor\.id === "armored-titan" \? \[actor\.animations\?\.skill1\?\.frames\?\.hold\]/);
-  assert.match(app, /if \(event\.effectType === "next-round-reduction"\)[^]*?fast \? 320 : 640/);
+  assert.match(app, /if \(event\.effectType === "next-round-reduction"\)[^]*?playbackDelay\(640, 320\)/);
 });
 
 test("Boros phase artwork grows from stage one to stage three while keeping one foot anchor", () => {

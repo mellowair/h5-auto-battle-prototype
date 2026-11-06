@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CHARACTER_VISUALS, getAnimationFrameFootShift, getAnimationFrameVisualScale, getAnimationVisualOffset, getBorosBeamGeometry, getCharacterVisual } from "./visualConfig.js";
-import { NORMAL_ENEMY_APPEARANCES, STAGE_TWO_BOSS_DATA } from "./characters.js";
+import { EVENT_ENEMY_DATA, NORMAL_ENEMY_APPEARANCES, STAGE_TWO_BOSS_DATA } from "./characters.js";
 import { readFileSync } from "node:fs";
 
 test("every configured fighter uses finite, positive visual dimensions without gameplay fields", () => {
@@ -35,6 +35,23 @@ test("normal enemy appearances share foot-anchored visuals without humanoid hit 
   assert.match(css, /\.sprite-visual\s*\{[^}]*transform-origin:\s*center bottom/);
   assert.match(css, /\.fighter\[data-appearance\] \.hit-eyes\s*\{\s*display:\s*none/);
   assert.match(css, /\.fighter\.is-hit-stun \.stun-stars\s*\{\s*animation:/);
+});
+
+test("Arima uses independent transparent battle frames and foot correction for his piercing dash", () => {
+  const arima = EVENT_ENEMY_DATA.arima;
+  assert.equal(arima.visualId, "arima");
+  assert.equal(arima.skillAnimationMap["arima-pierce"], "pierce");
+  assert.equal(arima.animations.passive2.frames.trigger, "assets/event-enemies/arima/passive2.png");
+  assert.equal(arima.animations.passive3.frames.block, "assets/event-enemies/arima/guard.png");
+  assert.equal(arima.weaknessAsset, "assets/event-enemies/arima/weakpoint.png");
+  assert.equal(getAnimationFrameFootShift(arima, "pierce", "charge"), 18);
+  assert.equal(getAnimationFrameFootShift(arima, "pierce", "thrust"), 18);
+  for (const asset of [arima.asset, arima.weaknessAsset,
+    ...Object.values(arima.animations).flatMap((animation) => Object.values(animation.frames))]) {
+    const png = readFileSync(new URL(`./${asset}`, import.meta.url));
+    assert.equal(png.subarray(1, 4).toString(), "PNG");
+    assert.equal(png[25], 6, `${asset} retains an alpha channel`);
+  }
 });
 
 test("second-stage feet use measured frame padding and rear row has an independent depth", () => {

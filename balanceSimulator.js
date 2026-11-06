@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { STARTING_CHARACTERS } from "./characters.js";
 import { simulateBattle } from "./battle.js";
 import {
-  beginJourney, chooseRoute, chooseStartingSkill, claimCampaignReward,
+  beginJourney, chooseRoute, chooseStartingSkill, claimCampaignEliteDrop, claimCampaignReward,
   completeLocation, completeSettlement, createCampaign, finishBattle,
   getActiveCampfireOptions, getCampaignRewardOffer, getRouteOptions,
   prepareBattle, resolveCampaignEvent, selectStartingCharacter,
@@ -42,6 +42,8 @@ function applyReward(campaign, stats) {
     const second = claimCampaignReward(campaign, "skill_upgrade", null, skillId);
     if (!second) throw new Error("Could not apply simulated elite reward");
     stats.eliteBonuses += 1;
+  } else if (first.phase === "elite_drop") {
+    if (!claimCampaignEliteDrop(campaign, campaign.playerId)) throw new Error("Could not claim simulated elite drop");
   }
 }
 

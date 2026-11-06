@@ -14,7 +14,7 @@ function stageTwoEvent(eventId, extra = {}) {
   campaign.activeNode = { id: `test:${eventId}`, type: "question", status: "in_progress" };
   Object.assign(campaign.runCharacterState, extra);
   campaign.pendingEvent = createAdventureEventResult(campaign.runCharacterState, campaign.activeNode.id,
-    eventId, () => 0, campaign.partyIds.map((id) => campaign.partyStates[id]));
+    eventId, () => 0, campaign.partyIds.map((id) => campaign.partyStates[id]), 2);
   return campaign;
 }
 
@@ -32,7 +32,7 @@ test("second-stage Anteiku and rock choices reach both members once, then expire
   }
 });
 
-test("fall and sea keep main-only HP costs while granting stage-two positive outcomes to both", () => {
+test("fall remains shared while Sea Beyond binds the exchange to its chosen recipient", () => {
   const fall = stageTwoEvent("fall_rock", { fallRockCount: 1 });
   // Regenerate the cached record at stage two after establishing its prior stage.
   delete fall.runCharacterState.eventResults[fall.activeNode.id];
@@ -48,9 +48,10 @@ test("fall and sea keep main-only HP costs while granting stage-two positive out
   const seaPartnerHp = sea.partyStates.eren.maxHp;
   const seaPartnerAtk = sea.partyStates.eren.atk;
   assert.ok(resolveCampaignEvent(sea, "sea_begin"));
+  assert.ok(resolveCampaignEvent(sea, "sea_recipient|naruto"));
   assert.ok(resolveCampaignEvent(sea, "sea_finish"));
   assert.equal(sea.partyStates.eren.maxHp, seaPartnerHp);
-  assert.equal(sea.partyStates.eren.atk, seaPartnerAtk + 30);
+  assert.equal(sea.partyStates.eren.atk, seaPartnerAtk);
   assert.equal(resolveCampaignEvent(sea, "sea_finish"), false);
 });
 
@@ -87,7 +88,7 @@ test("stage-two giant spinal fluid is deferred until one selected recipient clai
   assert.equal(claimStageTwoGiantRecipient(campaign, "naruto"), false);
   assert.deepEqual([campaign.runCharacterState.atk, campaign.runCharacterState.maxHp], heroBefore);
   assert.deepEqual([campaign.partyStates.eren.atk, campaign.partyStates.eren.maxHp, campaign.partyStates.eren.currentHp],
-    [partnerBefore[0] + 30, partnerBefore[1] + 300, partnerBefore[2]]);
+    [partnerBefore[0], partnerBefore[1] + 100, partnerBefore[2]]);
   const offer = getCampaignRewardOffer(campaign);
   assert.equal(offer.choices.length, 3);
   assert.ok(claimStageTwoStatReward(campaign, "naruto", offer.choices[0]));

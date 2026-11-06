@@ -203,6 +203,7 @@ test("Predator levels use ATK+SPD, current pre-hit HP threshold and independent 
 });
 
 test("Predator Lv4 grants 50 lasting max HP only when its hit kills", () => {
+  assert.deepEqual([1, 2, 3, 4].map((level) => SKILL_DATA["kaneki-predator"].levels[level].killMaxHpBonus ?? 0), [0, 0, 0, 50]);
   const run = createRunCharacterState(kaneki, "kaneki-predator");
   const fighter = unit({ passiveSkillId: null, skills: [skillAt("kaneki-predator", 4)] });
   const state = initializeBattle([fighter, enemy({ currentHp: 100 })], { runCharacterStates: { kaneki: run } });

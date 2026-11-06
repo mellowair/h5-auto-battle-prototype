@@ -71,8 +71,10 @@ test("Bites the Dust has its own visible skill frame and waits five full rounds 
     foe(kira, { hp: 20, maxHp: 20, currentHp: 20, atk: 1, def: 0, spd: 100, skills: [rewind], skill: rewind }),
   ], () => .99);
   const result = battle();
-  assert.deepEqual(result.events.filter((event) => event.type === "bites-dust").map((event) => event.round), [1, 7, 13, 19, 25]);
-  assert.deepEqual(battle().events.filter((event) => event.type === "bites-dust").map((event) => event.round), [1, 7, 13, 19, 25], "a new battle resets the cooldown");
+  assert.deepEqual(result.events.filter((event) => event.type === "bites-dust").map((event) => event.round), [5, 11, 17, 23]);
+  assert.deepEqual(battle().events.filter((event) => event.type === "bites-dust").map((event) => event.round), [5, 11, 17, 23], "a new battle resets the cooldown");
+  for (const round of [1, 2, 3, 4])
+    assert.ok(result.events.some((event) => event.type === "attack" && event.attackerId === "kira" && event.round === round && !event.skilled));
   const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
   assert.match(app, /showFighterFrame\(fighter, actor, "skill1", "cast"\)/);
   assert.match(app, /\}, 1000\);\s*return;\s*}\s*if \(event\.type === "bomb-explode"\)/);

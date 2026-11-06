@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { STARTING_CHARACTERS } from "./characters.js";
+import { STARTING_CHARACTERS, TRIAL_ENEMY_DATA } from "./characters.js";
 import { executeAttack, initializeBattle, simulateBattle } from "./battle.js";
 import { advanceStageTransition, beginJourney, beginStageThree, chooseRoute, chooseTrialNode, createCampaign,
-  enterTrialMap, finishBattle, getRouteOptions, getStageTransitionChoices, getStageTwoNormalEnemyStats, prepareBattle, resolveTrialOffer,
+  enterTrialMap, finishBattle, getRouteOptions, getStageTransitionChoices, getStageThreeNormalEnemyStats, prepareBattle, resolveTrialOffer,
   resolveTrialWill, selectStartingCharacter, startCampaign } from "./campaign.js";
 import { createRunCharacterState } from "./progression.js";
 import { completeTrialTask, createTrialState, odinWeakestPointStat, pickTrialEnemies, startTrialTask } from "./trial.js";
@@ -56,7 +56,7 @@ test("first stage-three playable room forces trial, then decline opens the norma
   }
 });
 
-test("fixed trial route stores one shuffled challenge order and finishes after two wins", () => {
+test("trial map keeps a stable display order and finishes after two wins", () => {
   const orders = new Set();
   for (const first of [0, .4, .8]) for (const second of [0, .8]) {
     const rolls = [first, second];
@@ -70,6 +70,24 @@ test("fixed trial route stores one shuffled challenge order and finishes after t
     assert.equal(startTrialTask(trial), null);
   }
   assert.equal(orders.size, 6);
+});
+
+test("the player may select any pending trial next and cannot start one twice", () => {
+  const campaign = stageThree();
+  enterTrial(campaign, ["will", "strength", "wisdom"]);
+  assert.equal(chooseTrialNode(campaign, "wisdom").battle.enemies[0], "odin");
+  const first = prepareBattle(campaign);
+  const allies = first.roster.filter((unit) => unit.team === "ally");
+  finishBattle(campaign, "victory", allies[0].currentHp, [], allies);
+  assert.equal(campaign.status, "trial_route");
+  assert.equal(chooseTrialNode(campaign, "wisdom"), false);
+  assert.equal(chooseTrialNode(campaign, "strength").battle.enemies[0], "heracles");
+  const second = prepareBattle(campaign);
+  const survivors = second.roster.filter((unit) => unit.team === "ally");
+  finishBattle(campaign, "victory", survivors[0].currentHp, [], survivors);
+  assert.equal(campaign.trial.status, "completed");
+  assert.deepEqual([campaign.trial.tasks.wisdom, campaign.trial.tasks.strength, campaign.trial.tasks.will],
+    ["completed", "completed", "pending"]);
 });
 
 test("stage-two clear grants each party member one skill choice and three stat point choices", () => {
@@ -115,7 +133,7 @@ test("two completed trial bosses exit immediately, leaving the third node untouc
   assert.equal(chooseTrialNode(campaign), false);
 });
 
-test("a completed trial challenge refills both members before the next challenge", () => {
+test("a completed trial challenge heals each member by 25% max HP before the next challenge", () => {
   const campaign = stageThree();
   enterTrial(campaign, ["strength", "wisdom", "will"]);
   chooseTrialNode(campaign);
@@ -125,29 +143,42 @@ test("a completed trial challenge refills both members before the next challenge
   }));
   const result = finishBattle(campaign, "victory", 1, [], allies);
   assert.equal(result.status, "trial_route");
-  for (const id of campaign.partyIds) {
-    assert.equal(campaign.partyStates[id].currentHp, campaign.partyStates[id].maxHp);
-    assert.equal(campaign.lastBattleRecovery.find((item) => item.characterId === id)?.kind, "trial_full_heal");
+  for (const [index, id] of campaign.partyIds.entries()) {
+    assert.equal(campaign.partyStates[id].currentHp, (index === 0 ? 1 : 0) + Math.floor(campaign.partyStates[id].maxHp * .25));
+    assert.equal(campaign.lastBattleRecovery.find((item) => item.characterId === id)?.kind, "trial_quarter_heal");
   }
   assert.equal(finishBattle(campaign, "victory", 1, [], allies), false);
   chooseTrialNode(campaign);
   const next = prepareBattle(campaign);
-  assert.ok(next.roster.filter((unit) => unit.team === "ally").every((unit) => unit.currentHp === unit.maxHp));
+  assert.deepEqual(next.roster.filter((unit) => unit.team === "ally").map((unit) => unit.currentHp),
+    campaign.partyIds.map((id) => campaign.partyStates[id].currentHp));
 });
 
-test("trial ordinary enemies reuse the second-stage row template without route multiplier", () => {
+test("each eternal-shackles battle draws one Chinese-named front and one back enemy with stage-three row stats", () => {
   const campaign = stageThree();
   enterTrial(campaign);
   assert.equal(chooseTrialNode(campaign).taskId, "will");
   assert.equal(resolveTrialWill(campaign, "will_accept").type, "battle");
-  const prepared = prepareBattle(campaign);
-  const enemy = prepared.roster.find((unit) => unit.team === "enemy");
-  assert.ok(enemy);
-  assert.ok(["zhang_jiao", "jogo", "esdeath", "hidan", "ah_fu", "scorpion_lailai"].includes(enemy.id));
-  const rowTemplate = getStageTwoNormalEnemyStats(enemy.row === "front" ? "guard" : "mage", campaign.stageStep);
-  assert.deepEqual([enemy.maxHp, enemy.atk, enemy.def, enemy.spd],
-    [rowTemplate.hp, rowTemplate.atk, rowTemplate.def, rowTemplate.spd]);
-  assert.equal(prepared.battle.id, prepared.combatOptions.battleId);
+  const previous = [];
+  for (let battle = 0; battle < 3; battle += 1) {
+    const prepared = prepareBattle(campaign);
+    const enemies = prepared.roster.filter((unit) => unit.team === "enemy");
+    assert.equal(enemies.length, 2);
+    assert.ok(["jogo", "hidan", "scorpion_lailai"].includes(enemies[0].id));
+    assert.ok(["esdeath", "zhang_jiao", "nami"].includes(enemies[1].id));
+    assert.ok(enemies.every((unit) => !previous.includes(unit.id)));
+    assert.equal(prepared.battle.title, enemies.map((unit) => unit.name).join(" + "));
+    for (const enemy of enemies) {
+      assert.equal(enemy.name, TRIAL_ENEMY_DATA[enemy.id].name);
+      const rowTemplate = getStageThreeNormalEnemyStats(enemy.row === "front" ? "guard" : "mage", campaign.stageStep);
+      assert.deepEqual([enemy.maxHp, enemy.atk, enemy.def, enemy.spd],
+        [rowTemplate.hp, rowTemplate.atk, rowTemplate.def, rowTemplate.spd]);
+    }
+    assert.equal(prepared.battle.id, prepared.combatOptions.battleId);
+    previous.splice(0, previous.length, ...enemies.map((unit) => unit.id));
+    const allies = prepared.roster.filter((unit) => unit.team === "ally");
+    finishBattle(campaign, "victory", allies[0].currentHp, [], allies);
+  }
   assert.equal(pickTrialEnemies(["a", "b", "c"], 1, ["a"], () => 0)[0], "b");
 });
 
@@ -275,19 +306,28 @@ test("a second damage number from the same skill cast does not spend another Her
   assert.equal(attached.trialDamage.heraclesHitsRemaining, 12);
 });
 
-test("Odin blocks only the first damaging hit in each battle round", () => {
+test("Odin reduces every hit from 100% to 10% across each ten-round cycle", () => {
   const state = initializeBattle([
     { id: "hero", team: "ally", row: "front", hp: 1000, atk: 100, def: 0, spd: 100, rosterOrder: 0 },
-    { id: "odin", team: "enemy", row: "back", hp: 1000, atk: 1, def: 0, spd: 1,
+    { id: "odin", team: "enemy", row: "back", hp: 10000, atk: 1, def: 0, spd: 1,
       trialPassive: "odin", rosterOrder: 1 },
   ]);
   const [hero, boss] = state.characters;
   state.round = 1;
   assert.equal(executeAttack(state, hero, boss, () => .999).trialDamage.odinImmune, true);
-  assert.equal(boss.currentHp, 1000);
-  assert.ok(executeAttack(state, hero, boss, () => .999).actualDamage > 0);
+  assert.equal(boss.currentHp, 10000);
+  assert.equal(executeAttack(state, hero, boss, () => .999).actualDamage, 0);
   state.round = 2;
-  assert.equal(executeAttack(state, hero, boss, () => .999).trialDamage.odinImmune, true);
+  const second = executeAttack(state, hero, boss, () => .999);
+  assert.equal(second.actualDamage, 10);
+  assert.equal(second.trialDamage.odinReduction, .9);
+  assert.equal(executeAttack(state, hero, boss, () => .999).actualDamage, 10);
+  state.round = 10;
+  assert.equal(executeAttack(state, hero, boss, () => .999).actualDamage, 90);
+  state.round = 11;
+  assert.equal(executeAttack(state, hero, boss, () => .999).actualDamage, 0);
+  state.round = 12;
+  assert.equal(executeAttack(state, hero, boss, () => .999).actualDamage, 10);
 });
 
 test("Odin's max HP choice penalty is battle-only and does not erase uninjured run HP", () => {
@@ -345,7 +385,7 @@ test("Zhang Jiao can target himself, Esdeath freezes two turns, and Hidan settle
   assert.ok(delayed.events.some((event) => event.type === "trial-delayed-hit" && event.round === 4 && event.damage > 0));
 });
 
-test("Jogo burn stacks, Ah Fu escape, and Scorpion healing use real battle state", () => {
+test("Jogo burn stacks, Nami escape, and Scorpion healing use real battle state", () => {
   const hero = { id: "hero", team: "ally", row: "front", hp: 5000, atk: 300, def: 100,
     spd: 1, rosterOrder: 0 };
   const burn = simulateBattle([hero, { id: "jogo", team: "enemy", row: "back", hp: 1000,
@@ -353,7 +393,7 @@ test("Jogo burn stacks, Ah Fu escape, and Scorpion healing use real battle state
   assert.ok(burn.events.some((event) => event.type === "attack" && event.targetId === "hero" && event.burnStacks === 5));
   assert.ok(burn.events.some((event) => event.type === "trial-dot" && event.name === "灼烧" && event.damage > 0));
 
-  const escaped = simulateBattle([{ ...hero, atk: 1 }, { id: "ah_fu", team: "enemy", row: "front", hp: 5000,
+  const escaped = simulateBattle([{ ...hero, atk: 1 }, { id: "nami", team: "enemy", row: "front", hp: 5000,
     atk: 1, def: 0, spd: 100, rosterOrder: 1, trialPassive: "ah_fu" }], () => .999);
   assert.equal(escaped.events.filter((event) => event.type === "ah-fu-steal").length, 1);
   assert.equal(escaped.events.find((event) => event.type === "ah-fu-escape").round, 5);

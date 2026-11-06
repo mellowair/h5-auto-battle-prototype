@@ -37,15 +37,18 @@ test("C0 true damage is absorbed by an existing shield for each ally", () => {
   assert.ok(blast.targets.every((target) => target.hpAfter === target.hpBefore));
 });
 
-test("Lv4 clone splash returns to the sole surviving target", () => {
-  const clone = { ...SKILL_DATA["shadow-clone-rush"], ...SKILL_DATA["shadow-clone-rush"].levels[4], chance: 1, level: 4 };
-  const result = simulateBattle([unit("naruto", "ally", { hp: 5000, atk: 100, skills: [clone], spd: 200 }),
-    unit("foe", "enemy", { hp: 10000, atk: 1 })], () => .99);
-  const primary = result.events.find((event) => event.skillId === clone.id && !event.splash);
-  const extra = result.events.find((event) => event.skillId === clone.id && event.splash);
-  assert.ok(primary && extra);
-  assert.equal(extra.targetId, primary.targetId);
-  assert.equal(extra.attackerId, primary.attackerId);
+test("both Naruto forms use 50% Lv4 clone splash against a sole target", () => {
+  for (const skillId of ["shadow-clone-rush", "naruto-multi-clone"]) {
+    const clone = { ...SKILL_DATA[skillId], ...SKILL_DATA[skillId].levels[4], chance: 1, level: 4 };
+    const result = simulateBattle([unit("naruto", "ally", { hp: 5000, atk: 100, skills: [clone], spd: 200 }),
+      unit("foe", "enemy", { hp: 10000, atk: 1 })], () => .99);
+    const primary = result.events.find((event) => event.skillId === clone.id && !event.splash);
+    const extra = result.events.find((event) => event.skillId === clone.id && event.splash);
+    assert.ok(primary && extra);
+    assert.equal(extra.targetId, primary.targetId);
+    assert.equal(extra.attackerId, primary.attackerId);
+    assert.equal(extra.damage, Math.floor(primary.calculatedDamage * .5));
+  }
 });
 
 test("Tang's successful Wukong sequence persists across battles but squabble stats do not", () => {

@@ -56,7 +56,7 @@ test("Jason max HP reduction survives battle settlement and the next roster with
     initial, "a new run starts from its normal maximum HP");
 });
 
-test("Toji's fourth actual combo strike activates the debuff and skips exactly the next round", () => {
+test("Toji's fifth combo strike activates 1.5x damage taken while he keeps acting", () => {
   const template = ELITE_ENEMY_DATA.find((entry) => entry.id === "toji");
   assert.deepEqual([template.hp, template.atk, template.def, template.spd], [2600, 330, 120, 220]);
   const result = simulateBattle([unit("hero", "ally", { hp: 10000, currentHp: 10000,
@@ -64,17 +64,13 @@ test("Toji's fourth actual combo strike activates the debuff and skips exactly t
     currentHp: template.hp, critChance: 0 })], () => .99);
   const index = result.events.findIndex((event) => event.type === "toji-exhausted");
   assert.ok(index >= 0);
-  const fourth = result.events[index - 1];
-  assert.equal(fourth.attackerId, "toji");
-  assert.equal(fourth.segmentIndex, 4);
+  const fifth = result.events[index - 1];
+  assert.equal(fifth.attackerId, "toji");
+  assert.equal(fifth.segmentIndex, 5);
   assert.equal(result.events.filter((event) => event.type === "toji-exhausted").length, 1);
-  const skip = result.events.find((event) => event.type === "toji-skip");
-  assert.ok(skip);
-  assert.equal(skip.round, result.events[index].round + 1);
-  assert.equal(result.events.some((event) => event.type === "attack" && event.attackerId === "toji" && event.round === skip.round), false);
-  assert.ok(result.events.some((event) => event.type === "attack" && event.attackerId === "toji" && event.round === skip.round + 1),
-    "Toji resumes acting after one skipped global round");
-  assert.equal(result.events.filter((event) => event.type === "toji-skip").length, 1);
+  const nextRound = result.events[index].round + 1;
+  assert.equal(result.events.some((event) => event.type === "toji-skip"), false);
+  assert.ok(result.events.some((event) => event.type === "attack" && event.attackerId === "toji" && event.round === nextRound));
   const nextHit = result.events.slice(index + 1).find((event) => event.type === "attack" && event.targetId === "toji");
   assert.ok(nextHit);
   assert.equal(nextHit.damage, 67, "100 ATK against 120 DEF floors to 45, then multiplies by 1.5 and floors");

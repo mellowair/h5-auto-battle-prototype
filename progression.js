@@ -626,13 +626,19 @@ export function resolveAdventureEvent(runState, sourceId, choiceId = null, rando
         record.status = "completed";
         series.sea = { chapter1Completed: true, permanentExcluded: true, lastChoice: choiceId };
       } else if (choiceId === "sea_begin") {
-        record.data.phase = "choices";
-        // The first option commits the first exchange. Later choices may add
-        // more tiers or finish, but can no longer leave with zero exchanges.
-        record.data.selectedTiers.push(0);
+        record.data.phase = stageId >= 2 && !record.data.recipientId ? "recipient" : "choices";
+        if (record.data.phase === "choices") record.data.selectedTiers.push(0);
         keepPending = true;
-        result = { continued: true, choicesMade: 1 };
+        result = { continued: true, choicesMade: record.data.selectedTiers.length };
       } else return false;
+    } else if (record.data.phase === "recipient") {
+      if (choiceId !== `sea_recipient|${recipientState.characterId}` || record.data.recipientId) return false;
+      record.data.recipientId = recipientState.characterId;
+      record.data.startingMaxHp = recipientState.maxHp;
+      record.data.selectedTiers.push(0);
+      record.data.phase = "choices";
+      keepPending = true;
+      result = { continued: true, choicesMade: 1, recipientId: recipientState.characterId };
     } else if (record.data.phase === "choices") {
       if (choiceId === "sea_sacrifice") {
         const nextTier = record.data.selectedTiers.length;
@@ -652,13 +658,14 @@ export function resolveAdventureEvent(runState, sourceId, choiceId = null, rando
           const hpLoss = selectedTiers.reduce((total, tier) => total + Math.floor(record.data.startingMaxHp * tier.hpLossFraction), 0);
           const gains = [];
           for (const tier of selectedTiers) {
-            runState[tier.rewardStat] += tier.rewardAmount;
+            recipientState[tier.rewardStat] += tier.rewardAmount;
             gains.push({ stat: tier.rewardStat, amount: tier.rewardAmount });
           }
-          runState.maxHp = Math.max(1, record.data.startingMaxHp - hpLoss);
-          runState.currentHp = Math.min(runState.currentHp, runState.maxHp);
-          result = { hpLoss, hpLossPercent, maxHp: runState.maxHp, currentHp: runState.currentHp, gains, choicesUsed: selectedTiers.length };
-          series.sea = { chapter1Completed: true, lastChoice: "sea_begin", rewards: copy(gains) };
+          recipientState.maxHp = Math.max(1, record.data.startingMaxHp - hpLoss);
+          recipientState.currentHp = Math.min(recipientState.currentHp, recipientState.maxHp);
+          result = { hpLoss, hpLossPercent, maxHp: recipientState.maxHp, currentHp: recipientState.currentHp,
+            gains, choicesUsed: selectedTiers.length, recipientId: recipientState.characterId };
+          series.sea = { chapter1Completed: true, lastChoice: "sea_begin", rewards: copy(gains), recipientId: recipientState.characterId };
         }
         if (!selectedTiers.length) series.sea = { chapter1Completed: true, permanentExcluded: true, lastChoice: "sea_finish" };
         record.status = "completed";
@@ -666,10 +673,13 @@ export function resolveAdventureEvent(runState, sourceId, choiceId = null, rando
     } else return false;
   } else if (record.eventId === "sea_beyond_2") {
     if (choiceId === "sea_stay") {
-      result = { gains: record.data.previousRewards.map(({ stat, amount }) => ({ stat, amount })) };
+      const recipientId = series.sea.recipientId ?? runState.characterId;
+      if (recipientState.characterId !== recipientId) return false;
+      result = { gains: record.data.previousRewards.map(({ stat, amount }) => ({ stat, amount })), recipientId };
+      applySharedEventEffect(recipientState, sourceId, result);
     } else if (choiceId === "sea_home") result = { maxHpGainFraction: .10 };
     else return false;
-    applySharedEventEffect(runState, sourceId, result);
+    if (choiceId === "sea_home") applySharedEventEffect(runState, sourceId, result);
     series.sea.chapter2Completed = true;
     series.sea.lastChoice = choiceId;
   } else if (record.eventId === "old_scroll_2") {
@@ -792,6 +802,7 @@ export function applyAdventurePartyOutcome(member, record) {
     return true;
   }
   if (["coffee_shop", "big_rock", "anteiku_2", "giant_rock_2", "sea_beyond_2"].includes(record.eventId)) {
+    if (record.eventId === "sea_beyond_2" && record.data.choiceId === "sea_stay") return false;
     if (!record.result.effect && !record.result.healFraction && !record.result.maxHpGainFraction && !record.result.gains?.length) return false;
     applySharedEventEffect(member, record.sourceId, { ...record.result, gains: copy(record.result.gains) });
   } else if (record.eventId === "fall_rock") {
@@ -800,8 +811,7 @@ export function applyAdventurePartyOutcome(member, record) {
     if (rule.critRateGain) member.critRate = Math.min(COMBAT_RULES.maxCritChance, member.critRate + rule.critRateGain);
     if (!rule.attackGainFraction && !rule.critRateGain) return false;
   } else if (record.eventId === "sea_beyond") {
-    if (!record.result.gains?.length) return false;
-    for (const { stat, amount } of record.result.gains) member[stat] += amount;
+    return false;
   } else return false;
   recordAction(member, key);
   return true;
@@ -833,6 +843,18 @@ export function grantGiantSpinalFluid(member, sourceId) {
   return effect;
 }
 
+export function grantEliteSukunaFinger(member, sourceId) {
+  ensureRunState(member);
+  const treasure = TREASURE_DATA.sukuna_finger;
+  if (!recordAction(member, makeActionKey("elite-treasure", sourceId))) return false;
+  member.atk += treasure.atk;
+  member.maxHp = Math.max(1, member.maxHp + treasure.maxHp);
+  member.currentHp = Math.min(member.currentHp, member.maxHp);
+  const effect = { id: treasure.id, name: treasure.name, image: treasure.image, description: treasure.description, sourceId };
+  member.permanentEffects.push(effect);
+  return effect;
+}
+
 export function grantAdventureSpecialReward(member, sourceId, rewardId) {
   ensureRunState(member);
   if (!["drip_coffee", "six_ear_true_form"].includes(rewardId) ||
@@ -849,8 +871,8 @@ export function grantQuinque(member, sourceId, rewardId) {
   if (!["quinque_guard", "quinque_crit"].includes(rewardId) ||
     !recordAction(member, makeActionKey("quinque", sourceId))) return false;
   const reward = rewardId === "quinque_guard"
-    ? { id: rewardId, name: "库因克 · 防御", description: "被普通攻击命中时，50% 概率抵挡一半伤害。" }
-    : { id: rewardId, name: "库因克 · 暴击", description: "生命低于 60% 时暴击率增加 30 个百分点。" };
+    ? { id: rewardId, name: "库因克 · 防御", image: "assets/treasures/quinque-guard.png", description: "被普通攻击命中时，50% 概率抵挡一半伤害。" }
+    : { id: rewardId, name: "库因克 · 暴击", image: "assets/treasures/quinque-crit.png", description: "生命低于 60% 时暴击率增加 30 个百分点。" };
   member.permanentEffects.push({ ...reward, sourceId });
   return reward;
 }

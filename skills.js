@@ -2,8 +2,14 @@
 // Level-one Naruto values preserve current combat behavior. Other starter entries are first-pass placeholders.
 // Skill tuning can be replaced through this registry without scattering numbers into UI code.
 export const SKILL_DATA = {
+  "falling-gravity-domain": { id: "falling-gravity-domain", name: "重力领域", type: "passive", passive: true,
+    description: "开战时将所有玩家角色的实际战斗 SPD 固定为 1；入场面板 SPD 仍用于失重伤害。", levels: { 1: {} } },
+  "falling-weightlessness": { id: "falling-weightlessness", name: "失重", type: "passive", passive: true,
+    description: "第 3、6、9……回合结束时，使所有存活玩家角色坠落；基础伤害为各自入场面板 SPD × 4 + 250，再按 DEF 和现有防护规则结算。", levels: { 1: {} } },
+  "falling-main-course": { id: "falling-main-course", name: "主菜", type: "passive", passive: true,
+    description: "每次失重后存活者获得 1 层失去引力；每次实际回血减少 1 层。任一角色达到 5 层时立即被处决。", levels: { 1: {} } },
   "stage3-resurrection": { id: "stage3-resurrection", name: "双人复活", type: "passive", passive: true,
-    description: "倒地时另一人若存活，经过两回合后以 40% 最大 HP 复活；两人同时倒地则战斗结束。", levels: { 1: {} } },
+    description: "倒地时另一人若存活，等待四回合后以 40% 最大 HP 复活；等待期间存活者攻击力翻倍；两人同时倒地则战斗结束。", levels: { 1: {} } },
   "makima-weapons": { id: "makima-weapons", name: "武器人", type: "passive", passive: true,
     description: "开局召唤两名眷属；低于半血再召唤两名。每名眷属阵亡 ATK +100；四名全灭后吸血 +10%。", levels: { 1: {} } },
   "makima-control": { id: "makima-control", name: "支配", type: "passive", passive: true,
@@ -48,7 +54,7 @@ export const SKILL_DATA = {
     levels: { 1: { healFromCalculatedDamage: .3, emergencyThreshold: .4, critDamageBonus: .4, durationRounds: 3, killAttackBonus: 10 } } },
   "kaneki-glutton": { id: "kaneki-glutton", name: "暴食者", type: "active", triggerType: "on_action", maxLevel: 4,
     description: "以攻击与速度造成伤害；目标血量低于等级阈值时必暴击。",
-    levels: Object.fromEntries([[.6,1.2,.3,0],[.65,1.3,.3,50],[.7,1.4,.4,50],[.7,1.4,.5,50]].map(([chance,multiplier,guaranteedCritBelowHpRatio,killMaxHpBonus], index) =>
+    levels: Object.fromEntries([[.6,1.2,.3,0],[.65,1.3,.3,0],[.7,1.4,.4,0],[.7,1.4,.5,100]].map(([chance,multiplier,guaranteedCritBelowHpRatio,killMaxHpBonus], index) =>
       [index + 1, { chance, multiplier, guaranteedCritBelowHpRatio, killMaxHpBonus, lowestDefenseTarget: index === 3,
         attackFormula: "atk_plus_spd", effectType: "damage", attackType: "melee" }])) },
   "kaneki-2000-14": { id: "kaneki-2000-14", name: "2000-14", type: "active", triggerType: "on_damage", maxLevel: 4,
@@ -65,7 +71,7 @@ export const SKILL_DATA = {
   "naruto-multi-clone": { id: "naruto-multi-clone", name: "多重影分身", type: "active", triggerType: "on_action", maxLevel: 4,
     description: "分身攻击主目标，并对其余敌人造成附加伤害；只有一个敌人时附加伤害仍命中主目标。",
     levels: Object.fromEntries([[.5,1.3],[.6,1.6],[.7,1.9],[.7,2.2]].map(([chance,multiplier], index) =>
-      [index + 1, { chance, multiplier, splashRatio: .75, cloneGain: index === 3 ? 1 : 0, effectType: "damage", attackType: "melee" }])) },
+      [index + 1, { chance, multiplier, splashRatio: index === 3 ? .5 : .75, cloneGain: index === 3 ? 1 : 0, effectType: "damage", attackType: "melee" }])) },
   "naruto-giant-rasengan": { id: "naruto-giant-rasengan", name: "大玉螺旋丸", type: "active", triggerType: "on_action", maxLevel: 4,
     description: "沿用螺旋丸等级伤害；每次施放积累查克拉，满 100 时追加超大玉螺旋丸。",
     levels: Object.fromEntries(Array.from({ length: 4 }, (_, index) => [index + 1, {
@@ -135,7 +141,7 @@ export const SKILL_DATA = {
     levels: { 1: { chance: 0.40, effectType: "rewind" } },
   },
   "toji-heavenly-restriction": {
-    id: "toji-heavenly-restriction", name: "天予咒缚", type: "passive", description: "行动时速度高于目标则连击；每次满足条件，连击段数递增。同一次连击实际打出第 4 段后，伏黑甚尔本场受到的最终伤害变为 1.5 倍，并跳过下一完整回合的行动。",
+    id: "toji-heavenly-restriction", name: "天予咒缚", type: "passive", description: "行动时速度高于目标则连击；每次满足条件，连击段数递增。同一次连击实际打出第 5 段后，本场受到的最终伤害变为 1.5 倍，仍可正常行动。",
     maxLevel: 1, levels: { 1: {} },
   },
   "killer-queen": {
@@ -167,8 +173,8 @@ export const SKILL_DATA = {
     triggerType: "on_action", targetRule: "front_priority_random", passive: false, unlockMethod: "character_choice", maxLevel: 4,
     levels: {
       1: { chance: 0.50, multiplier: 1, attackFormula: "atk_plus_spd", guaranteedCritBelowHpRatio: 0.25, effectType: "damage", attackType: "melee" },
-      2: { chance: 0.55, multiplier: 1, attackFormula: "atk_plus_spd", guaranteedCritBelowHpRatio: 0.30, effectType: "damage", attackType: "melee", killMaxHpBonus: 25 },
-      3: { chance: 0.55, multiplier: 1.1, attackFormula: "atk_plus_spd", guaranteedCritBelowHpRatio: 0.40, effectType: "damage", attackType: "melee", killMaxHpBonus: 50 },
+      2: { chance: 0.55, multiplier: 1, attackFormula: "atk_plus_spd", guaranteedCritBelowHpRatio: 0.30, effectType: "damage", attackType: "melee", killMaxHpBonus: 0 },
+      3: { chance: 0.55, multiplier: 1.1, attackFormula: "atk_plus_spd", guaranteedCritBelowHpRatio: 0.40, effectType: "damage", attackType: "melee", killMaxHpBonus: 0 },
       4: { chance: 0.60, multiplier: 1.3, attackFormula: "atk_plus_spd", guaranteedCritBelowHpRatio: 0.50, effectType: "damage", attackType: "melee", killMaxHpBonus: 50 },
     },
   },
@@ -204,7 +210,7 @@ export const SKILL_DATA = {
       1: { chance: 0.55, multiplier: 1.3, cloneCount: 1, effectType: "damage", attackType: "melee" },
       2: { chance: 0.60, multiplier: 1.6, cloneCount: 2, effectType: "damage", attackType: "melee" },
       3: { chance: 0.65, multiplier: 1.9, cloneCount: 3, effectType: "damage", attackType: "melee" },
-      4: { chance: 0.75, multiplier: 2.2, cloneCount: 4, effectType: "damage", attackType: "melee", splashRatio: 0.75, specialEffect: { kind: "clone_afterimage" } },
+      4: { chance: 0.75, multiplier: 2.2, cloneCount: 4, effectType: "damage", attackType: "melee", splashRatio: 0.5, specialEffect: { kind: "clone_afterimage" } },
     },
   },
   rasengan: {
@@ -305,6 +311,9 @@ export const SKILL_DATA = {
   "heracles-nine-heads": { id: "heracles-nine-heads", name: "射杀百头", type: "active",
     description: "25% 概率造成 1.2 倍 ATK 单体伤害；自身当前 HP 严格低于 1000 时本次伤害翻倍。",
     levels: { 1: { chance: .25, multiplier: 1.2, effectType: "damage", attackType: "melee" } } },
+  "odin-ravens": { id: "odin-ravens", name: "福金与雾尼", type: "passive", passive: true,
+    description: "按整场战斗回合循环减伤：第 1 回合 100%，每回合下降 10 个百分点，第 10 回合 10%，第 11 回合重新为 100%。本回合所有受到的伤害均适用。",
+    levels: { 1: {} } },
   "odin-gungnir": { id: "odin-gungnir", name: "冈格尼尔", type: "active",
     description: "30% 概率无视站位随机攻击一名存活角色，造成 1.4 倍伤害并使其下一行动回合眩晕。",
     levels: { 1: { chance: .3, multiplier: 1.4, effectType: "damage", attackType: "magic", targetRule: "random_all", stunNextAction: true } } },
@@ -335,7 +344,7 @@ export const ADVENTURE_EVENT_DATA = {
   sea_beyond_2: { id: "sea_beyond_2", name: "海的那边……", type: "sea_sequel", description: "你孤身一人来到海的那边，结果却与你想象中截然不同，你所仇恨在意的一切到底是什么呢？……海浪拍打着岸边，你望向远方，下定决心。", image: "assets/events/event_sea_beyond_2.png", effectText: "你将如何选择？", containsBattle: false, providesReward: true, requiresChoice: true },
   old_scroll_2: { id: "old_scroll_2", name: "老头的卷轴", type: "scroll_sequel", description: "又遇到这个老头了，似乎手里面还拿着一本什么天堂？……", image: "assets/events/event_old_scroll_2.png", effectText: "你将如何回应？", containsBattle: false, providesReward: true, requiresChoice: true },
   anteiku_2: { id: "anteiku_2", name: "安定区", type: "anteiku_sequel", description: "再次回来时，街区已经被封锁，年迈的店长告诉你，平静的日子已经一去不返。", image: "assets/events/event_anteiku_2.png", effectText: "你将如何选择？", containsBattle: false, providesReward: true, requiresChoice: true },
-  anteiku_3: { id: "anteiku_3", name: "安定区", type: "anteiku_final", description: "封锁后的安定区传来脚步声，白色死神站在街道尽头。", image: "assets/events/event_anteiku_2.png", effectText: "你将如何选择？", containsBattle: false, providesReward: true, requiresChoice: true },
+  anteiku_3: { id: "anteiku_3", name: "安定区", type: "anteiku_final", description: "封锁后的安定区传来脚步声，白色死神站在街道尽头。", image: "assets/events/event_anteiku_3.png", effectText: "你将如何选择？", containsBattle: false, providesReward: true, requiresChoice: true },
   giant_rock_2: { id: "giant_rock_2", name: "路遇巨石", type: "rock_sequel", description: "兜兜转转又是这块巨石，你听到了巨石下有窸窸窣窣的声音。", image: "assets/events/event_giant_rock_2.png", effectText: "你将如何选择？", containsBattle: false, providesReward: true, requiresChoice: true },
   death_note: { id: "death_note", name: "死亡笔记", type: "death_note", description: "一本散发着不祥气息的笔记本……要不要打开看看呢？", image: "assets/events/event_death_note.png", effectText: "打开后可能招来厄运，也可能获得力量；效果持续两场战斗，并显示在状态栏。", containsBattle: false, providesReward: true, requiresChoice: true },
   fate_gate: { id: "fate_gate", name: "命运石之门", type: "guaranteed_skill", description: "这一切都是命运石之门的选择！", image: "assets/events/event_fate_gate.png", effectText: "下一场战斗中随机强化一个已学习且可触发的技能，使其触发率提升至 100%。", containsBattle: false, providesReward: false, requiresChoice: true },
@@ -375,18 +384,18 @@ export const ADVENTURE_EVENT_DATA = {
 
 export const GIANT_SPINAL_FLUID = Object.freeze({
   id: "giant_spinal_fluid", name: "巨人脊髓液", image: "assets/events/giant_spinal_fluid.png",
-  atk: 30, def: 30, maxHp: 300,
+  description: "本局 DEF +20，最大 HP +100；当前 HP 不恢复。", atk: 0, def: 20, maxHp: 100,
 });
 
 // King's Treasury rewards are data only; their effects are applied by the
 // existing run-character and battle-state rules.
 export const TREASURE_DATA = Object.freeze({
   magic_conch: { id: "magic_conch", tier: "small", name: "神奇海螺", image: "assets/treasures/magic-conch.png", description: "本局可减免的战斗伤害减免 +5 个百分点。", damageReduction: 0.05 },
-  sukuna_finger: { id: "sukuna_finger", tier: "small", name: "宿傩手指", image: "assets/treasures/sukuna-finger.png", description: "本局 ATK +50，最大 HP -200。", atk: 50, maxHp: -200 },
+  sukuna_finger: { id: "sukuna_finger", tier: "small", name: "宿傩手指", image: "assets/treasures/sukuna-finger.png", description: "本局 ATK +30，最大 HP -150。", atk: 30, maxHp: -150 },
   odm_gear: { id: "odm_gear", tier: "small", name: "立体机动装置", image: "assets/treasures/odm-gear.png", description: "本局闪避率 +5 个百分点，暴击率 +5 个百分点。", dodgeRateBonus: 0.05, critRateBonus: 0.05 },
-  angel_breath: { id: "angel_breath", tier: "royal", name: "大天使的气息", image: "assets/treasures/angel-breath.png", description: "立即回满 HP；此后每场战斗结束恢复最大 HP 的 10%。", battleEndHealRatio: 0.10 },
-  stone_mask: { id: "stone_mask", tier: "royal", name: "石鬼面", image: "assets/treasures/stone-mask.png", description: "本局吸血 +25 个百分点，但无法通过篝火恢复 HP。", lifesteal: 0.25, blocksCampfireHeal: true },
-  nichirin_blade: { id: "nichirin_blade", tier: "royal", name: "日轮刀", image: "assets/treasures/nichirin-blade.png", description: "普通攻击命中后，额外扣除目标攻击前当前 HP 的 5%，无视 DEF。", normalAttackCurrentHpRatio: 0.05 },
+  angel_breath: { id: "angel_breath", tier: "royal", name: "大天使的气息", image: "assets/treasures/angel-breath.png", description: "立即回满 HP；此后每场战斗结束恢复最大 HP 的 20%。", battleEndHealRatio: 0.20 },
+  stone_mask: { id: "stone_mask", tier: "royal", name: "石鬼面", image: "assets/treasures/stone-mask.png", description: "本局吸血 +40 个百分点，但无法通过篝火恢复 HP。", lifesteal: 0.40, blocksCampfireHeal: true },
+  nichirin_blade: { id: "nichirin_blade", tier: "royal", name: "日轮刀", image: "assets/treasures/nichirin-blade.png", description: "普通攻击命中后，额外扣除目标攻击前当前 HP 的 8%，无视 DEF。", normalAttackCurrentHpRatio: 0.08 },
 });
 
 export const ELITE_BONUS_REWARDS = [

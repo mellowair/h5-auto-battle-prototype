@@ -1,7 +1,7 @@
-// The trial is a small, serializable route. Randomness is consumed once on entry;
-// subsequent renders and battle replays read the stored order.
+// The trial is a small, serializable route. Its three buttons keep a stable
+// display order; the player chooses which pending task to challenge next.
 export const TRIAL_TASKS = Object.freeze({
-  will: { name: "永恒的锁", eventName: "永恒的伽锁", kind: "意志" },
+  will: { name: "永恒的枷锁", eventName: "永恒的枷锁", kind: "意志" },
   strength: { name: "击败赫拉克勒斯", kind: "力量" },
   wisdom: { name: "击败奥丁", kind: "智慧" },
 });
@@ -43,10 +43,10 @@ export function createTrialState(random = Math.random) {
   };
 }
 
-export function startTrialTask(trial) {
+export function startTrialTask(trial, selectedTaskId = null) {
   if (trial?.status !== "active" || trial.currentTask || trial.index >= trial.order.length) return null;
-  const taskId = trial.order[trial.index];
-  if (trial.tasks[taskId] !== "pending") return null;
+  const taskId = selectedTaskId ?? trial.order.find((id) => trial.tasks[id] === "pending");
+  if (!trial.order.includes(taskId) || trial.tasks[taskId] !== "pending") return null;
   trial.currentTask = taskId;
   trial.tasks[taskId] = "active";
   return taskId;
@@ -61,7 +61,8 @@ export function completeTrialTask(trial, taskId, result = "completed") {
   trial.index += 1;
   if (trial.completedCount >= TRIAL_RULES.requiredTasks) trial.status = "completed";
   else if (trial.index >= trial.order.length) trial.status = "failed";
-  return { status: trial.status, completedCount: trial.completedCount, nextTask: trial.order[trial.index] ?? null };
+  return { status: trial.status, completedCount: trial.completedCount,
+    nextTask: trial.order.find((id) => trial.tasks[id] === "pending") ?? null };
 }
 
 export function failTrial(trial) {

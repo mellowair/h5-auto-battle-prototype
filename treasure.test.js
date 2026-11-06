@@ -52,7 +52,7 @@ test("Sukuna finger clamps HP, while ODM gear raises actual dodge and crit chanc
   finger.member.maxHp = 1600; finger.member.currentHp = 1500;
   const oldAtk = finger.member.atk;
   assert.ok(claimTreasure(finger.owner, finger.sourceId, "sukuna_finger", finger.member, finger.member.characterId));
-  assert.deepEqual([finger.member.maxHp, finger.member.currentHp, finger.member.atk], [1400, 1400, oldAtk + 50]);
+  assert.deepEqual([finger.member.maxHp, finger.member.currentHp, finger.member.atk], [1450, 1450, oldAtk + 30]);
   const gear = offerFor("odm_gear");
   const oldCrit = gear.member.critRate;
   assert.ok(claimTreasure(gear.owner, gear.sourceId, "odm_gear", gear.member, gear.member.characterId));
@@ -66,20 +66,20 @@ test("stone mask gives battle lifesteal but blocks only its holder's campfire he
   const mask = offerFor("stone_mask", eren);
   mask.member.currentHp = 500;
   assert.ok(claimTreasure(mask.owner, mask.sourceId, "stone_mask", mask.member, mask.member.characterId));
-  assert.equal(getTreasureCombatModifiers(mask.member).lifesteal, .25);
+  assert.equal(getTreasureCombatModifiers(mask.member).lifesteal, .40);
   assert.equal(getCampfireOptions(mask.member)[0].healAmount, 0);
   assert.equal(resolveCampfire(mask.member, "camp-a", "rest").restored, 0);
   assert.equal(mask.member.currentHp, 500);
   mask.owner.currentHp = 500;
   assert.ok(resolveCampfire(mask.owner, "camp-a", "rest").restored > 0);
   const battle = initializeBattle([
-    { id: "holder", team: "ally", row: "front", hp: 1000, currentHp: 500, atk: 100, def: 0, spd: 100, critChance: 0, lifesteal: .25 },
+    { id: "holder", team: "ally", row: "front", hp: 1000, currentHp: 500, atk: 100, def: 0, spd: 100, critChance: 0, lifesteal: .40 },
     { id: "foe", team: "enemy", row: "front", hp: 1000, atk: 10, def: 0, spd: 10, critChance: 0 },
   ]);
   const event = executeAttack(battle, battle.characters[0], battle.characters[1], () => .99);
   assert.equal(event.actualDamage, 100);
-  assert.equal(event.treasureLifesteal, 25);
-  assert.equal(battle.characters[0].currentHp, 525);
+  assert.equal(event.treasureLifesteal, 40);
+  assert.equal(battle.characters[0].currentHp, 540);
 });
 
 test("formal battle roster carries treasure modifiers, and stage-two campfire still heals the unmasked partner", () => {
@@ -89,8 +89,8 @@ test("formal battle roster carries treasure modifiers, and stage-two campfire st
   const roster = prepareBattle(campaign).roster;
   const main = roster.find((unit) => unit.id === "naruto");
   const partner = roster.find((unit) => unit.id === "eren");
-  assert.deepEqual([main.damageReductionBonus, main.dodgeRateBonus, main.normalAttackCurrentHpRatio], [.05, .05, .05]);
-  assert.equal(partner.lifesteal, .25);
+  assert.deepEqual([main.damageReductionBonus, main.dodgeRateBonus, main.normalAttackCurrentHpRatio], [.05, .05, .08]);
+  assert.equal(partner.lifesteal, .40);
   const rest = createStageTwoTestCampaign({ heroId: "naruto", partnerId: "eren", seed: 72 });
   rest.partyStates.naruto.currentHp = 500;
   rest.partyStates.eren.currentHp = 500;
@@ -106,14 +106,14 @@ test("formal battle roster carries treasure modifiers, and stage-two campfire st
 });
 
 test("Nichirin Blade creates a separate DEF-free hit based on pre-attack HP, never on dodge or skills", () => {
-  const actor = { id: "holder", team: "ally", row: "front", hp: 5000, atk: 300, def: 0, spd: 100, critChance: 0, normalAttackCurrentHpRatio: .05 };
+  const actor = { id: "holder", team: "ally", row: "front", hp: 5000, atk: 300, def: 0, spd: 100, critChance: 0, normalAttackCurrentHpRatio: .08 };
   const target = { id: "foe", team: "enemy", row: "front", hp: 2000, atk: 1, def: 0, spd: 1, critChance: 0 };
   const result = simulateBattle([actor, target], () => .99);
   const first = result.events.find((event) => event.type === "attack" && event.attackerId === "holder");
   const bonus = result.events.find((event) => event.type === "treasure-damage");
   assert.equal(first.damage, 300);
   assert.equal(first.hpBefore, 2000);
-  assert.deepEqual([bonus.basisHp, bonus.requested, bonus.damage, bonus.hpBefore, bonus.hpAfter], [2000, 100, 100, 1700, 1600]);
+  assert.deepEqual([bonus.basisHp, bonus.requested, bonus.damage, bonus.hpBefore, bonus.hpAfter], [2000, 160, 160, 1700, 1540]);
   assert.ok(result.events.filter((event) => event.type === "treasure-damage").every((event) => event.basisHp > event.hpBefore));
   let rolls = 0;
   const dodge = simulateBattle([actor, target], () => rolls++ < 2 ? 0 : .99);
@@ -125,7 +125,7 @@ test("Nichirin Blade creates a separate DEF-free hit based on pre-attack HP, nev
   assert.equal(active.events.filter((event) => event.type === "treasure-damage").length, 0);
 });
 
-test("angel breath immediately fills HP and victory revives before its 10% end heal exactly once", () => {
+test("angel breath immediately fills HP and victory revives before its 20% end heal exactly once", () => {
   const angel = offerFor("angel_breath");
   angel.member.currentHp = 200;
   assert.ok(claimTreasure(angel.owner, angel.sourceId, "angel_breath", angel.member, angel.member.characterId));
@@ -138,7 +138,7 @@ test("angel breath immediately fills HP and victory revives before its 10% end h
     { id: "naruto", team: "ally", currentHp: 0 }, { id: "eren", team: "ally", currentHp: 400 },
   ]);
   assert.equal(result.next, "victory");
-  assert.equal(campaign.partyStates.naruto.currentHp, Math.max(1, Math.floor(maxHp * .05)) + Math.floor(maxHp * .10));
+  assert.equal(campaign.partyStates.naruto.currentHp, Math.max(1, Math.floor(maxHp * .05)) + Math.floor(maxHp * .20));
   assert.equal(campaign.partyStates.eren.currentHp, 400);
   assert.deepEqual(campaign.lastBattleRecovery.map((entry) => entry.kind), ["revive", "angel_breath"]);
   assert.equal(finishBattle(campaign, "victory", 0, [], []), false);

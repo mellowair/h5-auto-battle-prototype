@@ -115,7 +115,7 @@ test("a real late-route question opens the giant encounter and carries its choic
   assert.deepEqual([roster[1].atk, roster[1].def, roster[1].row], [80, 60, "back"]);
   const before = [campaign.runCharacterState.atk, campaign.runCharacterState.def, campaign.runCharacterState.maxHp];
   assert.equal(finishBattle(campaign, "victory", campaign.runCharacterState.currentHp).next, "reward");
-  assert.deepEqual([campaign.runCharacterState.atk - before[0], campaign.runCharacterState.def - before[1], campaign.runCharacterState.maxHp - before[2]], [30, 30, 300]);
+  assert.deepEqual([campaign.runCharacterState.atk - before[0], campaign.runCharacterState.def - before[1], campaign.runCharacterState.maxHp - before[2]], [0, 20, 100]);
   assert.equal(finishBattle(campaign, "victory", campaign.runCharacterState.currentHp), false);
 });
 
@@ -160,10 +160,10 @@ test("heart choice grants spinal fluid once on victory without healing current H
   const prepared = prepareBattle(campaign);
   assert.equal(prepared.roster.find((unit) => unit.id === "dina").maxHp, 1000);
   assert.equal(finishBattle(campaign, "victory", 800).next, "reward");
-  assert.deepEqual([campaign.runCharacterState.atk, campaign.runCharacterState.def, campaign.runCharacterState.maxHp, campaign.runCharacterState.currentHp], [200, 100, 1900, 800]);
+  assert.deepEqual([campaign.runCharacterState.atk, campaign.runCharacterState.def, campaign.runCharacterState.maxHp, campaign.runCharacterState.currentHp], [170, 90, 1700, 800]);
   assert.equal(campaign.runCharacterState.permanentEffects.length, 1);
   assert.equal(finishBattle(campaign, "victory", 800), false);
-  assert.deepEqual([campaign.runCharacterState.atk, campaign.runCharacterState.def, campaign.runCharacterState.maxHp], [200, 100, 1900]);
+  assert.deepEqual([campaign.runCharacterState.atk, campaign.runCharacterState.def, campaign.runCharacterState.maxHp], [170, 90, 1700]);
   const next = createCampaign(() => 0, { seed: 8 });
   startCampaign(next);
   next.candidateIds = ["naruto", "eren"];

@@ -4,11 +4,14 @@
 // Optional animationOffsets: { skill1: { offsetX: 4, offsetY: 0 } } applies
 // only while that animation is visible and resets when its frame is cleared.
 export const CHARACTER_VISUALS = Object.freeze({
-  tang: { scale: 1.2, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98 },
-  "tang-white-horse": { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98 },
-  "tang-bajie": { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98 },
+  tang: { scale: 1.2, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98,
+    animationFrameScales: { skill1: { cast: 1.15 } } },
+  "tang-white-horse": { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98,
+    animationFrameScales: { skill1: { cast: 1.45 } } },
+  "tang-bajie": { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98,
+    animationFrameScales: { skill1: { cast: 1.45 } } },
   "tang-shaseng": { scale: 1.35, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98,
-    animationFrameScales: { skill1: { cast: 1.8 } }, frameFootShifts: { skill1: { cast: 10 } } },
+    animationFrameScales: { skill1: { cast: 1.35 } }, frameFootShifts: { skill1: { cast: 10 } } },
   "tang-wukong": { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98 },
   naruto: { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98 },
   "naruto-evolved": { scale: 1.35, offsetX: 0, offsetY: -8, frameWidth: 84, frameHeight: 98,
@@ -47,13 +50,23 @@ export const CHARACTER_VISUALS = Object.freeze({
   quanxi: { scale: 1.2, offsetX: 0, offsetY: 0, frameWidth: 94, frameHeight: 108,
     animationFrameScales: { meleeAttack: { flash: 1.55, strike: 1.2 } },
     frameFootShifts: { meleeAttack: { flash: 14, strike: 16 } } },
-  "tang-evolved": { scale: 1.6, offsetX: 0, offsetY: -6, frameWidth: 96, frameHeight: 112 },
-  heracles: { scale: 1.45, offsetX: 0, offsetY: 0, frameWidth: 112, frameHeight: 128 },
+  "tang-evolved": { scale: 1.6, offsetX: 0, offsetY: -6, frameWidth: 96, frameHeight: 112,
+    animationFrameScales: { skill1: { cast: 1.22 } } },
+  heracles: { scale: 1.45, offsetX: 0, offsetY: 0, frameWidth: 112, frameHeight: 128,
+    animationFrameScales: { phase2MeleeAttack: { punch: 1.1 } } },
   odin: { scale: 1.7, offsetX: 0, offsetY: -13, frameWidth: 112, frameHeight: 128,
     animationFrameScales: { idle: { idle: 1.15 }, magicAttack: { cast: 1.5 }, gungnir: { cast: 1.5 } },
     frameFootShifts: { magicAttack: { cast: 29 }, gungnir: { cast: 29 }, passive1: { trigger: -3 }, passive2: { trigger: 6 } } },
+  zhang_jiao: { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 112, frameHeight: 128 },
+  jogo: { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 112, frameHeight: 128 },
+  esdeath: { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 112, frameHeight: 128 },
+  hidan: { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 112, frameHeight: 128 },
+  nami: { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 112, frameHeight: 128 },
+  scorpion_lailai: { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 112, frameHeight: 128 },
   shin: { scale: 1.45, offsetX: 0, offsetY: -18, frameWidth: 112, frameHeight: 128 },
   noi: { scale: 1.45, offsetX: 0, offsetY: -18, frameWidth: 112, frameHeight: 128 },
+  "falling-devil": { scale: 1.35, offsetX: 0, offsetY: -8, frameWidth: 112, frameHeight: 128,
+    animationFrameScales: { execution: { cast: 1.05 }, death: { down: 1.25 } } },
   giant: { scale: 1.05, offsetX: 0, offsetY: 0, frameWidth: 128, frameHeight: 144 },
   slime: { scale: 0.72, offsetX: 0, offsetY: 0, frameWidth: 128, frameHeight: 144 },
   mage: { scale: 0.86, offsetX: 0, offsetY: 0, frameWidth: 128, frameHeight: 144 },
@@ -63,14 +76,26 @@ export const CHARACTER_VISUALS = Object.freeze({
   teruhashi: { scale: 0.88, offsetX: 0, offsetY: -1, frameWidth: 128, frameHeight: 144 },
   gollum: { scale: 0.6, offsetX: 0, offsetY: 0, frameWidth: 128, frameHeight: 144 },
   gilgamesh: { scale: 1.9, offsetX: 0, offsetY: 28, frameWidth: 104, frameHeight: 112 },
+  arima: { scale: 0.86, offsetX: 0, offsetY: 0, frameWidth: 112, frameHeight: 128,
+    frameFootShifts: { pierce: { charge: 18, thrust: 18 } } },
   suzuya: { scale: 1.02, offsetX: 0, offsetY: 0, frameWidth: 96, frameHeight: 112 },
   six_ear: { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98 },
   deep_sea_king: { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 128, frameHeight: 144 },
+  bull_king: { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 128, frameHeight: 144 },
+  headless_knight: { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 128, frameHeight: 144 },
+  anubis: { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 128, frameHeight: 144 },
+  loki: { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 128, frameHeight: 144 },
+  medusa: { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 128, frameHeight: 144 },
+  shiji: { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 128, frameHeight: 144 },
   dina: { scale: 1.7, offsetX: 0, offsetY: 0, frameWidth: 160, frameHeight: 176 },
   deidara: { scale: 1.4, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98 },
   mahito: { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98 },
-  "bomb-demon": { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98 },
-  "makima-bomb": { scale: 1.2, offsetX: 0, offsetY: 0, frameWidth: 94, frameHeight: 108 },
+  "bomb-demon": { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98,
+    animationFrameScales: { boom: { raise: 1.4, launch: 1.4 } },
+    frameFootShifts: { boom: { raise: 20, launch: 20 } } },
+  "makima-bomb": { scale: 1.2, offsetX: 0, offsetY: 0, frameWidth: 94, frameHeight: 108,
+    animationFrameScales: { boom: { raise: 1.4, launch: 1.4 } },
+    frameFootShifts: { boom: { raise: 22, launch: 22 } } },
   boros: { scale: 1.3, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98,
     animationFrameScales: {
       meleeAttack: { windup: 1.08, punch: 1.1 },
@@ -103,6 +128,10 @@ export function getAnimationFrameVisualScale(character, animationName, frameName
 
 export function getAnimationFrameFootShift(character, animationName, frameName) {
   return getCharacterVisual(character).frameFootShifts?.[animationName]?.[frameName] ?? 0;
+}
+
+export function getGravityLiftPixels(entryPanelSpd) {
+  return 20 + Math.max(0, entryPanelSpd) * .28;
 }
 
 export function getBorosBeamGeometry(arenaLeft, arenaRight, headX, allyX) {

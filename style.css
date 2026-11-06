@@ -30,6 +30,8 @@ button { font: inherit; }
 .topbar { display: flex; align-items: center; gap: 10px; min-height: 46px; }
 .brand-mark { width: 37px; height: 37px; display: grid; place-items: center; background: #f6a33f; border: 2px solid var(--navy); box-shadow: 2px 2px 0 var(--navy); color: #fff9dc; font-weight: 900; font-size: 20px; transform: rotate(-3deg); }
 .battle-screen.stage-two .arena, .route-screen.stage-two .route-landscape, .route-map-dialog.stage-two .route-map-scroll { background-image: linear-gradient(rgba(9,14,29,.16), rgba(9,14,29,.28)), url("assets/stage2-golden-tree.png"); background-position: center 56%; }
+.battle-screen.stage-three .arena, .route-screen.stage-three .route-landscape, .route-map-dialog.stage-three .route-map-scroll { background-image: linear-gradient(rgba(9,14,29,.16), rgba(9,14,29,.28)), url("assets/stage3-background.png"); background-position: center 56%; }
+.battle-screen.stage-three.trial-battle .arena { background-image: linear-gradient(rgba(9,14,29,.16), rgba(9,14,29,.28)), url("assets/trial-background.png"); }
 .route-screen.stage-two .route-ground { background: linear-gradient(180deg, rgba(115,120,55,.12), rgba(51,70,35,.36) 25%, rgba(42,56,33,.65) 70%, rgba(27,40,30,.78)); border-top: 3px solid rgba(178,193,104,.7); }
 .battle-screen.stage-two .arena-ground {
   background: linear-gradient(180deg, rgba(115,120,55,.12), rgba(51,70,35,.36) 25%, rgba(42,56,33,.65) 70%, rgba(27,40,30,.78));
@@ -72,7 +74,7 @@ button { font: inherit; }
 .stage-transition-screen.stage3-interlude.stage3-heart .stage-transition-landscape::after { transform: translateX(-50%) scale(1); }
 .stage-transition-screen.stage3-interlude.stage3-fade { opacity: 0; transition: opacity .4s steps(8,end); }
 .trial-screen { display: flex; flex-direction: column; gap: 16px; }
-.trial-map { flex: 1; min-height: 350px; padding: 35px 12px; display: flex; flex-direction: column; justify-content: space-around; align-items: center; gap: 14px; border: 2px solid #8b895f; border-radius: 9px; background: linear-gradient(rgba(8,14,27,.35), rgba(8,14,27,.55)), url("assets/stage2-golden-tree.png") center / cover; }
+.trial-map { flex: 1; min-height: 350px; padding: 35px 12px; display: flex; flex-direction: column; justify-content: space-around; align-items: center; gap: 14px; border: 2px solid #8b895f; border-radius: 9px; background: linear-gradient(rgba(8,14,27,.35), rgba(8,14,27,.55)), url("assets/trial-background.png") center / cover; }
 .trial-node { width: min(90%, 390px); min-height: 70px; padding: 12px; border: 3px solid #b8a676; border-radius: 7px; background: #f7f0d9; color: #293450; font: inherit; font-weight: 900; text-align: center; image-rendering: pixelated; }
 .trial-node[disabled] { opacity: .62; }
 .trial-node.is-current { border-color: #e7b543; box-shadow: 0 0 0 3px rgba(255,224,133,.3); cursor: pointer; }
@@ -181,9 +183,18 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .fighter.is-steam-casting .sprite-wrap { animation: steam-fall var(--steam-duration, 650ms) steps(5,end) both; transform-origin: center bottom; }
 @keyframes steam-fall { 0%,100% { transform: rotate(0); } 45%,75% { transform: translateX(-12px) rotate(-18deg); } }
 .sprite-visual { position: absolute; z-index: 2; bottom: 5px; left: 50%; margin-left: calc(var(--visual-frame-width, 84px) * -.5); display: grid; place-items: end center; width: var(--visual-frame-width, 84px); height: var(--visual-frame-height, 98px); scale: var(--visual-scale, 1); translate: calc(var(--visual-offset-x, 0px) + var(--visual-action-offset-x, 0px)) calc(0px - var(--visual-offset-y, 0px) - var(--visual-stage-foot-offset-y, 0px) - var(--visual-action-offset-y, 0px)); transform-origin: center bottom; }
+.cannot-act-effect { position: absolute; z-index: 15; left: 50%; bottom: 6%; width: 145%; height: 115%; max-width: none; object-fit: contain; transform: translateX(-50%); pointer-events: none; image-rendering: pixelated; animation: cannot-act-pulse 1.2s ease-in-out infinite alternate; }
+@keyframes cannot-act-pulse { from { opacity: .75; } to { opacity: 1; } }
 .fighter[data-team="enemy"][data-controlled-by-makima="true"] .sprite-visual { transform: scaleX(-1); }
 .sprite { position: relative; z-index: 2; display: block; width: calc(var(--visual-frame-width, 84px) * .952381); height: var(--visual-frame-height, 98px); object-fit: contain; object-position: center bottom; image-rendering: pixelated; filter: drop-shadow(2px 3px 0 rgba(40,49,67,.2)); }
 .ground-shadow { position: absolute; z-index: 1; bottom: 8px; width: 60px; height: 9px; background: rgba(56,91,72,.22); border-radius: 50%; }
+.gravity-circle { position: absolute; z-index: 1; left: 50%; bottom: 7px; width: 165%; height: 78px; max-width: none; object-fit: contain; transform: translateX(-50%); image-rendering: pixelated; pointer-events: none; }
+.fighter.gravity-lift .sprite-wrap { animation: gravity-rise var(--gravity-lift-duration, 480ms) ease-out both; }
+.fighter.gravity-drop .sprite-wrap { animation: gravity-drop var(--gravity-drop-duration, 420ms) ease-in both; }
+@keyframes gravity-rise { from { transform: translateY(0); } to { transform: translateY(calc(0px - var(--gravity-rise, 40px))); } }
+@keyframes gravity-drop { from { transform: translateY(calc(0px - var(--gravity-rise, 40px))); } to { transform: translateY(0); } }
+.fighter.is-gravity-dish .sprite-wrap { visibility: hidden; }
+.gravity-dish { position: absolute; z-index: 3; left: 50%; bottom: 6px; width: 125%; height: 112px; max-width: none; object-fit: contain; transform: translateX(-50%); image-rendering: pixelated; pointer-events: none; }
 .fighter-mage .sprite { filter: drop-shadow(2px 3px 0 rgba(40,49,67,.17)) saturate(.93); }
 .fighter[data-appearance] .sprite { transform-origin: center bottom; }
 .fighter-naruto .sprite,
@@ -195,6 +206,8 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .distance-portrait[src*="naruto-v2"] { filter: none; }
 .fighter.is-dead { pointer-events: none; }
 .fighter.is-dead .sprite { transform: rotate(74deg) translate(5px, 12px) scale(.82); transform-origin: 50% 88%; filter: saturate(.9); transition: transform .38s cubic-bezier(.2,.8,.3,1), filter .3s; }
+.fighter[data-character="naruto"][data-evolution="2"].has-authored-death.is-dead .sprite { transform: none; animation: none; filter: none; }
+.fighter[data-character="naruto"][data-evolution="2"].has-authored-death.is-dead .sprite-wrap::before { display: none; }
 .fighter.has-action-sprite.is-dead .sprite-action { transform: none; filter: saturate(.9); }
 .fighter[data-death-pose="cute-flop"].is-dead .sprite { animation: cute-flop var(--death-duration, .58s) steps(6) forwards; }
 .fighter.is-dead .sprite-wrap::before { content: "Zzz"; position: absolute; z-index: 5; top: -8px; right: -7px; color: #fff8cd; font: 900 12px Consolas,monospace; text-shadow: 1px 2px #536982; animation: sleepy-bubble 1.35s ease-in-out infinite; }
@@ -249,10 +262,12 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .fighter.has-action-sprite.is-hit-stun .hit-eyes, .fighter.has-authored-hit .hit-eyes { display: none; }
 .sprite-action { position: relative; z-index: 2; display: none; width: var(--visual-frame-width, 84px); height: var(--visual-frame-height, 98px); background-repeat: no-repeat; image-rendering: pixelated; }
 .sprite-action.active { display: block; }
-.sprite-action-frame { position: absolute; inset: 0; display: none; width: 100%; height: 100%; object-fit: contain; object-position: center bottom; translate: 0 var(--action-frame-foot-shift, 0px); image-rendering: pixelated; pointer-events: none; }
+.sprite-action-frame { position: absolute; inset: 0; display: none; width: 100%; height: 100%; object-fit: contain; object-position: center bottom; translate: 0 var(--action-frame-foot-shift, 0px); transform: scale(var(--action-frame-scale, 1)); transform-origin: center bottom; image-rendering: pixelated; pointer-events: none; }
 .sprite-action-frame.is-current { display: block; }
 .fighter[data-evolution="2"] .sprite-action-frame, .fighter[data-character="heracles"] .sprite-action-frame,
-.fighter[data-character="odin"] .sprite-action-frame { transform: scale(var(--action-frame-scale, 1)); transform-origin: center bottom; }
+.fighter[data-character="odin"] .sprite-action-frame, .fighter[data-character="arima"] .sprite-action-frame { transform: scale(var(--action-frame-scale, 1)); transform-origin: center bottom; }
+.arima-weakpoint { position: absolute; z-index: 7; left: 50%; bottom: 28px; width: 78px; height: 92px; translate: -50% 0; object-fit: contain; image-rendering: pixelated; pointer-events: none; filter: drop-shadow(0 0 4px #ff3451); animation: arima-weakpoint-reveal .45s ease-out both; }
+@keyframes arima-weakpoint-reveal { from { opacity: 0; scale: .55; } to { opacity: .9; scale: 1; } }
 .fighter[data-character="kaneki"][data-evolution="2"] .sprite-action-frame[data-frame-name="dash"] { transform: scaleX(-1) scale(var(--action-frame-scale, 1)); }
 .fighter[data-evolution="2"].is-melee-returning[data-character="naruto"] .sprite-action-frame,
 .fighter[data-evolution="2"].is-melee-returning[data-character="kaneki"] .sprite-action-frame,
@@ -313,7 +328,10 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
    apparent size while all actions inherit the same character-level visual scale. */
 .fighter.is-deidara .sprite-action-frame { transform: scaleX(-1) scale(.871429); transform-origin: center bottom; }
 .fighter[data-character="eren"].is-skill-posing .sprite-action-frame { transform: scale(1.12); transform-origin: center bottom; }
-.fighter[data-character="bomb-demon"].is-casting .sprite-action-frame[data-frame-name="launch"] { transform: translateX(-5px) scale(1.24); transform-origin: center bottom; }
+.fighter[data-character="bomb-demon"] .sprite-action-frame[data-frame-name="raise"],
+.fighter[data-character="bomb-demon"] .sprite-action-frame[data-frame-name="launch"],
+.fighter[data-character="makima-bomb"] .sprite-action-frame[data-frame-name="raise"],
+.fighter[data-character="makima-bomb"] .sprite-action-frame[data-frame-name="launch"] { transform: scaleX(-1) scale(var(--action-frame-scale, 1)); transform-origin: center bottom; }
 .fighter.is-deidara .sprite-wrap { transform: translateY(0); }
 .fighter.is-deidara.is-casting .sprite-wrap { transform: translateY(0); }
 .fighter.is-deidara .ground-shadow { bottom: -6px; }
@@ -334,6 +352,7 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .damage-number.pop { animation: damage-pop var(--damage-duration, .7s) ease-out forwards; }
 .impact-burst { position: absolute; z-index: 4; top: 24px; left: 50%; width: 76px; height: 60px; opacity: 0; transform: translate(-50%,-50%) scale(.3); background: url("assets/effects/impact.png") center / contain no-repeat; mix-blend-mode: screen; pointer-events: none; }
 .impact-burst.play { animation: impact-burst var(--impact-fx-duration, .34s) steps(3) both; }
+.impact-burst.makima-impact { width: 156px; height: 110px; background-image: url("assets/effects/makima-hit.png"); mix-blend-mode: screen; image-rendering: pixelated; }
 .impact-burst.melee-impact { width: 68px; height: 45px; background-image: url("assets/effects/normal-attack-hit-red.png"); image-rendering: pixelated; }
 .impact-burst.play.melee-impact { animation-name: melee-impact-burst; }
 .impact-burst.melee-from-right { --impact-x-flip: -1; }
@@ -365,6 +384,7 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .detail-skill-row { display: flex; align-items: flex-start; gap: 9px; }
 .detail-skill-row.locked-skill { opacity: .58; filter: grayscale(.65); }
 .detail-skill-icon { width: 32px; height: 32px; flex: 0 0 auto; display: grid; place-items: center; color: #fff6cf; background: #d58639; border: 2px solid #8b5941; box-shadow: 2px 2px 0 #c4a36b; font-size: 13px; font-weight: 900; }
+.detail-skill-icon img { display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
 .detail-skill-icon.quiet { color: #9ca69a; background: #f4f3eb; border-color: #c7d0c3; box-shadow: none; }
 .detail-skill-copy { min-width: 0; color: #605341; font-size: 10px; }
 .detail-skill-copy b { color: #9b6e2a; font-size: 11px; }
@@ -465,6 +485,12 @@ h2 { margin: 0; color: #3a455c; font-size: 11px; font-weight: 900; }
 
   .health-row { grid-template-columns: 42px minmax(16px, 1fr) 42px; gap: 3px; }
   .status-board { gap: 8px; padding: 8px; }
+}
+@media (max-width: 699px) {
+  .fighter[data-team="ally"][data-row="front"] { left: clamp(48px, calc(16% + var(--formation-offset, 0%)), 110px); }
+  .fighter[data-team="ally"][data-row="back"] { left: clamp(36px, calc(11% + var(--formation-offset, 0%)), 85px); }
+  .fighter[data-team="ally"].fighter-partner[data-row="front"] { left: clamp(52px, calc(24% + var(--formation-offset, 0%)), 160px); }
+  .fighter[data-team="ally"].fighter-partner[data-row="back"] { left: clamp(40px, calc(14% + var(--formation-offset, 0%)), 95px); }
 }
 @media (min-width: 700px) {
   body { padding-top: 24px; }.game-shell { padding: 18px; }

@@ -263,5 +263,5 @@ test("level-four clone has one defense-resolved splash per other living enemy", 
   const splash = result.events.find((event) => event.splash);
   assert.ok(primary && splash);
   assert.equal(splash.targetId, "back");
-  assert.equal(splash.damage, calculateDamage({ atk: Math.floor(primary.calculatedDamage * .75) }, { def: 50 }));
+  assert.equal(splash.damage, calculateDamage({ atk: Math.floor(primary.calculatedDamage * .5) }, { def: 50 }));
 });

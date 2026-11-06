@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { CHARACTER_DATA, NORMAL_ENEMY_APPEARANCES, STARTING_CHARACTERS } from "./characters.js";
 import { SKILL_DATA } from "./skills.js";
-import { beginJourney, chooseRoute, chooseStartingSkill, claimCampaignReward, completeLocation, completeSettlement, createCampaign, finishBattle, getCampaignRewardOffer, getRouteEnemyGrowth, getRouteMap, getRouteOptions, prepareBattle, resolveCampaignEvent, resolveRouteEvent, selectStartingCharacter, startCampaign, startCampaignEventBattle } from "./campaign.js";
+import { beginJourney, chooseRoute, chooseStartingSkill, claimCampaignEliteDrop, claimCampaignReward, completeLocation, completeSettlement, createCampaign, finishBattle, getCampaignRewardOffer, getRouteEnemyGrowth, getRouteMap, getRouteOptions, prepareBattle, resolveCampaignEvent, resolveRouteEvent, selectStartingCharacter, startCampaign, startCampaignEventBattle } from "./campaign.js";
 import { createAdventureEventResult, getAvailableAdventureEventIds, resolveAdventureEvent, upgradeActiveSkill } from "./progression.js";
 
 function safeAdventureChoice(event) {
@@ -127,6 +127,7 @@ function winCurrentBattle(campaign) {
     const offer = getCampaignRewardOffer(campaign);
     const stat = claimCampaignReward(campaign, offer.statChoices.slice(0, 2));
     if (stat.phase === "bonus") claimCampaignReward(campaign, "skill_upgrade", null, offer.upgradeableSkills[0]);
+    if (stat.phase === "elite_drop") claimCampaignEliteDrop(campaign, campaign.playerId);
     return campaign.status;
   }
   return completeSettlement(campaign);
@@ -383,8 +384,13 @@ test("map elite nodes enter the existing elite battle and two-stage reward flow"
   assert.equal(finishBattle(campaign, "victory", campaign.playerHp - 50).status, "reward");
   const offer = getCampaignRewardOffer(campaign);
   const stat = claimCampaignReward(campaign, offer.statChoices.slice(0, 2));
-  assert.equal(stat.phase, "bonus");
-  assert.equal(claimCampaignReward(campaign, "skill_upgrade", null, offer.upgradeableSkills[0]).phase, "complete");
+  if (selected.battle.enemies.includes("mahito")) {
+    assert.equal(stat.phase, "elite_drop");
+    assert.ok(claimCampaignEliteDrop(campaign, campaign.playerId));
+  } else {
+    assert.equal(stat.phase, "bonus");
+    assert.equal(claimCampaignReward(campaign, "skill_upgrade", null, offer.upgradeableSkills[0]).phase, "complete");
+  }
   assert.equal(campaign.step, selected.battle.step + 1);
 });
 
@@ -493,7 +499,7 @@ test("ordinary battles fix a seeded giant or slime appearance while the mage sta
     assert.equal(front.name, NORMAL_ENEMY_APPEARANCES[appearanceId].name);
     assert.equal(front.asset, NORMAL_ENEMY_APPEARANCES[appearanceId].asset);
     assert.equal(front.row, "front");
-    assert.deepEqual([front.maxHp, front.atk, front.def, front.spd], [400, 48, 32, 30]);
+    assert.deepEqual([front.maxHp, front.atk, front.def, front.spd], [400, 56, 32, 30]);
     seen.add(appearanceId);
   }
   assert.deepEqual([...seen].sort(), ["giant", "slime"]);
@@ -517,7 +523,7 @@ test("route growth is applied once to normal and elite battle copies", () => {
     return { campaign, prepared: prepareBattle(campaign) };
   }
 
-  const expectedNormal = new Map([[1, { guard: [400, 48, 32, 30], mage: [320, 56, 16, 30] }], [3, { guard: [500, 60, 40, 30], mage: [400, 70, 20, 30] }], [6, { guard: [625, 69, 44, 30], mage: [500, 80, 22, 30] }], [9, { guard: [700, 72, 46, 30], mage: [560, 84, 23, 30] }]]);
+  const expectedNormal = new Map([[1, { guard: [400, 56, 32, 30], mage: [320, 64, 16, 30] }], [3, { guard: [500, 70, 40, 30], mage: [400, 80, 20, 30] }], [6, { guard: [625, 80, 44, 30], mage: [500, 92, 22, 30] }], [9, { guard: [700, 84, 46, 30], mage: [560, 96, 23, 30] }]]);
   for (const [step, expected] of expectedNormal) {
     const { prepared } = prepareAtStep(step, 0.3);
     assert.ok(prepared);
@@ -643,7 +649,7 @@ test("Boss follows the shared campfire and battle tail at the actual encounter s
   assert.equal(deidara.role, "爆破艺术家");
   assert.equal(deidara.asset, "assets/deidara-v2/idle/idle_1.png", "the boss battle uses the new Deidara sprite");
   assert.equal(deidara.c0DamagePerRound, 100);
-  assert.deepEqual([deidara.maxHp, deidara.atk, deidara.def, deidara.spd], [1400, 120, 40, 75]);
+  assert.deepEqual([deidara.maxHp, deidara.atk, deidara.def, deidara.spd], [1400, 150, 40, 75]);
   assert.equal(deidara.skill.id, "c4-garuda");
   assert.equal(deidara.skill.chance, 1);
   assert.equal(deidara.skill.multiplier, 1.2);
@@ -653,16 +659,20 @@ test("Boss follows the shared campfire and battle tail at the actual encounter s
   assert.equal(completeSettlement(campaign), "stage_transition");
 });
 
-test("first-stage ordinary encounters are single through step six, then retain later templates", () => {
+test("first-stage ordinary encounters are single through step six and always a duo afterward", () => {
   for (let step = 1; step <= 6; step++) {
     const { campaign, node } = campaignForEncounterStep(step, "battle");
     const transition = travelTo(campaign, node.id);
     assert.equal(transition.type, "battle");
     assert.equal(transition.battle.enemies.length, 1, `step ${step}`);
   }
-  const { campaign, node } = campaignForEncounterStep(9, "battle");
-  const transition = travelTo(campaign, node.id);
-  assert.deepEqual(transition.battle.enemies, ["guard", "mage"]);
+  for (const step of [7, 8, 9, 10]) {
+    for (const roll of [0, .51, .99]) {
+      const { campaign, node } = campaignForEncounterStep(step, "battle", () => roll);
+      const transition = travelTo(campaign, node.id);
+      assert.deepEqual(transition.battle.enemies, ["guard", "mage"], `step ${step}, roll ${roll}`);
+    }
+  }
 });
 
 test("defeat ends the run and route actions cannot advance it", () => {

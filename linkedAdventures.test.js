@@ -161,13 +161,37 @@ test("Sea sequel uses actual previous gains and its other choice raises each par
   const sharedBefore = shared.partyIds.map((id) => ({ atk: shared.partyStates[id].atk, maxHp: shared.partyStates[id].maxHp }));
   assert.ok(resolveCampaignEvent(shared, "sea_stay"));
   assert.deepEqual(shared.partyIds.map((id) => ({ atk: shared.partyStates[id].atk, maxHp: shared.partyStates[id].maxHp })),
-    sharedBefore.map(({ atk, maxHp }) => ({ atk: atk + 30, maxHp })));
+    sharedBefore.map(({ atk, maxHp }, index) => ({ atk: atk + (index === 0 ? 30 : 0), maxHp })));
 
   const c = eventCampaign("sea_beyond_2", { sea: { chapter1Completed: true, rewards: [{ stat: "atk", amount: 30 }] } });
   const before = c.partyIds.map((id) => c.partyStates[id].maxHp);
   assert.ok(resolveCampaignEvent(c, "sea_home"));
   assert.deepEqual(c.partyIds.map((id) => c.partyStates[id].maxHp), before.map((hpValue) => hpValue + Math.floor(hpValue * .1)));
   assert.equal(resolveCampaignEvent(c, "sea_home"), false);
+});
+
+test("Sea exchange and sequel stay reward the selected partner only", () => {
+  const campaign = eventCampaign("sea_beyond");
+  const main = campaign.partyStates.naruto;
+  const partner = campaign.partyStates.eren;
+  const mainBefore = { atk: main.atk, maxHp: main.maxHp };
+  const partnerBefore = { atk: partner.atk, maxHp: partner.maxHp };
+  assert.ok(resolveCampaignEvent(campaign, "sea_begin"));
+  assert.ok(resolveCampaignEvent(campaign, "sea_recipient|eren"));
+  assert.ok(resolveCampaignEvent(campaign, "sea_finish"));
+  assert.deepEqual([main.atk, main.maxHp], [mainBefore.atk, mainBefore.maxHp]);
+  assert.deepEqual([partner.atk, partner.maxHp], [partnerBefore.atk + 30, Math.max(1, partnerBefore.maxHp - Math.floor(partnerBefore.maxHp * .2))]);
+  assert.equal(main.eventSeries.sea.recipientId, "eren");
+
+  campaign.activeNode = { id: "linked:sea_beyond_2:partner", type: "question", status: "in_progress" };
+  campaign.eventResolved = false;
+  campaign.pendingEvent = createAdventureEventResult(main, campaign.activeNode.id, "sea_beyond_2",
+    () => .1, campaign.partyIds.map((id) => campaign.partyStates[id]), 2);
+  assert.ok(campaign.pendingEvent);
+  assert.ok(resolveCampaignEvent(campaign, "sea_stay"));
+  assert.deepEqual([main.atk, main.maxHp], [mainBefore.atk, mainBefore.maxHp]);
+  assert.equal(partner.atk, partnerBefore.atk + 60);
+  assert.equal(resolveCampaignEvent(campaign, "sea_stay"), false);
 });
 
 test("old scroll sequel requires a recipient and grants only their current learned active level sum", () => {

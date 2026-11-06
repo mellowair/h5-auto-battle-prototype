@@ -16,7 +16,7 @@ test("elite roster uses the four standalone transparent figure 1/2 assets", () =
   assert.equal(bomb.escapeAsset, "assets/elites/bomb_demon_escape.png");
   assert.equal(bomb.activeSkills[0], "bomb-demon-boom");
   assert.equal(bomb.skillAnimationMap["bomb-demon-boom"], "boom");
-  assert.deepEqual(Object.values(bomb.animations.boom.frames), ["assets/elites/bomb_demon_boom_1.png", "assets/elites/bomb_demon_boom_2.png"]);
+  assert.deepEqual(Object.values(bomb.animations.boom.frames), ["assets/elites/bomb_demon_boom.png", "assets/elites/bomb_demon_boom.png"]);
   assert.deepEqual(bomb.animations.boom.durationsMs, [900, 300]);
   assert.equal(bomb.animations.boom.loop, false);
   assert.equal(SKILL_DATA["bomb-demon-boom"].levels[1].chance, 0.3);
@@ -44,12 +44,15 @@ test("elite roster uses the four standalone transparent figure 1/2 assets", () =
   assert.match(css, /animation: domain-banner-in var\(--domain-banner-duration, 2s\)/);
 });
 
-test("elite art frames are standalone 96x112 transparent RGBA PNGs", () => {
-  for (const path of ["mahito_idle.png", "mahito_domain.png", "bomb_demon_idle.png", "bomb_demon_escape.png", "bomb_demon_boom_1.png", "bomb_demon_boom_2.png"]) {
+test("elite art frames retain each supplied PNG's dimensions and alpha channel", () => {
+  const dimensions = { mahito_idle: [96, 112], mahito_domain: [96, 112],
+    bomb_demon_idle: [1254, 1254], bomb_demon_boom: [1254, 1254], bomb_demon_escape: [96, 112] };
+  for (const [name, [width, height]] of Object.entries(dimensions)) {
+    const path = `${name}.png`;
     const png = readFileSync(new URL(`./assets/elites/${path}`, import.meta.url));
     assert.equal(png.toString("ascii", 1, 4), "PNG");
-    assert.equal(png.readUInt32BE(16), 96);
-    assert.equal(png.readUInt32BE(20), 112);
+    assert.equal(png.readUInt32BE(16), width);
+    assert.equal(png.readUInt32BE(20), height);
     assert.equal(png[25], 6);
   }
 });

@@ -108,7 +108,9 @@ test("hardening caps DEF at four casts; warhammer snapshots own DEF before spend
   assert.equal(hit.skillAttackPower, 500);
 });
 
-test("Kaneki glutton kill raises the run's HP ceiling and the new passive heals on actual critical damage", () => {
+test("only Lv4 Kaneki glutton kills raise the run's HP ceiling by 100", () => {
+  assert.equal(effect("kaneki-glutton", 2).killMaxHpBonus, 0);
+  assert.equal(effect("kaneki-glutton", 3).killMaxHpBonus, 0);
   const run = createRunCharacterState(starter("kaneki"));
   run.maxHp = 1000;
   const state = initializeBattle([testUnit("kaneki", "ally", { hp: 1000, maxHp: 1000, currentHp: 500,
@@ -117,10 +119,10 @@ test("Kaneki glutton kill raises the run's HP ceiling and the new passive heals 
     { runCharacterStates: { kaneki: run }, playerId: "kaneki" });
   state.round = 1;
   const [kaneki, foe] = state.characters;
-  const hit = executeAttack(state, kaneki, foe, () => .99, { skill: effect("kaneki-glutton", 2) });
-  assert.equal(hit.predatorKillBonus, 50);
-  assert.equal(run.maxHp, 1050);
-  assert.equal(kaneki.maxHp, 1050);
+  const hit = executeAttack(state, kaneki, foe, () => .99, { skill: effect("kaneki-glutton", 4) });
+  assert.equal(hit.predatorKillBonus, 100);
+  assert.equal(run.maxHp, 1100);
+  assert.equal(kaneki.maxHp, 1100);
   assert.equal(hit.oneEyeTriggered, false);
 });
 

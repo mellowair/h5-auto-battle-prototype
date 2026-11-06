@@ -120,21 +120,39 @@ test("a complete Makima battle ends when the Boss falls and dismisses remaining 
   assert.equal(result.events.filter((event) => event.type === "battle-end").length, 1);
 });
 
-test("Shin and Noi each revive after two rounds only while partner survives, and both deaths win immediately", () => {
+test("Shin and Noi revive after four rounds while the survivor has doubled ATK", () => {
   const state = initializeBattle([hero(), elite("shin"), elite("noi")]);
   state.round = 2;
   const shin = state.characters.find((unit) => unit.id === "shin");
   const noi = state.characters.find((unit) => unit.id === "noi");
   shin.currentHp = 0; shin.alive = false;
-  assert.equal(resolveStageThreeDeaths(state, [])[0].reviveAtRound, 4);
+  const pending = resolveStageThreeDeaths(state, []);
+  assert.equal(pending[0].reviveAtRound, 6);
+  assert.equal(noi.atk, elite("noi").atk * 2);
+  assert.equal(noi.bereavementActive, true);
+  assert.equal(resolveStageThreeDeaths(state, []).filter((event) => event.type === "stage3-bereavement").length, 0);
   state.round = 3;
   assert.equal(stageThreeRoundStart(state).some((event) => event.type === "stage3-revive"), false);
-  state.round = 4;
+  state.round = 5;
+  assert.equal(stageThreeRoundStart(state).some((event) => event.type === "stage3-revive"), false);
+  state.round = 6;
   assert.equal(stageThreeRoundStart(state).find((event) => event.type === "stage3-revive").hpAfter, 1400);
+  assert.equal(noi.atk, elite("noi").atk);
+  assert.equal(noi.bereavementActive, false);
   shin.currentHp = 0; shin.alive = false;
   resolveStageThreeDeaths(state, []);
   noi.currentHp = 0; noi.alive = false;
+  resolveStageThreeDeaths(state, []);
+  assert.equal(shin.reviveAtRound, null);
+  assert.equal(noi.reviveAtRound, null);
   assert.equal(isBattleOver(state), "victory");
+  const reverse = initializeBattle([hero(), elite("shin"), elite("noi")]);
+  reverse.round = 2;
+  const reverseShin = reverse.characters.find((unit) => unit.id === "shin");
+  const reverseNoi = reverse.characters.find((unit) => unit.id === "noi");
+  reverseNoi.currentHp = 0; reverseNoi.alive = false;
+  resolveStageThreeDeaths(reverse, []);
+  assert.equal(reverseShin.atk, elite("shin").atk * 2);
   const battle = simulateBattle([{ ...hero(), atk: 10000, spd: 1000 }, elite("shin"), elite("noi")], () => .99);
   assert.equal(battle.outcome, "victory");
 });
@@ -146,11 +164,16 @@ test("Arima counts separate landed hits, pierces after three, and Quinque blocks
   const target = state.characters.find((unit) => unit.id === "hero");
   const first = executeAttack(state, arima, target, () => .99);
   assert.equal(first.damage, 250);
+  assert.equal(first.arimaHitCount, 1);
   executeAttack(state, arima, target, () => .99);
-  executeAttack(state, arima, target, () => .99);
+  const third = executeAttack(state, arima, target, () => .99);
+  assert.equal(third.arimaHitCount, 3);
+  assert.equal(third.arimaWeaknessRevealed, true);
   target.currentHp = target.maxHp;
   const fourth = executeAttack(state, arima, target, () => .99);
   assert.equal(fourth.damage, 416);
+  assert.equal(fourth.arimaHitCount, 4);
+  assert.equal(fourth.arimaWeaknessRevealed, false);
   assert.equal(arima.arimaHits.partner, undefined);
   arima.currentHp = 2000;
   assert.equal(getCritChance(arima), .35);
@@ -160,6 +183,13 @@ test("Arima counts separate landed hits, pierces after three, and Quinque blocks
   const hit = executeAttack(guarded, guarded.characters[1], guarded.characters[0], () => rolls.shift() ?? .99);
   assert.equal(hit.attackGuard, true);
   assert.ok(hit.damage > 0);
+  const awakening = initializeBattle([{ ...hero(), atk: 200 }, EVENT_ENEMY_DATA.arima]);
+  awakening.round = 1;
+  const awakenedArima = awakening.characters[1];
+  awakenedArima.currentHp = Math.ceil(awakenedArima.maxHp * .6) + 1;
+  const thresholdHit = executeAttack(awakening, awakening.characters[0], awakenedArima, () => .99);
+  assert.equal(thresholdHit.arimaCritAwakened, true);
+  assert.equal(executeAttack(awakening, awakening.characters[0], awakenedArima, () => .99).arimaCritAwakened, false);
 });
 
 test("Anteiku final stays in stage three, applies one shared run penalty and grants one Quinque", () => {
