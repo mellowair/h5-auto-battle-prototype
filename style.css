@@ -179,19 +179,23 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .sprite-wrap { position: relative; z-index: 2; width: 82px; height: 103px; margin-top: 20px; display: grid; place-items: end center; }
 .clone-protect-effect { position: absolute; z-index: 12; left: 50%; bottom: 10px; width: clamp(170px, 32vw, 255px); max-width: none; height: auto; transform: translateX(-50%); transform-origin: center bottom; image-rendering: pixelated; pointer-events: none; animation: clone-protect-appear var(--clone-protect-duration, 650ms) steps(6, end) both; }
 @keyframes clone-protect-appear { 0% { opacity: 0; scale: .8; } 20%, 68% { opacity: 1; scale: 1; } 100% { opacity: 0; scale: 1.08; } }
-.fighter:not(.is-dead):not(.is-summoning):not(.is-portal-pending):not(.is-portal-rising):not(.is-melee-rushing):not(.is-punching):not(.is-hit):not(.is-dodging):not(.is-attacking):not(.is-casting):not(.is-kaneki-reactive):not(.is-steam-casting) .sprite-wrap { animation: idle-bob 2.4s steps(2,end) infinite; }
+.fighter:not(.is-dead):not(.is-summoning):not(.is-portal-pending):not(.is-portal-rising):not(.is-melee-rushing):not(.is-punching):not(.is-hit):not(.is-dodging):not(.is-attacking):not(.is-casting):not(.is-kaneki-reactive):not(.is-steam-casting):not(.gravity-lift):not(.gravity-hover):not(.gravity-drop) .sprite-wrap { animation: idle-bob 2.4s steps(2,end) infinite; }
 .fighter.is-steam-casting .sprite-wrap { animation: steam-fall var(--steam-duration, 650ms) steps(5,end) both; transform-origin: center bottom; }
 @keyframes steam-fall { 0%,100% { transform: rotate(0); } 45%,75% { transform: translateX(-12px) rotate(-18deg); } }
 .sprite-visual { position: absolute; z-index: 2; bottom: 5px; left: 50%; margin-left: calc(var(--visual-frame-width, 84px) * -.5); display: grid; place-items: end center; width: var(--visual-frame-width, 84px); height: var(--visual-frame-height, 98px); scale: var(--visual-scale, 1); translate: calc(var(--visual-offset-x, 0px) + var(--visual-action-offset-x, 0px)) calc(0px - var(--visual-offset-y, 0px) - var(--visual-stage-foot-offset-y, 0px) - var(--visual-action-offset-y, 0px)); transform-origin: center bottom; }
 .cannot-act-effect { position: absolute; z-index: 15; left: 50%; bottom: 6%; width: 145%; height: 115%; max-width: none; object-fit: contain; transform: translateX(-50%); pointer-events: none; image-rendering: pixelated; animation: cannot-act-pulse 1.2s ease-in-out infinite alternate; }
 @keyframes cannot-act-pulse { from { opacity: .75; } to { opacity: 1; } }
 .fighter[data-team="enemy"][data-controlled-by-makima="true"] .sprite-visual { transform: scaleX(-1); }
+.fighter[data-character="falling-devil"] .sprite-visual { transform: scaleX(-1); }
 .sprite { position: relative; z-index: 2; display: block; width: calc(var(--visual-frame-width, 84px) * .952381); height: var(--visual-frame-height, 98px); object-fit: contain; object-position: center bottom; image-rendering: pixelated; filter: drop-shadow(2px 3px 0 rgba(40,49,67,.2)); }
 .ground-shadow { position: absolute; z-index: 1; bottom: 8px; width: 60px; height: 9px; background: rgba(56,91,72,.22); border-radius: 50%; }
 .gravity-circle { position: absolute; z-index: 1; left: 50%; bottom: 7px; width: 165%; height: 78px; max-width: none; object-fit: contain; transform: translateX(-50%); image-rendering: pixelated; pointer-events: none; }
-.fighter.gravity-lift .sprite-wrap { animation: gravity-rise var(--gravity-lift-duration, 480ms) ease-out both; }
-.fighter.gravity-drop .sprite-wrap { animation: gravity-drop var(--gravity-drop-duration, 420ms) ease-in both; }
+.fighter.gravity-lift, .fighter.gravity-hover, .fighter.gravity-drop { z-index: 12; }
+.fighter.gravity-lift .sprite-wrap { animation: gravity-rise var(--gravity-lift-duration, 1100ms) cubic-bezier(.18,.45,.38,1) both; }
+.fighter.gravity-hover .sprite-wrap { animation: gravity-float 700ms ease-in-out infinite alternate; }
+.fighter.gravity-drop .sprite-wrap { animation: gravity-drop var(--gravity-drop-duration, 360ms) ease-in both; }
 @keyframes gravity-rise { from { transform: translateY(0); } to { transform: translateY(calc(0px - var(--gravity-rise, 40px))); } }
+@keyframes gravity-float { from { transform: translateY(calc(0px - var(--gravity-rise, 40px))); } to { transform: translateY(calc(0px - var(--gravity-rise, 40px) - 7px)); } }
 @keyframes gravity-drop { from { transform: translateY(calc(0px - var(--gravity-rise, 40px))); } to { transform: translateY(0); } }
 .fighter.is-gravity-dish .sprite-wrap { visibility: hidden; }
 .gravity-dish { position: absolute; z-index: 3; left: 50%; bottom: 6px; width: 125%; height: 112px; max-width: none; object-fit: contain; transform: translateX(-50%); image-rendering: pixelated; pointer-events: none; }

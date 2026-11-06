@@ -1151,7 +1151,7 @@ function renderAllyStatusIcons() {
         description: `${unit.name} 至第 ${unit.silencedThroughRound} 回合结束前无法释放主动技能，仍可普通攻击。` });
     if (unit.gravityStacks > 0) statuses.push({ id: `gravity-${unit.id}`, name: `失去引力 ×${unit.gravityStacks}`,
       image: "assets/stage3-elites/falling/gravity-circle.png", tone: "debuff",
-      description: `${unit.name}：失去引力 ${unit.gravityStacks}/5 层；每次实际回血消除 1 层，达到 5 层立即被处决。` });
+      description: `${unit.name}：失去引力 ${unit.gravityStacks}/5 层；实际回血累计 ${unit.gravityHealProgress ?? 0}/500 HP，每满 500 HP 消除 1 层；达到 5 层立即被处决。` });
     if (unit.burnStacks > 0) statuses.push({ id: `burn-${unit.id}`, name: "烧伤", image: "assets/status-burn.svg", tone: "danger",
       description: `${unit.name}：${unit.burnStacks} 层烧伤，每层在完整战斗回合结束时结算持续伤害。` });
     if (unit.bleedStacks > 0) statuses.push({ id: `bleed-${unit.id}`, name: "流血", image: "assets/status-bleed.svg", tone: "danger",
@@ -1541,7 +1541,7 @@ function clearEffects() {
     delete fighter.dataset.armorPoseRound;
     fighter.classList.remove("is-portal-pending", "is-portal-rising");
     fighter.style.removeProperty("--summon-rise-duration");
-    fighter.classList.remove("is-attacking", "is-melee-rushing", "is-clone-melee-approaching", "is-kaneki-glutton-approaching", "is-clone-melee-returning", "is-melee-at-target", "is-melee-returning", "is-melee-running", "is-quanxi-hidden", "is-quanxi-behind", "is-makima-landing", "is-toji-approaching", "is-toji-at-target", "is-toji-returning", "is-skill-posing", "is-punching", "is-hit", "is-hit-stun", "is-hit-recoil", "is-casting", "is-dodging", "is-critical", "is-impact", "is-magic-attacking", "is-ranged-attacking", "is-elite-escape", "is-domain-active", "is-kaneki-normal-approach", "is-kaneki-normal-at-target", "is-kaneki-predator-launch", "is-kaneki-predator-strike", "is-kaneki-predator-hold", "is-kaneki-predator-return", "is-kaneki-reactive", "is-steam-casting", "gravity-lift", "gravity-drop", "is-gravity-dish");
+    fighter.classList.remove("is-attacking", "is-melee-rushing", "is-clone-melee-approaching", "is-kaneki-glutton-approaching", "is-clone-melee-returning", "is-melee-at-target", "is-melee-returning", "is-melee-running", "is-quanxi-hidden", "is-quanxi-behind", "is-makima-landing", "is-toji-approaching", "is-toji-at-target", "is-toji-returning", "is-skill-posing", "is-punching", "is-hit", "is-hit-stun", "is-hit-recoil", "is-casting", "is-dodging", "is-critical", "is-impact", "is-magic-attacking", "is-ranged-attacking", "is-elite-escape", "is-domain-active", "is-kaneki-normal-approach", "is-kaneki-normal-at-target", "is-kaneki-predator-launch", "is-kaneki-predator-strike", "is-kaneki-predator-hold", "is-kaneki-predator-return", "is-kaneki-reactive", "is-steam-casting", "gravity-lift", "gravity-hover", "gravity-drop", "is-gravity-dish");
     fighter.style.removeProperty("--quanxi-behind-x");
     fighter.style.removeProperty("--kaneki-arc-mid-x");
     fighter.style.removeProperty("--makima-landing-duration");
@@ -1614,7 +1614,7 @@ function playEvent(event, finish) {
   if (event.type === "gravity-domain") {
     for (const entry of event.targets) {
       const target = viewState.characters.find((unit) => unit.id === entry.targetId);
-      if (target) { target.entryPanelSpd = entry.entryPanelSpd; target.spd = 1; target.gravityStacks = 0; }
+      if (target) { target.entryPanelSpd = entry.entryPanelSpd; target.spd = 1; target.gravityStacks = 0; target.gravityHealProgress = 0; }
     }
     addLog("<b>下落恶魔</b> 展开重力领域：我方实际战斗 SPD 固定为 1；失重仍按入场面板 SPD 计算。", "log-enemy");
     renderSquad();
@@ -1622,8 +1622,8 @@ function playEvent(event, finish) {
   }
   if (event.type === "gravity-heal") {
     const target = viewState.characters.find((unit) => unit.id === event.targetId);
-    if (target) { target.gravityStacks = event.stacks; renderAllyStatusIcons(); }
-    addLog(`<b>${target?.name ?? "角色"}</b> 实际恢复生命，失去引力减少至 ${event.stacks} 层。`, "log-skill");
+    if (target) { target.gravityStacks = event.stacks; target.gravityHealProgress = event.healingProgress; renderAllyStatusIcons(); }
+    addLog(`<b>${target?.name ?? "角色"}</b> 恢复 ${event.restored} HP${event.layersRemoved ? `，失去引力减少 ${event.layersRemoved} 层，剩余 ${event.stacks} 层` : `，累计 ${event.healingProgress}/500 HP` }。`, "log-skill");
     return finish();
   }
   if (event.type === "gravity-fall") {
@@ -1636,14 +1636,17 @@ function playEvent(event, finish) {
       timer = null;
       showFighterFrame(source, devil, "gravity", "release");
       const circles = [];
+      const riseMs = Math.max(600, playbackDelay(1100, 850));
+      const hoverMs = Math.max(280, playbackDelay(500, 350));
+      const dropMs = Math.max(240, playbackDelay(360, 300));
       for (const hit of event.hits) {
         const fighter = document.querySelector(`[data-character="${hit.targetId}"]`);
         if (!fighter) continue;
         fighter.style.setProperty("--gravity-rise", `${getGravityLiftPixels(hit.entryPanelSpd)}px`);
-        fighter.style.setProperty("--gravity-lift-duration", `${playbackDelay(480, 220)}ms`);
-        fighter.style.setProperty("--gravity-drop-duration", `${playbackDelay(420, 200)}ms`);
+        fighter.style.setProperty("--gravity-lift-duration", `${riseMs}ms`);
+        fighter.style.setProperty("--gravity-drop-duration", `${dropMs}ms`);
         const circle = document.createElement("img");
-        circle.className = "gravity-circle"; circle.src = devil.gravityCircleAsset;
+        circle.className = "gravity-circle"; circle.src = new URL(`./${devil.gravityCircleAsset}`, import.meta.url).href;
         circle.alt = ""; circle.setAttribute("aria-hidden", "true");
         fighter.append(circle); circles.push(circle);
         fighter.classList.add("gravity-lift");
@@ -1652,30 +1655,37 @@ function playEvent(event, finish) {
         timer = null;
         for (const hit of event.hits) {
           const fighter = document.querySelector(`[data-character="${hit.targetId}"]`);
-          fighter?.classList.remove("gravity-lift"); fighter?.classList.add("gravity-drop");
+          fighter?.classList.remove("gravity-lift"); fighter?.classList.add("gravity-hover");
         }
         timer = window.setTimeout(() => {
           timer = null;
           for (const hit of event.hits) {
-            const target = viewState.characters.find((unit) => unit.id === hit.targetId);
             const fighter = document.querySelector(`[data-character="${hit.targetId}"]`);
-            if (!target) continue;
-            target.currentHp = hit.hpAfter; target.alive = !hit.fellDead;
-            target.shieldHp = hit.shieldHp; target.gravityStacks = hit.stacks;
-            updateHealth(target);
-            const number = fighter?.querySelector(".damage-number");
-            if (number) { number.textContent = `-${hit.actualDamage}`; number.classList.remove("is-heal", "pop");
-              void number.offsetWidth; number.classList.add("pop"); }
-            if (hit.fellDead) fighter?.classList.add("is-dead");
-            fighter?.classList.remove("gravity-drop");
-            addLog(`<b>${target.name}</b> 坠落：入场 SPD ${hit.entryPanelSpd}，基础 ${hit.baseDamage}，实际失去 ${hit.actualDamage} HP${hit.fellDead ? "，倒地" : `；失去引力 ${hit.stacks}/5 层`}。`, "log-enemy");
+            fighter?.classList.remove("gravity-hover"); fighter?.classList.add("gravity-drop");
           }
-          circles.forEach((circle) => circle.remove());
-          startIdleCycle(source, devil);
-          renderAllyStatusIcons(); renderSquad();
-          if (playbackPaused) pausedContinuation = finish; else finish();
-        }, playbackDelay(420, 200));
-      }, playbackDelay(480, 220));
+          timer = window.setTimeout(() => {
+            timer = null;
+            for (const hit of event.hits) {
+              const target = viewState.characters.find((unit) => unit.id === hit.targetId);
+              const fighter = document.querySelector(`[data-character="${hit.targetId}"]`);
+              if (!target) continue;
+              target.currentHp = hit.hpAfter; target.alive = !hit.fellDead;
+              target.shieldHp = hit.shieldHp; target.gravityStacks = hit.stacks;
+              updateHealth(target);
+              const number = fighter?.querySelector(".damage-number");
+              if (number) { number.textContent = `-${hit.actualDamage}`; number.classList.remove("is-heal", "pop");
+                void number.offsetWidth; number.classList.add("pop"); }
+              if (hit.fellDead) fighter?.classList.add("is-dead");
+              fighter?.classList.remove("gravity-drop");
+              addLog(`<b>${target.name}</b> 坠落：入场 SPD ${hit.entryPanelSpd}，基础 ${hit.baseDamage}，实际失去 ${hit.actualDamage} HP${hit.fellDead ? "，倒地" : `；失去引力 ${hit.stacks}/5 层`}。`, "log-enemy");
+            }
+            circles.forEach((circle) => circle.remove());
+            startIdleCycle(source, devil);
+            renderAllyStatusIcons(); renderSquad();
+            if (playbackPaused) pausedContinuation = finish; else finish();
+          }, dropMs);
+        }, hoverMs);
+      }, riseMs);
     }, playbackDelay(500, 240));
     return;
   }

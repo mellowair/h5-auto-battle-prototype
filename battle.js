@@ -51,17 +51,22 @@ export function initializeBattle(config = CHARACTER_DATA, options = {}) {
   if (fallingDevil) for (const unit of characters.filter((entry) => entry.team === "ally" && !entry.summonerId)) {
     unit.entryPanelSpd = unit.spd;
     unit.gravityStacks = 0;
+    unit.gravityHealProgress = 0;
     unit.spd = 1;
     let hp = unit.currentHp;
     Object.defineProperty(unit, "currentHp", { enumerable: true, configurable: true,
       get() { return hp; },
       set(next) {
-        const restored = Math.max(0, next - hp);
+        const restored = Math.max(0, Math.min(unit.maxHp, next) - Math.min(unit.maxHp, hp));
         hp = next;
         if (restored > 0 && fallingDevil.alive && unit.gravityStacks > 0) {
-          unit.gravityStacks -= 1;
+          const total = unit.gravityHealProgress + restored;
+          const layersRemoved = Math.min(unit.gravityStacks, Math.floor(total / 500));
+          unit.gravityStacks -= layersRemoved;
+          unit.gravityHealProgress = unit.gravityStacks > 0 ? total - layersRemoved * 500 : 0;
           state.gravityHealEvents.push({ type: "gravity-heal", round: state.round,
-            targetId: unit.id, restored, stacks: unit.gravityStacks });
+            targetId: unit.id, restored, layersRemoved, stacks: unit.gravityStacks,
+            healingProgress: unit.gravityHealProgress });
         }
       },
     });
