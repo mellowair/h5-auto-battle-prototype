@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { EVENT_ENEMY_DATA, NORMAL_ENEMY_APPEARANCES, STARTING_CHARACTERS } from "./characters.js";
 import { getActionOrder, initializeBattle, isBattleOver, simulateBattle, summonAtRoundStart } from "./battle.js";
-import { beginJourney, chooseRoute, claimCampaignReward, completeLocation, createCampaign, finishBattle, getCampaignRewardOffer, getRouteEnemyGrowth, getRouteMap, getRouteOptions, prepareBattle, resolveCampaignEvent, selectStartingCharacter, startCampaign, startCampaignEventBattle } from "./campaign.js";
+import { beginJourney, chooseRoute, claimCampaignEliteDrop, claimCampaignReward, completeLocation, createCampaign, finishBattle, getCampaignRewardOffer, getRouteEnemyGrowth, getRouteMap, getRouteOptions, prepareBattle, resolveCampaignEvent, selectStartingCharacter, startCampaign, startCampaignEventBattle } from "./campaign.js";
 import { chooseAdventureEventId, createAdventureEventResult, getAvailableAdventureEventIds, resolveAdventureEvent } from "./progression.js";
 import { ADVENTURE_EVENT_DATA, GIANT_SPINAL_FLUID } from "./skills.js";
 import { getCharacterVisual } from "./visualConfig.js";
@@ -98,6 +98,7 @@ test("a real late-route question opens the giant encounter and carries its choic
       const offer = getCampaignRewardOffer(campaign);
       const claimed = claimCampaignReward(campaign, offer.statChoices.slice(0, 2));
       if (claimed.phase === "bonus") assert.ok(claimCampaignReward(campaign, "skill_upgrade", null, offer.upgradeableSkills[0]));
+      if (claimed.phase === "elite_drop") assert.equal(claimCampaignEliteDrop(campaign, campaign.playerId).status, "route");
     } else {
       const eventId = campaign.pendingEvent?.eventId;
       const choice = node.type === "campfire" ? "rest" : ({ kings_treasury: "treasury_leave", sea_beyond: "sea_pass",
