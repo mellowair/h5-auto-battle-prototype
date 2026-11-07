@@ -153,7 +153,7 @@ test("escape rolls once: success costs run SPD, failure waits for battle without
   assert.equal(failure.runCharacterState.permanentEffects.length, 0);
 });
 
-test("heart choice grants spinal fluid once on victory without healing current HP", () => {
+test("heart choice grants spinal fluid once on victory and heals by its max HP gain", () => {
   const campaign = eventCampaign(6);
   campaign.runCharacterState.currentHp = 800;
   assert.equal(resolveCampaignEvent(campaign, "giant_heart").status, "pending_battle");
@@ -161,7 +161,7 @@ test("heart choice grants spinal fluid once on victory without healing current H
   const prepared = prepareBattle(campaign);
   assert.equal(prepared.roster.find((unit) => unit.id === "dina").maxHp, 1000);
   assert.equal(finishBattle(campaign, "victory", 800).next, "reward");
-  assert.deepEqual([campaign.runCharacterState.atk, campaign.runCharacterState.def, campaign.runCharacterState.maxHp, campaign.runCharacterState.currentHp], [190, 90, 1700, 800]);
+  assert.deepEqual([campaign.runCharacterState.atk, campaign.runCharacterState.def, campaign.runCharacterState.maxHp, campaign.runCharacterState.currentHp], [190, 90, 1700, 900]);
   assert.equal(campaign.runCharacterState.permanentEffects.length, 1);
   assert.equal(finishBattle(campaign, "victory", 800), false);
   assert.deepEqual([campaign.runCharacterState.atk, campaign.runCharacterState.def, campaign.runCharacterState.maxHp], [190, 90, 1700]);

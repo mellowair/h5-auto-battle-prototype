@@ -263,19 +263,33 @@ test("campfire rest heals 40 percent of max HP, clamps, and settles once", () =>
   assert.equal(healRunCharacter(run, 500, "cap-test"), null);
 });
 
-test("repeat max-HP treasures grant 150% positive stats without healing or duplicate source claims", () => {
+test("Gun Devil and spinal fluid drops grow linearly per recipient and restore the matching HP", () => {
   const gun = makeNaruto();
   gun.currentHp = 500;
-  assert.equal(grantGunDevilFragment(gun, "bomb-a").maxHp, 200);
-  assert.equal(grantGunDevilFragment(gun, "bomb-b").maxHp, 300);
-  assert.equal(grantGunDevilFragment(gun, "bomb-b"), false);
-  assert.deepEqual([gun.maxHp, gun.currentHp], [2100, 500]);
+  for (let index = 1; index <= 5; index += 1) {
+    const before = [gun.maxHp, gun.currentHp];
+    const effect = grantGunDevilFragment(gun, `bomb-${index}`);
+    assert.equal(effect.acquisitionCount, index);
+    assert.equal(effect.maxHp, 200 + (index - 1) * 100);
+    assert.equal(effect.restoredHp, effect.maxHp);
+    assert.deepEqual([gun.maxHp, gun.currentHp], [before[0] + effect.maxHp, before[1] + effect.maxHp]);
+    assert.match(effect.description, new RegExp(`最大 HP \\+${effect.maxHp}`));
+  }
+  assert.equal(grantGunDevilFragment(gun, "bomb-5"), false);
+  assert.deepEqual([gun.maxHp, gun.currentHp], [3600, 2500]);
 
   const giant = makeNaruto();
   giant.currentHp = 500;
-  assert.equal(grantGiantSpinalFluid(giant, "titan-a").def, 20);
-  const second = grantGiantSpinalFluid(giant, "titan-b");
-  assert.deepEqual([second.def, second.maxHp, giant.def, giant.maxHp, giant.currentHp], [30, 150, 120, 1850, 500]);
+  for (let index = 1; index <= 3; index += 1) {
+    const effect = grantGiantSpinalFluid(giant, `titan-${index}`);
+    assert.equal(effect.acquisitionCount, index);
+    assert.deepEqual([effect.def, effect.maxHp, effect.restoredHp],
+      [20 + (index - 1) * 10, 100 + (index - 1) * 50, 100 + (index - 1) * 50]);
+  }
+  assert.deepEqual([giant.def, giant.maxHp, giant.currentHp], [160, 2050, 950]);
+  assert.equal(grantGiantSpinalFluid(giant, "titan-3"), false);
+  assert.equal(grantGunDevilFragment(giant, "bomb-other").acquisitionCount, 1,
+    "the two item acquisition counts are independent");
 
   const finger = makeNaruto();
   finger.currentHp = 500;
@@ -295,6 +309,22 @@ test("repeat max-HP treasures grant 150% positive stats without healing or dupli
   conch.eventResults["treasury-conch"].data.treasureOffer.choices = ["magic_conch", "odm_gear"];
   assert.ok(claimTreasure(conch, "treasury-conch", "magic_conch", conch, conch.characterId));
   assert.equal(getTreasureCombatModifiers(conch).damageReduction, .125);
+});
+
+test("first-stage giant encounter grants the same growing spinal fluid effect once", () => {
+  const run = makeNaruto();
+  run.currentHp = 500;
+  assert.ok(createAdventureEventResult(run, "giant-first", "giant_encirclement", () => 0, [run], 1));
+  assert.ok(resolveAdventureEvent(run, "giant-first", "giant_heart"));
+  assert.ok(startAdventureBattle(run, "giant-first"));
+  const result = completeAdventureBattle(run, "giant-first", "victory", () => 0);
+  assert.equal(result.spinalFluidGranted, true);
+  assert.deepEqual([run.currentHp, run.maxHp, run.def], [600, 1700, 90]);
+  assert.equal(run.permanentEffects.at(-1).acquisitionCount, 1);
+  assert.equal(completeAdventureBattle(run, "giant-first", "victory", () => 0), false);
+  const repeat = grantGiantSpinalFluid(run, "giant-elite");
+  assert.deepEqual([repeat.acquisitionCount, repeat.maxHp, repeat.def, repeat.restoredHp], [2, 150, 30, 150]);
+  assert.deepEqual([run.currentHp, run.maxHp, run.def], [750, 1850, 120]);
 });
 
 test("campfire upgrades learned skills, then teaches an unlearned active skill at level one", () => {

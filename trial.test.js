@@ -154,7 +154,7 @@ test("a completed trial challenge heals each member by 25% max HP before the nex
     campaign.partyIds.map((id) => campaign.partyStates[id].currentHp));
 });
 
-test("each eternal-shackles battle draws one Chinese-named front and one back enemy with stage-three row stats", () => {
+test("each eternal-shackles battle draws one front and one back enemy at 80% of stage-three row stats", () => {
   const campaign = stageThree();
   enterTrial(campaign);
   assert.equal(chooseTrialNode(campaign).taskId, "will");
@@ -172,7 +172,7 @@ test("each eternal-shackles battle draws one Chinese-named front and one back en
       assert.equal(enemy.name, TRIAL_ENEMY_DATA[enemy.id].name);
       const rowTemplate = getStageThreeNormalEnemyStats(enemy.row === "front" ? "guard" : "mage", campaign.stageStep);
       assert.deepEqual([enemy.maxHp, enemy.atk, enemy.def, enemy.spd],
-        [rowTemplate.hp, rowTemplate.atk, rowTemplate.def, rowTemplate.spd]);
+        [rowTemplate.hp, rowTemplate.atk, rowTemplate.def, rowTemplate.spd].map((value) => Math.max(1, Math.floor(value * .8))));
     }
     assert.equal(prepared.battle.id, prepared.combatOptions.battleId);
     previous.splice(0, previous.length, ...enemies.map((unit) => unit.id));
@@ -322,7 +322,7 @@ test("the integrated will challenge runs three real battles without adjacent ene
   assert.equal(campaign.trial.battleIndex, 3);
 });
 
-test("Heracles survives the first lethal blow and twelve further hits, then falls on the thirteenth", () => {
+test("Heracles survives the first lethal blow and falls on the sixth further effective hit", () => {
   const state = initializeBattle([
     { id: "hero", team: "ally", row: "front", hp: 1000, atk: 10000, def: 0, spd: 100, rosterOrder: 0 },
     { id: "heracles", team: "enemy", row: "front", hp: 100, atk: 1, def: 0, spd: 1,
@@ -333,12 +333,16 @@ test("Heracles survives the first lethal blow and twelve further hits, then fall
   const first = executeAttack(state, hero, boss, () => .999);
   assert.equal(first.trialDamage.heraclesAwakened, true);
   assert.equal(boss.currentHp, 1);
-  for (let hit = 0; hit < 12; hit += 1) {
+  for (let hit = 0; hit < 5; hit += 1) {
     const event = executeAttack(state, hero, boss, () => .999);
     assert.equal(event.targetDied, false);
     assert.equal(boss.currentHp, 1);
+    assert.equal(event.trialDamage.heraclesHitsRemaining, 5 - hit);
   }
-  assert.equal(executeAttack(state, hero, boss, () => .999).targetDied, true);
+  const sixth = executeAttack(state, hero, boss, () => .999);
+  assert.equal(sixth.trialDamage.heraclesHitsRemaining, 0);
+  assert.equal(sixth.targetDied, true);
+  assert.equal(boss.currentHp, 0);
 });
 
 test("a second damage number from the same skill cast does not spend another Heracles life", () => {
@@ -351,32 +355,26 @@ test("a second damage number from the same skill cast does not spend another Her
   ], () => .999);
   const first = result.events.find((event) => event.type === "attack" && !event.splash);
   const attached = result.events.find((event) => event.type === "attack" && event.splash);
-  assert.equal(first.trialDamage.heraclesHitsRemaining, 12);
-  assert.equal(attached.trialDamage.heraclesHitsRemaining, 12);
+  assert.equal(first.trialDamage.heraclesHitsRemaining, 6);
+  assert.equal(attached.trialDamage.heraclesHitsRemaining, 6);
 });
 
-test("Odin reduces every hit from 100% to 10% across each ten-round cycle", () => {
+test("Odin reduces every hit by 50, 40, 30, 20, 0 percent across five-round cycles", () => {
   const state = initializeBattle([
     { id: "hero", team: "ally", row: "front", hp: 1000, atk: 100, def: 0, spd: 100, rosterOrder: 0 },
     { id: "odin", team: "enemy", row: "back", hp: 10000, atk: 1, def: 0, spd: 1,
       trialPassive: "odin", rosterOrder: 1 },
   ]);
   const [hero, boss] = state.characters;
-  state.round = 1;
-  assert.equal(executeAttack(state, hero, boss, () => .999).trialDamage.odinImmune, true);
-  assert.equal(boss.currentHp, 10000);
-  assert.equal(executeAttack(state, hero, boss, () => .999).actualDamage, 0);
-  state.round = 2;
-  const second = executeAttack(state, hero, boss, () => .999);
-  assert.equal(second.actualDamage, 10);
-  assert.equal(second.trialDamage.odinReduction, .9);
-  assert.equal(executeAttack(state, hero, boss, () => .999).actualDamage, 10);
-  state.round = 10;
-  assert.equal(executeAttack(state, hero, boss, () => .999).actualDamage, 90);
-  state.round = 11;
-  assert.equal(executeAttack(state, hero, boss, () => .999).actualDamage, 0);
-  state.round = 12;
-  assert.equal(executeAttack(state, hero, boss, () => .999).actualDamage, 10);
+  for (const [round, reduction, damage] of [[1,.5,50],[2,.4,60],[3,.3,70],[4,.2,80],[5,0,100],
+    [6,.5,50],[7,.4,60],[8,.3,70],[9,.2,80],[10,0,100],[11,.5,50]]) {
+    state.round = round;
+    for (let hit = 0; hit < 2; hit += 1) {
+      const result = executeAttack(state, hero, boss, () => .999);
+      assert.equal(result.trialDamage.odinReduction, reduction);
+      assert.equal(result.actualDamage, damage);
+    }
+  }
 });
 
 test("Odin's max HP choice penalty is battle-only and does not erase uninjured run HP", () => {
@@ -476,7 +474,7 @@ test("Heracles normal attacks hit both allies and Odin's spear can stun the back
   assert.ok(heracles.events.some((event) => event.type === "trial-dot" && event.name === "流血"));
 
   const odin = simulateBattle([...party, { id: "odin", team: "enemy", row: "back",
-    hp: 100, atk: 50, def: 0, spd: 200, rosterOrder: 2, trialPassive: "odin",
+    hp: 10000, atk: 50, def: 0, spd: 200, rosterOrder: 2, trialPassive: "odin",
     skill: { id: "odin-gungnir", name: "冈格尼尔", chance: 1, multiplier: 1.4 } }], () => .999);
   assert.ok(odin.events.some((event) => event.type === "attack" && event.skillId === "odin-gungnir" && event.targetId === "back" && event.stunApplied));
   assert.ok(odin.events.some((event) => event.type === "trial-control-skip" && event.targetId === "back" && event.reason === "眩晕"));

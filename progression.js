@@ -854,15 +854,13 @@ export function grantGiantSpinalFluid(member, sourceId) {
   ensureRunState(member);
   const key = makeActionKey("giant-spinal-fluid", sourceId);
   if (!recordAction(member, key)) return false;
-  const multiplier = treasureAttributeMultiplier(member, GIANT_SPINAL_FLUID.id);
-  const effect = { ...GIANT_SPINAL_FLUID, sourceId,
-    def: scaledTreasureAttribute(GIANT_SPINAL_FLUID.def, multiplier),
-    maxHp: scaledTreasureAttribute(GIANT_SPINAL_FLUID.maxHp, multiplier) };
-  effect.description = repeatedTreasureDescription(GIANT_SPINAL_FLUID, multiplier, effect);
+  const effect = { ...previewGrowingDrop(member, GIANT_SPINAL_FLUID.id), sourceId };
+  const hpBefore = member.currentHp;
   member.atk += effect.atk;
   member.def += effect.def;
   member.maxHp += effect.maxHp;
-  member.currentHp = Math.min(member.currentHp, member.maxHp);
+  member.currentHp = Math.min(member.maxHp, hpBefore + effect.maxHp);
+  effect.restoredHp = member.currentHp - hpBefore;
   member.permanentEffects.push(effect);
   return effect;
 }
@@ -885,14 +883,26 @@ export function grantEliteSukunaFinger(member, sourceId) {
 export function grantGunDevilFragment(member, sourceId) {
   ensureRunState(member);
   if (!recordAction(member, makeActionKey("elite-treasure", sourceId))) return false;
-  const multiplier = treasureAttributeMultiplier(member, GUN_DEVIL_FRAGMENT.id);
-  const effect = { ...GUN_DEVIL_FRAGMENT, sourceId,
-    maxHp: scaledTreasureAttribute(GUN_DEVIL_FRAGMENT.maxHp, multiplier) };
-  effect.description = repeatedTreasureDescription(GUN_DEVIL_FRAGMENT, multiplier, effect);
+  const effect = { ...previewGrowingDrop(member, GUN_DEVIL_FRAGMENT.id), sourceId };
+  const hpBefore = member.currentHp;
   member.maxHp += effect.maxHp;
-  member.currentHp = Math.min(member.currentHp, member.maxHp);
+  member.currentHp = Math.min(member.maxHp, hpBefore + effect.maxHp);
+  effect.restoredHp = member.currentHp - hpBefore;
   member.permanentEffects.push(effect);
   return effect;
+}
+
+export function previewGrowingDrop(member, dropId) {
+  ensureRunState(member);
+  const base = dropId === GIANT_SPINAL_FLUID.id ? GIANT_SPINAL_FLUID
+    : dropId === GUN_DEVIL_FRAGMENT.id ? GUN_DEVIL_FRAGMENT : null;
+  if (!base) return null;
+  const acquisitionCount = member.permanentEffects.filter((effect) => effect.id === dropId).length + 1;
+  const multiplier = 1 + .5 * (acquisitionCount - 1);
+  const maxHp = Math.floor(base.maxHp * multiplier);
+  const def = Math.floor((base.def ?? 0) * multiplier);
+  return { ...base, acquisitionCount, maxHp, def,
+    description: `第 ${acquisitionCount} 次获得：${def ? `DEF +${def}，` : ""}最大 HP +${maxHp}，立即恢复等量 HP（不超过最大 HP）。` };
 }
 
 export function grantAdventureSpecialReward(member, sourceId, rewardId) {
@@ -934,13 +944,7 @@ export function completeAdventureBattle(runState, sourceId, outcome, random = Ma
     return { status: record.status, reward: null };
   }
   if (record.eventId === "giant_encirclement" && record.data.choiceId === "giant_heart" && !options.deferSpinalFluid) {
-    const effect = { ...GIANT_SPINAL_FLUID, sourceId };
-    runState.atk += effect.atk;
-    runState.def += effect.def;
-    runState.maxHp += effect.maxHp;
-    runState.currentHp = Math.min(runState.currentHp, runState.maxHp);
-    runState.permanentEffects.push(effect);
-    record.data.spinalFluidGranted = true;
+    record.data.spinalFluidGranted = Boolean(grantGiantSpinalFluid(runState, sourceId));
   }
   if (record.eventId === "kings_treasury") {
     createTreasureOffer(runState, sourceId, record.data.choiceId === "treasury_advance" ? "royal" : "small", random);

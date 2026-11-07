@@ -172,12 +172,12 @@ function applyTrialDamage(state, target, requested, kind = "attack") {
   let odinReduction = null;
   let odinReductionVisual = false;
   if (target.trialPassive === "odin") {
-    const cycleRound = (Math.max(1, state.round) - 1) % 10;
-    odinReduction = (10 - cycleRound) / 10;
+    const cycleRound = (Math.max(1, state.round) - 1) % 5;
+    odinReduction = cycleRound === 4 ? 0 : (5 - cycleRound) / 10;
     odinReductionVisual = target.odinReductionVisualRound !== state.round;
     target.odinReductionVisualRound = state.round;
-    amount = Math.floor(amount * cycleRound / 10);
-    if (!amount) return { dealt: 0, odinImmune: cycleRound === 0, odinReduction,
+    amount = Math.floor(amount * (1 - odinReduction));
+    if (!amount) return { dealt: 0, odinReduction,
       odinReductionVisual, damageAdjusted: true };
   }
   if (target.trialPassive === "hidan" && kind !== "due") {
@@ -188,6 +188,10 @@ function applyTrialDamage(state, target, requested, kind = "attack") {
   if (target.trialPassive === "heracles" && target.heraclesTrialsActive) {
     if (kind === "attack" && target.heraclesHitsRemaining > 0) {
       target.heraclesHitsRemaining -= 1;
+      if (target.heraclesHitsRemaining === 0) {
+        target.currentHp = 0;
+        return { dealt: 1, heraclesHitsRemaining: 0 };
+      }
       return { dealt: 0, heraclesHitsRemaining: target.heraclesHitsRemaining };
     }
     if (kind !== "attack") return { dealt: 0, heraclesHitsRemaining: target.heraclesHitsRemaining };
@@ -224,8 +228,8 @@ function applyTrialDamage(state, target, requested, kind = "attack") {
   if (target.trialPassive === "heracles" && !target.heraclesTrialsActive && target.currentHp === 0) {
     target.currentHp = 1;
     target.heraclesTrialsActive = true;
-    target.heraclesHitsRemaining = 12;
-    return { dealt: before - 1, heraclesAwakened: true, heraclesHitsRemaining: 12 };
+    target.heraclesHitsRemaining = 6;
+    return { dealt: before - 1, heraclesAwakened: true, heraclesHitsRemaining: 6 };
   }
   let emergencyHeal = 0;
   if (target.passiveSkillId === "eren-paths" && !target.pathsEmergencyUsed && !target.healingBlocked &&

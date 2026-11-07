@@ -1,7 +1,7 @@
 import { ANIMATION_TIMING, CHARACTER_DATA, COMBAT_RULES, STAGE_TWO_NORMAL_PASSIVES, STAGE_THREE_NORMAL_PASSIVES, STARTING_CHARACTERS } from "./characters.js";
 import { advanceEventEpilogue, advanceStageTransition, beginJourney, beginStageTwo, beginStageThree, chooseEvolutionUpgrade, chooseRoute, chooseTrialNode, chooseStartingSkill, claimCampaignEliteDrop, claimCampaignReward, claimCampaignSpecialReward, claimCampaignQuinque, claimCampaignTreasure, claimStageTwoEliteSkill, claimStageTwoEliteSkip, claimStageTwoGiantRecipient, claimStageTwoStatReward, completeLocation, completeSettlement, createCampaign, enterTrialMap, finishBattle, finishTrialResult, getActiveCampfireOptions, getCampaignRewardOffer, getCampaignTreasureOffer, getRouteMap, getRouteOptions, getStageTransitionChoices, getStageTwoCampfireOptions, prepareBattle, resolveCampaignEvent, resolveStageTwoCampfire, resolveTrialOffer, resolveTrialWill, selectStartingCharacter, startCampaign, startCampaignEventBattle, STAGE_TWO_STAT_UPGRADES } from "./campaign.js";
 import { getCritChance, getDodgeChance, getSkillDodgeChance, initializeBattle, simulateBattle } from "./battle.js";
-import { canDeclineNewSkill, getSeaBeyondOfferDetails, getSkillAtLevel, getSkillTrainingChoices, getTemporaryCombatModifiers, getTemporaryEffectDisplayRows, getTreasureCombatModifiers, getUnlearnedActiveSkills } from "./progression.js";
+import { canDeclineNewSkill, getSeaBeyondOfferDetails, getSkillAtLevel, getSkillTrainingChoices, getTemporaryCombatModifiers, getTemporaryEffectDisplayRows, getTreasureCombatModifiers, getUnlearnedActiveSkills, previewGrowingDrop } from "./progression.js";
 import { ATTRIBUTE_UPGRADES, ELITE_BONUS_REWARDS, GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT, SKILL_DATA, TREASURE_DATA } from "./skills.js";
 import { orderRouteOptionsByPosition, shortestRemainingRouteLength, ROUTE_MAP_FINAL_STEP } from "./routeMap.js";
 import { getAnimationFrameFootShift, getAnimationFrameVisualScale, getAnimationVisualOffset, getBorosBeamGeometry, getCharacterVisual, getGravityLiftPixels } from "./visualConfig.js";
@@ -1164,7 +1164,7 @@ function renderAllyStatusIcons() {
   const heracles = viewState?.characters?.find((unit) => unit.id === "heracles" && unit.alive);
   if (heracles?.heraclesTrialsActive) {
     enemyStatuses.push({ id: "heracles-twelve-trials", name: "十二试炼", image: heracles.asset, tone: "passive",
-      description: `赫拉克勒斯还可承受 ${heracles.heraclesHitsRemaining} 次命中；再下一次合格攻击才会倒下。` });
+      description: `赫拉克勒斯还需受到 ${heracles.heraclesHitsRemaining} 次有效攻击命中；最后一次命中后倒下。` });
   }
   if (viewState?.characters?.some((unit) => unit.id === "tang" && unit.alive && unit.visualMeditating))
     allyStatuses.push({ id: "tang-meditate", name: "唐僧打坐", image: "assets/tang/tang_meditate.png", tone: "passive",
@@ -1182,10 +1182,13 @@ function renderAllyStatusIcons() {
     });
   }
   for (const id of campaign?.partyIds ?? []) {
-    if (!campaign.partyStates?.[id]?.permanentEffects?.some((effect) => effect.id === GIANT_SPINAL_FLUID.id)) continue;
+    const fluidEffects = campaign.partyStates?.[id]?.permanentEffects?.filter((effect) => effect.id === GIANT_SPINAL_FLUID.id) ?? [];
+    if (!fluidEffects.length) continue;
+    const totalDef = fluidEffects.reduce((sum, effect) => sum + (effect.def ?? 0), 0);
+    const totalHp = fluidEffects.reduce((sum, effect) => sum + (effect.maxHp ?? 0), 0);
     allyStatuses.push({ id: `${GIANT_SPINAL_FLUID.id}-${id}`, name: GIANT_SPINAL_FLUID.name,
       image: GIANT_SPINAL_FLUID.image, tone: "buff",
-      description: `${partyPresentation(id)?.name ?? id}：${GIANT_SPINAL_FLUID.description}` });
+      description: `${partyPresentation(id)?.name ?? id}：已获得 ${fluidEffects.length} 次，累计 DEF +${totalDef}、最大 HP +${totalHp}；领取时恢复本次增加的 HP。` });
   }
   if (battleStatusState.jinchuriki) {
     const passive = battleStatusState.jinchuriki;
@@ -2531,7 +2534,7 @@ function playEvent(event, finish) {
   const sourceSide = attacker.team === "ally" ? "ally" : "enemy";
   const cloneText = event.skillId === "shadow-clone-rush" ? ` Lv.${event.skillLevel}（${event.skillCloneCount} 个分身，${event.skillMultiplier.toFixed(1)}×）` : "";
   const actionText = event.skilled ? `<span class="skill-name">${event.skillName}${cloneText}</span>` : "普通攻击";
-  const resultText = event.dodged ? '<span class="dodge-text">闪避</span>' : event.trialDamage?.odinImmune ? '<span class="dodge-text">奥丁本回合减伤 100%</span>' : event.trialDamage?.pathsImmune ? '<span class="dodge-text">道路免疫首次伤害</span>' : event.trialDamage?.delayedDamage ? '<span class="skill-name">伤害延迟三回合</span>' : event.passiveTriggered?.damageImmune ? '<span class="dodge-text">被动免疫</span>' : `${event.critical ? '<b class="critical-text">暴击</b> ' : ""}<span class="damage-text">-${event.damage}</span>${event.trialDamage?.odinReduction != null ? ` <span class="skill-name">福金与雾尼减伤 ${Math.round(event.trialDamage.odinReduction * 100)}%</span>` : ""}`;
+  const resultText = event.dodged ? '<span class="dodge-text">闪避</span>' : event.trialDamage?.pathsImmune ? '<span class="dodge-text">道路免疫首次伤害</span>' : event.trialDamage?.delayedDamage ? '<span class="skill-name">伤害延迟三回合</span>' : event.passiveTriggered?.damageImmune ? '<span class="dodge-text">被动免疫</span>' : `${event.critical ? '<b class="critical-text">暴击</b> ' : ""}<span class="damage-text">-${event.damage}</span>${event.trialDamage?.odinReduction != null ? ` <span class="skill-name">福金与雾尼减伤 ${Math.round(event.trialDamage.odinReduction * 100)}%</span>` : ""}`;
   const timings = ANIMATION_TIMING.attack;
   const playbackMultiplier = playbackRate();
   const scaled = (ms) => Math.max(40, Math.round(ms / playbackMultiplier));
@@ -3167,8 +3170,8 @@ function playEvent(event, finish) {
       event.passiveTriggered?.damageImmune ? `<span class="skill-name">${event.passiveTriggered.skillId === "eren-2000-years" ? "2000年后的你免疫了这次攻击" : "被动免疫"}</span>` : "",
       event.jinchurikiExpired ? '<span class="skill-name">人柱力半血增益结束</span>' : "",
       event.armorReductionApplied ? '<span class="skill-name">铠甲减伤 25%</span>' : "",
-      event.trialDamage?.heraclesAwakened ? '<span class="skill-name">十二试炼觉醒：还需命中 13 次</span>' : "",
-      event.trialDamage?.heraclesHitsRemaining != null && !event.trialDamage.heraclesAwakened ? `<span class="skill-name">十二试炼剩余保护 ${event.trialDamage.heraclesHitsRemaining} 次</span>` : "",
+      event.trialDamage?.heraclesAwakened ? '<span class="skill-name">十二试炼觉醒：还需命中 6 次</span>' : "",
+      event.trialDamage?.heraclesHitsRemaining != null && !event.trialDamage.heraclesAwakened ? `<span class="skill-name">十二试炼还需命中 ${event.trialDamage.heraclesHitsRemaining} 次</span>` : "",
       event.burnStacksApplied > 0 ? `<span class="skill-name">灼烧 +${event.burnStacksApplied} 层（共 ${event.burnStacks} 层）</span>` : "",
       event.bleedStacksApplied > 0 ? `<span class="skill-name">流血 +${event.bleedStacksApplied} 层（共 ${event.bleedStacks} 层）</span>` : "",
       event.stunApplied ? '<span class="skill-name">下一次行动眩晕</span>' : "",
@@ -4387,9 +4390,11 @@ function renderBattleReward() {
       : enemyIds.includes("bomb-demon") ? GUN_DEVIL_FRAGMENT : TREASURE_DATA.sukuna_finger;
     const choices = campaign.partyIds.map((id) => {
       const member = partyPresentation(id);
-      return decisionChoice(id, member?.name ?? id, `由该角色领取「${item.name}」。`, false, member?.asset ?? null);
+      const reward = previewGrowingDrop(campaign.partyStates[id], item.id);
+      return decisionChoice(id, member?.name ?? id, reward?.description ?? `由该角色领取「${item.name}」。`, false, member?.asset ?? null);
     });
-    renderDecisionScreen(`精英战利品 · ${item.name}`, item.description, choices, "确认领取", (id) => {
+    renderDecisionScreen(`精英战利品 · ${item.name}`, previewGrowingDrop(campaign.partyStates[campaign.partyIds[0]], item.id)
+      ? "本次收益按所选角色此前获得同名宝物的次数计算。" : item.description, choices, "确认领取", (id) => {
       const result = claimCampaignEliteDrop(campaign, id);
       if (!result?.status) {
         console.error("精英战利品领取未完成", { itemId: item.id, recipientId: id,
@@ -4407,9 +4412,9 @@ function renderBattleReward() {
   if (campaign.rewardPhase === "giant_recipient") {
     const choices = campaign.partyIds.map((id) => {
       const character = partyPresentation(id);
-      return decisionChoice(id, character?.name ?? id, `领取巨人脊髓液：${GIANT_SPINAL_FLUID.description}`);
+      return decisionChoice(id, character?.name ?? id, previewGrowingDrop(campaign.partyStates[id], GIANT_SPINAL_FLUID.id).description);
     });
-    renderDecisionScreen("选择巨人脊髓液领取者", "整份奖励仅授予一名队员，当前生命值不恢复。", choices,
+    renderDecisionScreen("选择巨人脊髓液领取者", "整份奖励仅授予一名队员，恢复的 HP 不超过领取后的最大 HP。", choices,
       "领取奖励", (id) => {
         if (!claimStageTwoGiantRecipient(campaign, id)) return false;
         updateProgressionDisplays(); renderBattleReward(); return true;
@@ -4472,12 +4477,14 @@ function renderBattleReward() {
     const giantReward = campaign.eventBattleSourceId
       ? campaign.runCharacterState.eventResults[campaign.eventBattleSourceId]?.data.spinalFluidGranted
       : false;
+    const grantedFluid = giantReward && campaign.partyIds.map((id) => campaign.partyStates[id]?.permanentEffects?.find((effect) =>
+      effect.id === GIANT_SPINAL_FLUID.id && effect.sourceId === campaign.eventBattleSourceId)).find(Boolean);
     const choices = offer.statChoices.map((id) => {
       const upgrade = ATTRIBUTE_UPGRADES.find((entry) => entry.id === id);
       return decisionChoice(id, upgrade?.name ?? id, upgrade?.description ?? "属性强化");
     });
     renderDecisionScreen(giantReward ? "戴娜战胜利 · 巨人脊髓液" : campaign.rewardBattleType === "elite" ? "精英战胜利 · 属性加点" : "战斗胜利 · 属性加点", giantReward
-      ? `已获得巨人脊髓液：${GIANT_SPINAL_FLUID.description} 再从三个选项中选择两项属性强化。`
+      ? `已获得巨人脊髓液：${grantedFluid?.description ?? GIANT_SPINAL_FLUID.description} 再从三个选项中选择两项属性强化。`
       : "从三个选项中选择两项强化，它们会影响后续战斗。", choices, "应用两项强化", (ids) => {
       const result = claimCampaignReward(campaign, ids);
       if (!result) return false;

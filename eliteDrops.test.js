@@ -54,7 +54,7 @@ test("Bomb Demon keeps stat reward and replaces skill training with one Gun Devi
   assert.equal(claim.effect.id, GUN_DEVIL_FRAGMENT.id);
   assert.equal(claim.status, "route");
   assert.equal(campaign.runCharacterState.maxHp, before.maxHp + 200);
-  assert.equal(campaign.runCharacterState.currentHp, before.hp);
+  assert.equal(campaign.runCharacterState.currentHp, Math.min(before.maxHp + 200, before.hp + 200));
   assert.deepEqual(campaign.runCharacterState.learnedActiveSkills, before.skills);
   assert.equal(campaign.runCharacterState.permanentEffects.filter((item) => item.id === GUN_DEVIL_FRAGMENT.id).length, 1);
   assert.equal(claimCampaignEliteDrop(campaign, "naruto"), false);
@@ -196,7 +196,7 @@ test("titan duo grants one spinal fluid to chosen party member after both stat r
   assert.ok(claimCampaignEliteDrop(campaign, partnerId));
   assert.deepEqual([hero.maxHp, hero.atk, hero.def], heroBefore);
   assert.deepEqual([partner.maxHp, partner.atk, partner.def, partner.currentHp],
-    [partnerBefore[0] + 100, partnerBefore[1], partnerBefore[2] + 20, partnerBefore[3]]);
+    [partnerBefore[0] + 100, partnerBefore[1], partnerBefore[2] + 20, Math.min(partnerBefore[0] + 100, partnerBefore[3] + 100)]);
   assert.equal(partner.permanentEffects.filter((effect) => effect.id === "giant_spinal_fluid").length, 1);
   assert.equal(claimCampaignEliteDrop(campaign, partnerId), false);
   assert.equal(campaign.status, "route");

@@ -382,7 +382,7 @@ export function prepareBattle(campaign) {
     const appearance = appearanceId ? NORMAL_ENEMY_APPEARANCES[appearanceId] : null;
     const stageTwoNormal = campaign.stageId === 2 && battle.type === "normal";
     const stageThreeNormal = campaign.stageId === 3 && battle.type === "normal";
-    const trialNormal = campaign.trialBattle && !["heracles", "odin"].includes(enemyId);
+    const trialNormal = campaign.trialBattle?.taskId === "will" && !["heracles", "odin"].includes(enemyId);
     const baseStats = trialNormal ? getStageThreeNormalEnemyStats(template.row === "front" ? "guard" : "mage", routeStep)
       : stageTwoNormal ? getStageTwoNormalEnemyStats(enemyId, routeStep)
       : stageThreeNormal ? getStageThreeNormalEnemyStats(enemyId, routeStep)
@@ -392,7 +392,8 @@ export function prepareBattle(campaign) {
     const enemyGrowth = stageTwoNormal || stageThreeNormal || (campaign.stageId >= 2 && battle.type === "elite") ||
       battle.enemyGrowthExemptIds?.includes(enemyId) ? { hp: 1, atk: 1, def: 1 } : routeGrowth;
     const normalScale = campaign.stageId <= 2 && battle.type === "normal" ? EARLY_NORMAL_ENEMY_STAT_SCALE : 1;
-    const maxHp = Math.max(1, Math.floor(Math.floor(baseHp * enemyGrowth.hp) * normalScale));
+    const trialScale = trialNormal ? .8 : 1;
+    const maxHp = Math.max(1, Math.floor(Math.floor(baseHp * enemyGrowth.hp) * normalScale * trialScale));
     const summonedGuard = template.summonPassive?.unitId === "guard" ? (() => {
       const guard = enemyTemplates.get("guard");
       const growth = getRouteEnemyGrowth("normal", routeStep, campaign.stageId);
@@ -441,9 +442,9 @@ export function prepareBattle(campaign) {
         skillAnimationMap: { "c4-garuda": "skill1" },
       } : {}),
       hp: mimic?.maxHp ?? maxHp, maxHp: mimic?.maxHp ?? maxHp, currentHp: mimic?.currentHp ?? maxHp,
-      atk: mimic?.atk ?? (baseStats.atk === 0 ? 0 : Math.max(1, Math.floor(Math.floor(baseStats.atk * enemyGrowth.atk) * normalScale))),
-      def: mimic?.def ?? Math.max(1, Math.floor(Math.floor(baseStats.def * enemyGrowth.def) * normalScale)),
-      spd: mimic?.spd ?? Math.max(1, Math.floor(baseStats.spd * normalScale)),
+      atk: mimic?.atk ?? (baseStats.atk === 0 ? 0 : Math.max(1, Math.floor(Math.floor(baseStats.atk * enemyGrowth.atk) * normalScale * trialScale))),
+      def: mimic?.def ?? Math.max(1, Math.floor(Math.floor(baseStats.def * enemyGrowth.def) * normalScale * trialScale)),
+      spd: mimic?.spd ?? Math.max(1, Math.floor(baseStats.spd * normalScale * trialScale)),
       ...(summonedGuard ? { summonPassive: { ...template.summonPassive, unit: summonedGuard } } : {}),
       ...(template.type === "elite" || template.activeSkills?.length ? {
         team: "enemy", row: template.row ?? "front", position: template.position ?? "front",

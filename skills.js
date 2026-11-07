@@ -312,7 +312,7 @@ export const SKILL_DATA = {
     description: "25% 概率造成 1.2 倍 ATK 单体伤害；自身当前 HP 严格低于 1000 时本次伤害翻倍。",
     levels: { 1: { chance: .25, multiplier: 1.2, effectType: "damage", attackType: "melee" } } },
   "odin-ravens": { id: "odin-ravens", name: "福金与雾尼", type: "passive", passive: true,
-    description: "按整场战斗回合循环减伤：第 1 回合 100%，每回合下降 10 个百分点，第 10 回合 10%，第 11 回合重新为 100%。本回合所有受到的伤害均适用。",
+    description: "按整场战斗回合每 5 回合循环减伤：第 1 至 5 回合分别减免 50%、40%、30%、20%、0%，第 6 回合重新从 50% 开始；同回合所有伤害均适用。",
     levels: { 1: {} } },
   "odin-gungnir": { id: "odin-gungnir", name: "冈格尼尔", type: "active",
     description: "30% 概率无视站位随机攻击一名存活角色，造成 1.4 倍伤害并使其下一行动回合眩晕。",
@@ -384,12 +384,12 @@ export const ADVENTURE_EVENT_DATA = {
 
 export const GIANT_SPINAL_FLUID = Object.freeze({
   id: "giant_spinal_fluid", name: "巨人脊髓液", image: "assets/events/giant_spinal_fluid.png",
-  description: "本局 DEF +20，最大 HP +100；当前 HP 不恢复。", atk: 0, def: 20, maxHp: 100,
+  description: "本局 DEF +20，最大 HP +100，并立即恢复 100 HP（不超过最大 HP）。重复获得时本次属性收益逐次提高。", atk: 0, def: 20, maxHp: 100,
 });
 
 export const GUN_DEVIL_FRAGMENT = Object.freeze({
   id: "gun_devil_fragment", name: "枪魔碎片", image: "assets/treasures/gun-devil-fragment.png",
-  description: "本局最大 HP +200；当前 HP 不恢复。", maxHp: 200,
+  description: "本局最大 HP +200，并立即恢复 200 HP（不超过最大 HP）。重复获得时本次属性收益逐次提高。", maxHp: 200,
 });
 
 // King's Treasury rewards are data only; their effects are applied by the

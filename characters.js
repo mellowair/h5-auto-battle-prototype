@@ -116,7 +116,7 @@ export const TRIAL_ENEMY_DATA = Object.freeze({
       nineHeads: { type: "frames", frames: { charge: "assets/trial-enemies/赫拉克勒斯蓄力.png", strike: "assets/trial-enemies/赫拉克勒斯技能.png" }, durationsMs: [500, 450] } } },
   odin: { id: "odin", name: "奥丁", team: "enemy", type: "elite", role: "诸神试炼 · 智慧", row: "back", position: "back",
     hp: 2500, atk: 500, def: 100, spd: 100, asset: "assets/trial-enemies/奥丁.png", visualId: "odin", attackType: "magic", attackAnimation: "magicAttack",
-    activeSkills: ["odin-gungnir"], extraPassiveSkillIds: ["odin-ravens"], trialPassive: "odin", trialPassiveSkill: { name: "奥丁的庇护", description: "受伤比例随回合变化，每 10 回合重置；周期首回合免疫伤害。" }, rosterOrder: 2,
+    activeSkills: ["odin-gungnir"], extraPassiveSkillIds: ["odin-ravens"], trialPassive: "odin", trialPassiveSkill: { name: "奥丁的庇护", description: "每 5 回合循环减伤：第 1 至 5 回合分别减免 50%、40%、30%、20%、0%。" }, rosterOrder: 2,
     projectileAsset: "assets/trial-enemies/奥丁施法素材.png",
     skillAnimationMap: { "odin-gungnir": "gungnir" },
     animations: { idle: { type: "frames", frames: { idle: "assets/trial-enemies/奥丁.png" } },
