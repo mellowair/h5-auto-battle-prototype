@@ -537,7 +537,6 @@ h2 { margin: 0; color: #3a455c; font-size: 11px; font-weight: 900; }
 .decision-options.reward-portrait-cards { grid-template-columns: minmax(0, 1fr); align-items: stretch; justify-items:center; }
 .reward-portrait-cards .decision-choice { width: min(100%, 230px); min-height: 96px; aspect-ratio: auto; overflow-wrap: anywhere; }
 .decision-screen:has(.reward-portrait-cards) .decision-options { margin: auto 0; align-content: center; }
-.decision-screen:has(.reward-portrait-cards) .decision-confirm { display: none; }
 .decision-screen:has(.reward-portrait-cards) .decision-choice { justify-content: center; }
 .decision-confirm { width: 100%; margin-top: auto; }
 .decision-screen .decision-options:empty { display: none; }

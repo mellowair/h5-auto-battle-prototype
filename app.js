@@ -4302,7 +4302,7 @@ function renderBattleReward() {
         return false;
       }
       updateProgressionDisplays(); renderRoute(); return true;
-    }, "ACT 03 · ELITE REWARD", item.image, { portraitCards: true });
+    }, "ACT 03 · ELITE REWARD", item.image, { portraitCards: true, autoConfirm: true });
     return;
   }
   const offer = getCampaignRewardOffer(campaign);

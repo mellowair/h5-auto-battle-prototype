@@ -499,7 +499,7 @@ test("ordinary battles fix a seeded giant or slime appearance while the mage sta
     assert.equal(front.name, NORMAL_ENEMY_APPEARANCES[appearanceId].name);
     assert.equal(front.asset, NORMAL_ENEMY_APPEARANCES[appearanceId].asset);
     assert.equal(front.row, "front");
-    assert.deepEqual([front.maxHp, front.atk, front.def, front.spd], [400, 56, 32, 30]);
+    assert.deepEqual([front.maxHp, front.atk, front.def, front.spd], [360, 50, 28, 27]);
     seen.add(appearanceId);
   }
   assert.deepEqual([...seen].sort(), ["giant", "slime"]);
@@ -523,7 +523,7 @@ test("route growth is applied once to normal and elite battle copies", () => {
     return { campaign, prepared: prepareBattle(campaign) };
   }
 
-  const expectedNormal = new Map([[1, { guard: [400, 56, 32, 30], mage: [320, 64, 16, 30] }], [3, { guard: [500, 70, 40, 30], mage: [400, 80, 20, 30] }], [6, { guard: [625, 80, 44, 30], mage: [500, 92, 22, 30] }], [9, { guard: [700, 84, 46, 30], mage: [560, 96, 23, 30] }]]);
+  const expectedNormal = new Map([[1, { guard: [360, 50, 28, 27], mage: [288, 57, 14, 27] }], [3, { guard: [450, 63, 36, 27], mage: [360, 72, 18, 27] }], [6, { guard: [562, 72, 39, 27], mage: [450, 82, 19, 27] }], [9, { guard: [630, 75, 41, 27], mage: [504, 86, 20, 27] }]]);
   for (const [step, expected] of expectedNormal) {
     const { prepared } = prepareAtStep(step, 0.3);
     assert.ok(prepared);

@@ -16,6 +16,8 @@ export { chooseEvolutionUpgrade };
 
 const enemyTemplates = new Map(CHARACTER_DATA.filter((character) => character.team === "enemy").map((character) => [character.id, character]));
 const ROUTE_LENGTH = ROUTE_MAP_FINAL_STEP;
+// Balance adjustment for ordinary route battles in the first two stages only.
+const EARLY_NORMAL_ENEMY_STAT_SCALE = 0.9;
 export const STAGE_TWO_STAT_UPGRADES = Object.freeze([
   { id: "maxHp", name: "最大生命 +100", value: 100 },
   { id: "atk", name: "攻击 +10", value: 10 },
@@ -390,7 +392,8 @@ export function prepareBattle(campaign) {
     const baseHp = baseStats.hp ?? baseStats.maxHp;
     const enemyGrowth = stageTwoNormal || stageThreeNormal || (campaign.stageId >= 2 && battle.type === "elite") ||
       battle.enemyGrowthExemptIds?.includes(enemyId) ? { hp: 1, atk: 1, def: 1 } : routeGrowth;
-    const maxHp = Math.max(1, Math.floor(baseHp * enemyGrowth.hp));
+    const normalScale = campaign.stageId <= 2 && battle.type === "normal" ? EARLY_NORMAL_ENEMY_STAT_SCALE : 1;
+    const maxHp = Math.max(1, Math.floor(Math.floor(baseHp * enemyGrowth.hp) * normalScale));
     const summonedGuard = template.summonPassive?.unitId === "guard" ? (() => {
       const guard = enemyTemplates.get("guard");
       const growth = getRouteEnemyGrowth("normal", routeStep, campaign.stageId);
@@ -439,9 +442,9 @@ export function prepareBattle(campaign) {
         skillAnimationMap: { "c4-garuda": "skill1" },
       } : {}),
       hp: mimic?.maxHp ?? maxHp, maxHp: mimic?.maxHp ?? maxHp, currentHp: mimic?.currentHp ?? maxHp,
-      atk: mimic?.atk ?? (baseStats.atk === 0 ? 0 : Math.max(1, Math.floor(baseStats.atk * enemyGrowth.atk))),
-      def: mimic?.def ?? Math.max(1, Math.floor(baseStats.def * enemyGrowth.def)),
-      spd: mimic?.spd ?? Math.max(1, baseStats.spd),
+      atk: mimic?.atk ?? (baseStats.atk === 0 ? 0 : Math.max(1, Math.floor(Math.floor(baseStats.atk * enemyGrowth.atk) * normalScale))),
+      def: mimic?.def ?? Math.max(1, Math.floor(Math.floor(baseStats.def * enemyGrowth.def) * normalScale)),
+      spd: mimic?.spd ?? Math.max(1, Math.floor(baseStats.spd * normalScale)),
       ...(summonedGuard ? { summonPassive: { ...template.summonPassive, unit: summonedGuard } } : {}),
       ...(template.type === "elite" || template.activeSkills?.length ? {
         team: "enemy", row: template.row ?? "front", position: template.position ?? "front",

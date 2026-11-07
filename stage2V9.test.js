@@ -29,6 +29,13 @@ test("v9 art and appearance registry use independent assets", () => {
 });
 
 test("stage-two normal nodes use one local-step early enemy and one per row from step five", () => {
+  const expectedCombat = new Map([
+    [1, { guard: [1350, 117, 81, 54], mage: [1080, 144, 45, 27] }],
+    [4, { guard: [1350, 117, 81, 54], mage: [1080, 144, 45, 27] }],
+    [5, { guard: [1350, 117, 81, 54], mage: [1080, 144, 45, 27] }],
+    [9, { guard: [1620, 135, 90, 58], mage: [1260, 162, 54, 36] }],
+    [14, { guard: [1710, 144, 99, 63], mage: [1350, 180, 63, 45] }],
+  ]);
   for (const localStep of [1, 4, 5, 9, 14]) {
     const campaign = createStageTwoTestCampaign({ heroId: "naruto", partnerId: "eren", seed: 72 });
     campaign.stageStep = localStep;
@@ -43,8 +50,8 @@ test("stage-two normal nodes use one local-step early enemy and one per row from
       assert.ok((front ? ["lubu", "dementor", "deep_sea_king"] : ["jack", "teruhashi", "gollum"]).includes(unit.appearanceId));
       assert.equal(unit.row, front ? "front" : "back");
       const base = getStageTwoNormalEnemyStats(unit.id, localStep);
-      assert.deepEqual([unit.maxHp, unit.atk, unit.def, unit.spd],
-        [base.hp, base.atk, base.def, base.spd]);
+      assert.ok(base.hp > unit.maxHp);
+      assert.deepEqual([unit.maxHp, unit.atk, unit.def, unit.spd], expectedCombat.get(localStep)[unit.id]);
     }
   }
 });

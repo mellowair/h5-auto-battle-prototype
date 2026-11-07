@@ -172,10 +172,18 @@ test("stage-two growth uses the local visited-room step and caps at step nine", 
   assert.deepEqual(getRouteEnemyGrowth("normal", 10, 2), getRouteEnemyGrowth("normal", 9, 2));
 });
 
-test("second-stage normal templates use final local-step tiers without changing stage one", () => {
+test("second-stage normal templates keep their tiers while battle copies are 10% lower", () => {
   assert.deepEqual(STAGE_TWO_NORMAL_ENEMY_BASE_STATS.guard, { hp: 1500, atk: 130, def: 90, spd: 60 });
   assert.deepEqual(STAGE_TWO_NORMAL_ENEMY_BASE_STATS.mage, { hp: 1200, atk: 160, def: 50, spd: 30 });
   const { campaign } = stageTwoRun();
+  const expectedCombat = new Map([
+    [1, { guard: [1350, 117, 81, 54], mage: [1080, 144, 45, 27] }],
+    [5, { guard: [1350, 117, 81, 54], mage: [1080, 144, 45, 27] }],
+    [6, { guard: [1620, 135, 90, 58], mage: [1260, 162, 54, 36] }],
+    [10, { guard: [1620, 135, 90, 58], mage: [1260, 162, 54, 36] }],
+    [11, { guard: [1710, 144, 99, 63], mage: [1350, 180, 63, 45] }],
+    [15, { guard: [1710, 144, 99, 63], mage: [1350, 180, 63, 45] }],
+  ]);
   for (const localStep of [1, 5, 6, 10, 11, 15]) {
     campaign.step += 1;
     campaign.stageStep = localStep;
@@ -186,8 +194,8 @@ test("second-stage normal templates use final local-step tiers without changing 
     for (const id of ["guard", "mage"]) {
       const base = getStageTwoNormalEnemyStats(id, campaign.stageStep);
       const enemy = roster.find((entry) => entry.id === id);
-      assert.deepEqual([enemy.maxHp, enemy.atk, enemy.def, enemy.spd],
-        [base.hp, base.atk, base.def, base.spd]);
+      assert.ok(base.hp > enemy.maxHp);
+      assert.deepEqual([enemy.maxHp, enemy.atk, enemy.def, enemy.spd], expectedCombat.get(localStep)[id]);
     }
   }
   const firstStage = createCampaign(() => .5, { seed: 271 });
@@ -198,7 +206,7 @@ test("second-stage normal templates use final local-step tiers without changing 
   firstStage.status = "combat";
   firstStage.currentBattle = { type: "normal", step: 1, enemies: ["guard", "mage"] };
   const oldRoster = prepareBattle(firstStage).roster;
-  assert.deepEqual(oldRoster.filter((entry) => entry.team === "enemy").map((entry) => entry.maxHp), [400, 320]);
+  assert.deepEqual(oldRoster.filter((entry) => entry.team === "enemy").map((entry) => entry.maxHp), [360, 288]);
 });
 
 test("two allies both enter battle; front-row targeting includes Kaneki", () => {
