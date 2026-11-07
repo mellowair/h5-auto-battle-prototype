@@ -6,7 +6,7 @@ import {
   applyAdventureBattleBonusReward, applyAdventureBattleStatReward, applyBattleBonusReward,
   advanceTemporaryEffectsAfterBattle, applyAdventurePartyOutcome, applyBattleStatReward, chooseAdventureEventId, completeAdventureBattle, createAdventureEventResult,
   canDeclineNewSkill, createBattleRewardOffer, createRunCharacterState, getAvailableAdventureEventIds, getCampfireOptions, getSkillAtLevel,
-  getTemporaryCombatModifiers, getTemporaryEffects, getTreasureCombatModifiers, getUnlearnedActiveSkills, getUpgradeableSkills, getSkillTrainingChoices, grantGiantSpinalFluid, grantEliteSukunaFinger, grantAdventureSpecialReward, grantQuinque, claimTreasure, learnActiveSkill, upgradeActiveSkill,
+  getTemporaryCombatModifiers, getTemporaryEffects, getTreasureCombatModifiers, getUnlearnedActiveSkills, getUpgradeableSkills, getSkillTrainingChoices, grantGiantSpinalFluid, grantEliteSukunaFinger, grantGunDevilFragment, grantAdventureSpecialReward, grantQuinque, claimTreasure, learnActiveSkill, upgradeActiveSkill,
   createStatUpgradeChoices, applyStatUpgrade, healRunCharacter, resolveAdventureEvent, resolveCampfire, startAdventureBattle, upgradePassiveSkill,
 } from "./progression.js";
 import { ATTRIBUTE_UPGRADES } from "./skills.js";
@@ -683,6 +683,7 @@ function eliteDropId(campaign) {
   if (campaign?.currentBattle?.type !== "elite") return null;
   const enemies = campaign.currentBattle.enemies ?? [];
   if (enemies.includes("mahito")) return "sukuna_finger";
+  if (enemies.includes("bomb-demon")) return "gun_devil_fragment";
   if (campaign.stageId === 2 && enemies.includes("armored-titan") && enemies.includes("colossal-titan"))
     return "giant_spinal_fluid";
   return null;
@@ -691,16 +692,26 @@ function eliteDropId(campaign) {
 export function claimCampaignEliteDrop(campaign, recipientId) {
   const dropId = eliteDropId(campaign);
   if (!dropId || campaign?.status !== "reward" || campaign.rewardPhase !== "elite_drop" ||
-    !campaign.partyIds.includes(recipientId) || campaign.eventBattleSourceId) return false;
+    !campaign.partyIds.includes(recipientId) || campaign.eventBattleSourceId ||
+    campaign.activeNode?.status !== "in_progress") return false;
   const sourceId = campaign.rewardBattleId;
   const recipient = campaign.partyStates[recipientId];
-  const effect = dropId === "giant_spinal_fluid"
+  if (!sourceId || !recipient || campaign.partyIds.some((id) => id !== recipientId &&
+    campaign.partyStates[id]?.permanentEffects?.some((item) => item.id === dropId && item.sourceId === sourceId))) return false;
+  // A failed route transition must be retryable without granting the item twice.
+  const existing = recipient.permanentEffects?.find((item) => item.id === dropId && item.sourceId === sourceId);
+  const effect = existing ?? (dropId === "giant_spinal_fluid"
     ? grantGiantSpinalFluid(recipient, sourceId)
-    : grantEliteSukunaFinger(recipient, sourceId);
+    : dropId === "gun_devil_fragment"
+      ? grantGunDevilFragment(recipient, sourceId)
+      : grantEliteSukunaFinger(recipient, sourceId));
   if (!effect) return false;
   campaign.playerHp = campaign.runCharacterState.currentHp;
   campaign.playerMaxHp = campaign.runCharacterState.maxHp;
+  const offer = campaign.runCharacterState.rewardOffers?.[sourceId];
   const status = finishRewardAndAdvance(campaign);
+  if (!status) return false;
+  if (offer?.status === "awaiting_bonus") offer.status = "applied";
   if (campaign.stageId >= 2) campaign.stageTwoReward = null;
   return { effect, recipientId, status };
 }
@@ -860,7 +871,7 @@ export function claimCampaignReward(campaign, choiceId, extraChoiceId = null, sk
     if (!result) return false;
     campaign.playerHp = campaign.runCharacterState.currentHp;
     campaign.playerMaxHp = campaign.runCharacterState.maxHp;
-    if (result.status === "awaiting_bonus") {
+    if (result.status === "awaiting_bonus" || (result.status === "applied" && eliteDropId(campaign))) {
       campaign.rewardPhase = eliteDropId(campaign) ? "elite_drop" : "bonus";
       if (campaign.activeNode) campaign.activeNode.rewardStatus = campaign.rewardPhase;
       return { phase: campaign.rewardPhase, result };

@@ -1,4 +1,4 @@
-import { ADVENTURE_EVENT_DATA, ATTRIBUTE_UPGRADES, CAMPFIRE_RULES, ELITE_BONUS_REWARDS, GIANT_SPINAL_FLUID, SKILL_DATA, TREASURE_DATA } from "./skills.js";
+import { ADVENTURE_EVENT_DATA, ATTRIBUTE_UPGRADES, CAMPFIRE_RULES, ELITE_BONUS_REWARDS, GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT, SKILL_DATA, TREASURE_DATA } from "./skills.js";
 import { COMBAT_RULES } from "./characters.js";
 
 const copy = (value) => value == null ? value : JSON.parse(JSON.stringify(value));
@@ -851,6 +851,16 @@ export function grantEliteSukunaFinger(member, sourceId) {
   member.maxHp = Math.max(1, member.maxHp + treasure.maxHp);
   member.currentHp = Math.min(member.currentHp, member.maxHp);
   const effect = { id: treasure.id, name: treasure.name, image: treasure.image, description: treasure.description, sourceId };
+  member.permanentEffects.push(effect);
+  return effect;
+}
+
+export function grantGunDevilFragment(member, sourceId) {
+  ensureRunState(member);
+  if (!recordAction(member, makeActionKey("elite-treasure", sourceId))) return false;
+  const effect = { ...GUN_DEVIL_FRAGMENT, sourceId };
+  member.maxHp += effect.maxHp;
+  member.currentHp = Math.min(member.currentHp, member.maxHp);
   member.permanentEffects.push(effect);
   return effect;
 }

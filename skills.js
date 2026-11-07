@@ -387,6 +387,11 @@ export const GIANT_SPINAL_FLUID = Object.freeze({
   description: "本局 DEF +20，最大 HP +100；当前 HP 不恢复。", atk: 0, def: 20, maxHp: 100,
 });
 
+export const GUN_DEVIL_FRAGMENT = Object.freeze({
+  id: "gun_devil_fragment", name: "枪魔碎片", image: "assets/treasures/gun-devil-fragment.png",
+  description: "本局最大 HP +200；当前 HP 不恢复。", maxHp: 200,
+});
+
 // King's Treasury rewards are data only; their effects are applied by the
 // existing run-character and battle-state rules.
 export const TREASURE_DATA = Object.freeze({

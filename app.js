@@ -2,7 +2,7 @@ import { ANIMATION_TIMING, CHARACTER_DATA, COMBAT_RULES, STAGE_TWO_NORMAL_PASSIV
 import { advanceEventEpilogue, advanceStageTransition, beginJourney, beginStageTwo, beginStageThree, chooseEvolutionUpgrade, chooseRoute, chooseTrialNode, chooseStartingSkill, claimCampaignEliteDrop, claimCampaignReward, claimCampaignSpecialReward, claimCampaignQuinque, claimCampaignTreasure, claimStageTwoEliteSkill, claimStageTwoEliteSkip, claimStageTwoGiantRecipient, claimStageTwoStatReward, completeLocation, completeSettlement, createCampaign, enterTrialMap, finishBattle, finishTrialResult, getActiveCampfireOptions, getCampaignRewardOffer, getCampaignTreasureOffer, getRouteMap, getRouteOptions, getStageTransitionChoices, getStageTwoCampfireOptions, prepareBattle, resolveCampaignEvent, resolveStageTwoCampfire, resolveTrialOffer, resolveTrialWill, selectStartingCharacter, startCampaign, startCampaignEventBattle, STAGE_TWO_STAT_UPGRADES } from "./campaign.js";
 import { getCritChance, getDodgeChance, getSkillDodgeChance, initializeBattle, simulateBattle } from "./battle.js";
 import { canDeclineNewSkill, getSeaBeyondOfferDetails, getSkillAtLevel, getSkillTrainingChoices, getTemporaryCombatModifiers, getTemporaryEffectDisplayRows, getTreasureCombatModifiers, getUnlearnedActiveSkills } from "./progression.js";
-import { ATTRIBUTE_UPGRADES, ELITE_BONUS_REWARDS, GIANT_SPINAL_FLUID, SKILL_DATA, TREASURE_DATA } from "./skills.js";
+import { ATTRIBUTE_UPGRADES, ELITE_BONUS_REWARDS, GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT, SKILL_DATA, TREASURE_DATA } from "./skills.js";
 import { orderRouteOptionsByPosition, shortestRemainingRouteLength, ROUTE_MAP_FINAL_STEP } from "./routeMap.js";
 import { getAnimationFrameFootShift, getAnimationFrameVisualScale, getAnimationVisualOffset, getBorosBeamGeometry, getCharacterVisual, getGravityLiftPixels } from "./visualConfig.js";
 import { battlePlaybackMultiplier, isAutoSpeedActive } from "./battlePlaybackSpeed.js";
@@ -1375,7 +1375,7 @@ function openCharacterDetail(characterId) {
         ? "暴击按最终计算伤害恢复 40% HP，暴击率 +10 个百分点，暴击伤害 +20 个百分点。"
         : passive?.description ?? "";
   const ownedTreasures = run?.permanentEffects?.filter((effect) => TREASURE_DATA[effect.id] ||
-    ["giant_spinal_fluid", "drip_coffee", "six_ear_true_form", "quinque_guard", "quinque_crit", "anteiku_weapon"].includes(effect.id)) ?? [];
+    ["giant_spinal_fluid", "gun_devil_fragment", "drip_coffee", "six_ear_true_form", "quinque_guard", "quinque_crit", "anteiku_weapon"].includes(effect.id)) ?? [];
   const treasureMarkup = ownedTreasures.length
     ? '<section class="detail-skill"><h3>本局宝物</h3>' + ownedTreasures.map((effect) =>
       '<div class="detail-skill-row"><div class="detail-skill-icon">' + (effect.image
@@ -4289,13 +4289,18 @@ function renderBattleReward() {
   if (campaign.rewardPhase === "elite_drop") {
     const enemyIds = campaign.currentBattle?.enemies ?? [];
     const isTitanDuo = enemyIds.includes("armored-titan") && enemyIds.includes("colossal-titan");
-    const item = isTitanDuo ? GIANT_SPINAL_FLUID : TREASURE_DATA.sukuna_finger;
+    const item = isTitanDuo ? GIANT_SPINAL_FLUID
+      : enemyIds.includes("bomb-demon") ? GUN_DEVIL_FRAGMENT : TREASURE_DATA.sukuna_finger;
     const choices = campaign.partyIds.map((id) => {
       const member = partyPresentation(id);
       return decisionChoice(id, member?.name ?? id, `由该角色领取「${item.name}」。`, false, member?.asset ?? null);
     });
     renderDecisionScreen(`精英战利品 · ${item.name}`, item.description, choices, "确认领取", (id) => {
-      if (!claimCampaignEliteDrop(campaign, id)) return false;
+      const result = claimCampaignEliteDrop(campaign, id);
+      if (!result?.status) {
+        $("#decision-copy").textContent = `${item.description} 领取未完成，请重试。`;
+        return false;
+      }
       updateProgressionDisplays(); renderRoute(); return true;
     }, "ACT 03 · ELITE REWARD", item.image, { portraitCards: true });
     return;
