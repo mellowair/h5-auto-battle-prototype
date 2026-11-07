@@ -695,12 +695,28 @@ function eliteDropId(campaign) {
 export function claimCampaignEliteDrop(campaign, recipientId) {
   const dropId = eliteDropId(campaign);
   if (!dropId || campaign?.status !== "reward" || campaign.rewardPhase !== "elite_drop" ||
-    !campaign.partyIds.includes(recipientId) || campaign.eventBattleSourceId ||
-    campaign.activeNode?.status !== "in_progress") return false;
+    !campaign.partyIds.includes(recipientId) || campaign.eventBattleSourceId) return false;
   const sourceId = campaign.rewardBattleId;
   const recipient = campaign.partyStates[recipientId];
   if (!sourceId || !recipient || campaign.partyIds.some((id) => id !== recipientId &&
     campaign.partyStates[id]?.permanentEffects?.some((item) => item.id === dropId && item.sourceId === sourceId))) return false;
+  const routeAlreadyAdvanced = campaign.history?.some((entry) => entry.id === sourceId);
+  if (routeAlreadyAdvanced && campaign.routeMap?.currentNodeId !== sourceId) return false;
+  // A saved run can retain the reward screen after the route node was partly
+  // advanced. Reattach its canonical map node before completing the reward;
+  // the battle ID and history still prevent a second claim.
+  const node = campaign.routeMap?.nodes?.find((entry) => entry.id === sourceId)
+    ?? (campaign.activeNode?.id === sourceId ? campaign.activeNode : null);
+  if (!routeAlreadyAdvanced && (!node ||
+    !["locked", "pending", "entered", "in_progress", "completed"].includes(node.status))) return false;
+  if (!routeAlreadyAdvanced && campaign.activeNode?.id === sourceId && node !== campaign.activeNode) {
+    node.resolution ??= campaign.activeNode.resolution;
+    node.battle ??= campaign.activeNode.battle;
+  }
+  if (!routeAlreadyAdvanced) {
+    node.status = "in_progress";
+    campaign.activeNode = node;
+  }
   // A failed route transition must be retryable without granting the item twice.
   const existing = recipient.permanentEffects?.find((item) => item.id === dropId && item.sourceId === sourceId);
   const effect = existing ?? (dropId === "giant_spinal_fluid"
@@ -712,6 +728,20 @@ export function claimCampaignEliteDrop(campaign, recipientId) {
   campaign.playerHp = campaign.runCharacterState.currentHp;
   campaign.playerMaxHp = campaign.runCharacterState.maxHp;
   const offer = campaign.runCharacterState.rewardOffers?.[sourceId];
+  if (routeAlreadyAdvanced) {
+    // The node was recorded before an interrupted reward cleanup. Keep the
+    // existing route step and item instead of asking the player to claim twice.
+    campaign.activeNode = null;
+    campaign.currentBattle = null;
+    campaign.rewardBattleId = null;
+    campaign.rewardPhase = null;
+    campaign.rewardBattleType = null;
+    campaign.eventBattleSourceId = null;
+    if (offer?.status === "awaiting_bonus") offer.status = "applied";
+    if (campaign.stageId >= 2) campaign.stageTwoReward = null;
+    generateRouteOptions(campaign);
+    return { effect, recipientId, status: campaign.status };
+  }
   const status = finishRewardAndAdvance(campaign);
   if (!status) return false;
   if (offer?.status === "awaiting_bonus") offer.status = "applied";

@@ -1562,7 +1562,12 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
         if (c0Charge) events.push(c0Charge);
         if (targetDied && state.c0 && event.targetId === state.c0.bossId) {
           const c0Explosion = detonateC0(state);
-          if (c0Explosion) events.push(c0Explosion);
+          if (c0Explosion) {
+            events.push(c0Explosion);
+            // The blast can kill Tang while his summon survives. Dismiss the
+            // summon before deciding whether any player character remains.
+            syncTangSummons(state, events);
+          }
         }
         outcome = isBattleOver(state);
         if (outcome || (attacker.elitePassiveId === "toji-heavenly-restriction" && targetDied)) break;

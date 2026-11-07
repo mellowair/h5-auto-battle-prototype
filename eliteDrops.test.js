@@ -2,15 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { STARTING_CHARACTERS } from "./characters.js";
 import { GUN_DEVIL_FRAGMENT } from "./skills.js";
+import { grantGunDevilFragment } from "./progression.js";
 import { advanceStageTransition, beginJourney, beginStageTwo, chooseRoute, claimCampaignEliteDrop, claimCampaignReward,
   claimStageTwoStatReward, completeSettlement, createCampaign, finishBattle, getCampaignRewardOffer,
   getRouteMap, getStageTransitionChoices, prepareBattle, selectStartingCharacter, startCampaign, startStageTwoDirectBattle } from "./campaign.js";
 
-function startHero(seed = 91) {
+function startHero(seed = 91, heroId = "naruto") {
   const campaign = createCampaign(() => .21, { seed });
   startCampaign(campaign);
-  campaign.candidateIds = ["naruto", "eren"];
-  selectStartingCharacter(campaign, "naruto", STARTING_CHARACTERS.find((entry) => entry.id === "naruto").activeSkills[0]);
+  campaign.candidateIds = [heroId, "eren"];
+  selectStartingCharacter(campaign, heroId, STARTING_CHARACTERS.find((entry) => entry.id === heroId).activeSkills[0]);
   beginJourney(campaign);
   return campaign;
 }
@@ -96,6 +97,70 @@ test("Mahito's item reward advances a real route node to the next choice", () =>
   assert.equal(campaign.routeMap.currentNodeId, elite.id);
   assert.equal(campaign.step, elite.step + 1);
   assert.ok(campaign.routeOptions.length > 0);
+});
+
+test("Gun Devil fragment can finish a Tang reward restored from an interrupted save", () => {
+  const campaign = startHero(91, "tang");
+  // Exercise the real route, including the canonical node restored on page load.
+  const map = getRouteMap(campaign);
+  const elite = map.nodes.find((node) => node.type === "elite");
+  const predecessor = map.nodes.find((node) => node.nextNodeIds.includes(elite.id));
+  campaign.routeMap.currentNodeId = predecessor.id;
+  campaign.step = elite.step;
+  campaign.stageStep = elite.step;
+  campaign.routeOptions = [elite];
+  elite.status = "pending";
+  campaign.random = () => .99;
+  assert.ok(chooseRoute(campaign, elite.id));
+  assert.deepEqual(campaign.currentBattle.enemies, ["bomb-demon"]);
+  assert.ok(prepareBattle(campaign));
+  assert.equal(finishBattle(campaign, "victory", campaign.playerHp).next, "reward");
+  const offer = getCampaignRewardOffer(campaign);
+  assert.equal(claimCampaignReward(campaign, offer.statChoices.slice(0, 2)).phase, "elite_drop");
+  // A previous claim could grant the item and stop before route completion.
+  const restored = JSON.parse(JSON.stringify(campaign));
+  restored.random = () => .99;
+  restored.activeNode.status = "completed";
+  restored.routeMap.nodes.find((node) => node.id === elite.id).status = "completed";
+  restored.activeNode = restored.routeMap.nodes.find((node) => node.id === elite.id);
+  const beforeMaxHp = restored.partyStates[restored.playerId].maxHp;
+  const claimed = claimCampaignEliteDrop(restored, restored.playerId);
+  assert.equal(claimed.status, "route");
+  assert.equal(restored.partyStates[restored.playerId].maxHp, beforeMaxHp + 200);
+  assert.equal(restored.routeMap.currentNodeId, elite.id);
+  assert.ok(restored.routeOptions.length > 0);
+  assert.equal(claimCampaignEliteDrop(restored, restored.playerId), false);
+});
+
+test("an interrupted Gun Devil reward does not grant the item twice after route history advanced", () => {
+  const campaign = startHero(91, "tang");
+  const map = getRouteMap(campaign);
+  const elite = map.nodes.find((node) => node.type === "elite");
+  const predecessor = map.nodes.find((node) => node.nextNodeIds.includes(elite.id));
+  campaign.routeMap.currentNodeId = predecessor.id;
+  campaign.step = elite.step;
+  campaign.stageStep = elite.step;
+  campaign.routeOptions = [elite];
+  elite.status = "pending";
+  campaign.random = () => .99;
+  assert.ok(chooseRoute(campaign, elite.id));
+  assert.ok(prepareBattle(campaign));
+  assert.equal(finishBattle(campaign, "victory", campaign.playerHp).next, "reward");
+  const offer = getCampaignRewardOffer(campaign);
+  assert.equal(claimCampaignReward(campaign, offer.statChoices.slice(0, 2)).phase, "elite_drop");
+  const member = campaign.partyStates.tang;
+  const before = member.maxHp;
+  grantGunDevilFragment(member, campaign.rewardBattleId);
+  campaign.activeNode.status = "completed";
+  campaign.history.push({ id: elite.id, status: "completed" });
+  campaign.routeMap.currentNodeId = elite.id;
+  campaign.step += 1;
+  campaign.stageStep += 1;
+  assert.equal(claimCampaignEliteDrop(campaign, "tang").status, "route");
+  assert.equal(member.maxHp, before + 200);
+  assert.equal(member.permanentEffects.filter((effect) => effect.id === "gun_devil_fragment").length, 1);
+  assert.ok(campaign.routeOptions.length > 0);
+  assert.equal(claimCampaignEliteDrop(campaign, "tang"), false);
 });
 
 function stageTwoRun() {

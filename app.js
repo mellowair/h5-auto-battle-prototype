@@ -2285,10 +2285,24 @@ function playEvent(event, finish) {
           target.shieldHp = result.targetShield;
           target.alive = result.hpAfter > 0;
           updateHealth(target);
+          const fighter = document.querySelector(`[data-character="${target.id}"]`);
+          const number = fighter?.querySelector(".damage-number");
+          if (number && (result.actualDamage > 0 || result.shieldAbsorbed > 0)) {
+            number.textContent = result.actualDamage > 0 ? `-${result.actualDamage}` : `护盾 -${result.shieldAbsorbed}`;
+            number.classList.remove("is-heal", "pop");
+            void number.offsetWidth;
+            number.classList.add("pop");
+          }
+          const burst = fighter?.querySelector(".impact-burst");
+          if (burst && (result.actualDamage > 0 || result.shieldAbsorbed > 0)) {
+            burst.classList.remove("play");
+            void burst.offsetWidth;
+            burst.classList.add("play");
+          }
         }
         $("#battle-stamp").textContent = "C0 引爆！";
         $("#battle-stamp").className = "battle-stamp skill-stamp show";
-        addLog(`<b>C0 终极艺术引爆！</b> 每名存活角色承受 ${event.damage} 点真实伤害（${event.completedRounds} 个完整回合）。${(event.targets ?? []).map((result) => `${viewState.characters.find((unit) => unit.id === result.targetId)?.name ?? result.targetId} HP ${result.hpBefore} → ${result.hpAfter}`).join("；")}。`, "log-death");
+        addLog(`<b>C0 终极艺术引爆！</b> 每名存活角色承受 ${event.damage} 点真实伤害（${event.completedRounds} 个完整回合）。${(event.targets ?? []).map((result) => `${viewState.characters.find((unit) => unit.id === result.targetId)?.name ?? result.targetId} HP ${result.hpBefore} → ${result.hpAfter}${result.shieldAbsorbed ? `（护盾吸收 ${result.shieldAbsorbed}）` : ""}`).join("；")}。`, "log-death");
         finish();
       };
       timer = window.setTimeout(() => {
@@ -4298,11 +4312,14 @@ function renderBattleReward() {
     renderDecisionScreen(`精英战利品 · ${item.name}`, item.description, choices, "确认领取", (id) => {
       const result = claimCampaignEliteDrop(campaign, id);
       if (!result?.status) {
-        $("#decision-copy").textContent = `${item.description} 领取未完成，请重试。`;
+        console.error("精英战利品领取未完成", { itemId: item.id, recipientId: id,
+          rewardBattleId: campaign.rewardBattleId, rewardPhase: campaign.rewardPhase,
+          nodeId: campaign.activeNode?.id, nodeStatus: campaign.activeNode?.status });
+        $("#decision-copy").textContent = `${item.description} 领取未完成，请再次点击确认领取；若仍无法继续，请截取此处提示。`;
         return false;
       }
       updateProgressionDisplays(); renderRoute(); return true;
-    }, "ACT 03 · ELITE REWARD", item.image, { portraitCards: true, autoConfirm: true });
+    }, "ACT 03 · ELITE REWARD", item.image, { portraitCards: true });
     return;
   }
   const offer = getCampaignRewardOffer(campaign);

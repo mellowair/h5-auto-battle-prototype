@@ -37,6 +37,21 @@ test("C0 true damage is absorbed by an existing shield for each ally", () => {
   assert.ok(blast.targets.every((target) => target.hpAfter === target.hpBefore));
 });
 
+test("C0 kills Tang at the damage threshold and dismisses his surviving summon", () => {
+  const result = simulateBattle([
+    unit("tang", "ally", { hp: 100, atk: 200, spd: 10, row: "back" }),
+    unit("tang-wukong-1", "ally", { hp: 4300, atk: 1, spd: 20, rosterOrder: 1,
+      summonerId: "tang", tangSummonKind: "wukong" }),
+    unit("deidara", "enemy", { hp: 150, atk: 1, spd: 100, c0DamagePerRound: 100 }),
+  ], () => .99, { playerId: "tang" });
+  const blast = result.events.find((event) => event.type === "c0-detonate");
+  assert.ok(blast);
+  assert.deepEqual(blast.targets.map((target) => target.targetId), ["tang", "tang-wukong-1"]);
+  assert.equal(blast.targets.find((target) => target.targetId === "tang").hpAfter, 0);
+  assert.equal(result.outcome, "defeat");
+  assert.ok(result.events.some((event) => event.type === "summon-dismissed" && event.targetId === "tang-wukong-1"));
+});
+
 test("both Naruto forms use 50% Lv4 clone splash against a sole target", () => {
   for (const skillId of ["shadow-clone-rush", "naruto-multi-clone"]) {
     const clone = { ...SKILL_DATA[skillId], ...SKILL_DATA[skillId].levels[4], chance: 1, level: 4 };
