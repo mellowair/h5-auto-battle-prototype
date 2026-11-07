@@ -92,12 +92,27 @@ export function getTreasureCombatModifiers(runState) {
     if (effect.id === "six_ear_true_form") modifiers.unavoidableAttack = true;
     const treasure = TREASURE_DATA[effect.id];
     if (!treasure) continue;
-    modifiers.damageReduction += treasure.damageReduction ?? 0;
-    modifiers.dodgeRateBonus += treasure.dodgeRateBonus ?? 0;
-    modifiers.lifesteal += treasure.lifesteal ?? 0;
+    modifiers.damageReduction += effect.damageReduction ?? treasure.damageReduction ?? 0;
+    modifiers.dodgeRateBonus += effect.dodgeRateBonus ?? treasure.dodgeRateBonus ?? 0;
+    modifiers.lifesteal += effect.lifesteal ?? treasure.lifesteal ?? 0;
     modifiers.normalAttackCurrentHpRatio += treasure.normalAttackCurrentHpRatio ?? 0;
   }
   return modifiers;
+}
+
+function treasureAttributeMultiplier(member, treasureId) {
+  return member.permanentEffects.some((effect) => effect.id === treasureId) ? 1.5 : 1;
+}
+
+function scaledTreasureAttribute(value, multiplier) {
+  return value > 0 ? value * multiplier : value;
+}
+
+function repeatedTreasureDescription(treasure, multiplier, gains) {
+  if (multiplier === 1) return treasure.description;
+  const parts = Object.entries(gains).filter(([, value]) => value !== 0).map(([key, value]) =>
+    `${{ atk: "ATK", def: "DEF", maxHp: "最大 HP", damageReduction: "伤害减免", dodgeRateBonus: "闪避率", critRateBonus: "暴击率", lifesteal: "吸血" }[key]} ${value > 0 ? "+" : ""}${key.endsWith("Bonus") || ["damageReduction", "lifesteal"].includes(key) ? `${value * 100}%` : value}`);
+  return parts.length ? `重复获得，本次${parts.join("、")}。其余效果不变。` : treasure.description;
 }
 
 export function createTreasureOffer(runState, sourceId, tier, random = Math.random) {
@@ -124,12 +139,17 @@ export function claimTreasure(runState, sourceId, treasureId, recipientState, re
     recipientState.characterId !== recipientId) return false;
   const key = makeActionKey("treasure", sourceId);
   if (!recordAction(recipientState, key)) return false;
-  if (treasure.atk) recipientState.atk += treasure.atk;
-  if (treasure.maxHp) recipientState.maxHp = Math.max(1, recipientState.maxHp + treasure.maxHp);
+  const multiplier = treasureAttributeMultiplier(recipientState, treasureId);
+  const gains = Object.fromEntries(["atk", "maxHp", "damageReduction", "dodgeRateBonus", "critRateBonus", "lifesteal"]
+    .filter((stat) => Number.isFinite(treasure[stat]))
+    .map((stat) => [stat, scaledTreasureAttribute(treasure[stat], multiplier)]));
+  if (gains.atk) recipientState.atk += gains.atk;
+  if (gains.maxHp) recipientState.maxHp = Math.max(1, recipientState.maxHp + gains.maxHp);
   recipientState.currentHp = Math.min(recipientState.currentHp, recipientState.maxHp);
-  if (treasure.critRateBonus) recipientState.critRate = Math.min(COMBAT_RULES.maxCritChance, recipientState.critRate + treasure.critRateBonus);
+  if (gains.critRateBonus) recipientState.critRate = Math.min(COMBAT_RULES.maxCritChance, recipientState.critRate + gains.critRateBonus);
   if (treasure.id === "angel_breath" && !(recipientState.divinePunishment?.battlesLeft > 0)) recipientState.currentHp = recipientState.maxHp;
-  recipientState.permanentEffects.push({ id: treasure.id, name: treasure.name, description: treasure.description, sourceId });
+  recipientState.permanentEffects.push({ id: treasure.id, name: treasure.name,
+    description: repeatedTreasureDescription(treasure, multiplier, gains), sourceId, ...gains });
   offer.claimed = true;
   offer.treasureId = treasureId;
   offer.recipientId = recipientId;
@@ -834,7 +854,11 @@ export function grantGiantSpinalFluid(member, sourceId) {
   ensureRunState(member);
   const key = makeActionKey("giant-spinal-fluid", sourceId);
   if (!recordAction(member, key)) return false;
-  const effect = { ...GIANT_SPINAL_FLUID, sourceId };
+  const multiplier = treasureAttributeMultiplier(member, GIANT_SPINAL_FLUID.id);
+  const effect = { ...GIANT_SPINAL_FLUID, sourceId,
+    def: scaledTreasureAttribute(GIANT_SPINAL_FLUID.def, multiplier),
+    maxHp: scaledTreasureAttribute(GIANT_SPINAL_FLUID.maxHp, multiplier) };
+  effect.description = repeatedTreasureDescription(GIANT_SPINAL_FLUID, multiplier, effect);
   member.atk += effect.atk;
   member.def += effect.def;
   member.maxHp += effect.maxHp;
@@ -847,10 +871,13 @@ export function grantEliteSukunaFinger(member, sourceId) {
   ensureRunState(member);
   const treasure = TREASURE_DATA.sukuna_finger;
   if (!recordAction(member, makeActionKey("elite-treasure", sourceId))) return false;
-  member.atk += treasure.atk;
+  const multiplier = treasureAttributeMultiplier(member, treasure.id);
+  const attackGain = scaledTreasureAttribute(treasure.atk, multiplier);
+  member.atk += attackGain;
   member.maxHp = Math.max(1, member.maxHp + treasure.maxHp);
   member.currentHp = Math.min(member.currentHp, member.maxHp);
-  const effect = { id: treasure.id, name: treasure.name, image: treasure.image, description: treasure.description, sourceId };
+  const effect = { id: treasure.id, name: treasure.name, image: treasure.image,
+    description: repeatedTreasureDescription(treasure, multiplier, { atk: attackGain, maxHp: treasure.maxHp }), sourceId, atk: attackGain };
   member.permanentEffects.push(effect);
   return effect;
 }
@@ -858,7 +885,10 @@ export function grantEliteSukunaFinger(member, sourceId) {
 export function grantGunDevilFragment(member, sourceId) {
   ensureRunState(member);
   if (!recordAction(member, makeActionKey("elite-treasure", sourceId))) return false;
-  const effect = { ...GUN_DEVIL_FRAGMENT, sourceId };
+  const multiplier = treasureAttributeMultiplier(member, GUN_DEVIL_FRAGMENT.id);
+  const effect = { ...GUN_DEVIL_FRAGMENT, sourceId,
+    maxHp: scaledTreasureAttribute(GUN_DEVIL_FRAGMENT.maxHp, multiplier) };
+  effect.description = repeatedTreasureDescription(GUN_DEVIL_FRAGMENT, multiplier, effect);
   member.maxHp += effect.maxHp;
   member.currentHp = Math.min(member.currentHp, member.maxHp);
   member.permanentEffects.push(effect);

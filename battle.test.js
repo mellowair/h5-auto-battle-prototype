@@ -23,9 +23,9 @@ test("uses the configured dodge, critical, and damage formulas", () => {
   assert.equal(getSkillDodgeChance({ spd: 9999 }), COMBAT_RULES.skillDodgeChanceCap);
   assert.equal(getDodgeChance({ spd: 9999 }), COMBAT_RULES.maxDodgeChance);
   assert.equal(getCritChance(naruto), 0.05);
-  assert.equal(calculateDamage(naruto, guard), 121);
-  assert.equal(calculateDamage(naruto, guard, 1.8), 218);
-  assert.equal(calculateDamage(naruto, guard, COMBAT_RULES.critMultiplier), 182);
+  assert.equal(calculateDamage(naruto, guard), 135);
+  assert.equal(calculateDamage(naruto, guard, 1.8), 244);
+  assert.equal(calculateDamage(naruto, guard, COMBAT_RULES.critMultiplier), 203);
 });
 
 test("the retained 100/(100+DEF) coefficient stays finite at negative DEF", () => {
@@ -221,16 +221,16 @@ test("Naruto's Jinchuriki triggers once on the first attack below half HP and re
     assert.equal(result.jinchurikiTriggered,null, "exactly 50 percent and above do not trigger");
     atHalf.characters.find(c=>c.id==="naruto").currentHp=799;
     const triggered=executeAttack(atHalf,atHalf.characters.find(c=>c.id==="naruto"),dummy,()=>0.99);
-    assert.equal(triggered.jinchurikiTriggered.effectiveAtk,212);
-    assert.equal(atHalf.characters.find(c=>c.id==="naruto").atk,212);
+    assert.equal(triggered.jinchurikiTriggered.effectiveAtk,237);
+    assert.equal(atHalf.characters.find(c=>c.id==="naruto").atk,237);
     atHalf.characters.find(c=>c.id==="naruto").currentHp=900;
     const later=executeAttack(atHalf,atHalf.characters.find(c=>c.id==="naruto"),dummy,()=>0.99);
-    assert.equal(later.jinchurikiTriggered,null); assert.equal(atHalf.characters.find(c=>c.id==="naruto").atk,212);
-    assert.equal(run.atk,170,"battle buff never mutates persistent base stats");
+    assert.equal(later.jinchurikiTriggered,null); assert.equal(atHalf.characters.find(c=>c.id==="naruto").atk,237);
+    assert.equal(run.atk,190,"battle buff never mutates persistent base stats");
   }
   const next=initializeBattle([enemy,hero(799)],{runCharacterState:run,playerId:"naruto",battleId:"new-battle"});
   const dummy={id:"dummy",team:"enemy",def:0,currentHp:5000,maxHp:5000,alive:true,spd:1}; next.characters.push(dummy);
-  assert.equal(executeAttack(next,next.characters.find(c=>c.id==="naruto"),dummy,()=>0.99).jinchurikiTriggered.effectiveAtk,212);
+  assert.equal(executeAttack(next,next.characters.find(c=>c.id==="naruto"),dummy,()=>0.99).jinchurikiTriggered.effectiveAtk,237);
 });
 
 test("Eren's 2000 Years passive blocks only his first incoming attack each battle", () => {

@@ -56,7 +56,7 @@ test("Jason max HP reduction survives battle settlement and the next roster with
     initial, "a new run starts from its normal maximum HP");
 });
 
-test("Toji's fifth combo strike activates 1.5x damage taken while he keeps acting", () => {
+test("Toji's fifth combo strike activates 1.5x damage taken and skips one action", () => {
   const template = ELITE_ENEMY_DATA.find((entry) => entry.id === "toji");
   assert.deepEqual([template.hp, template.atk, template.def, template.spd], [2600, 330, 120, 220]);
   const result = simulateBattle([unit("hero", "ally", { hp: 10000, currentHp: 10000,
@@ -69,8 +69,10 @@ test("Toji's fifth combo strike activates 1.5x damage taken while he keeps actin
   assert.equal(fifth.segmentIndex, 5);
   assert.equal(result.events.filter((event) => event.type === "toji-exhausted").length, 1);
   const nextRound = result.events[index].round + 1;
-  assert.equal(result.events.some((event) => event.type === "toji-skip"), false);
-  assert.ok(result.events.some((event) => event.type === "attack" && event.attackerId === "toji" && event.round === nextRound));
+  assert.equal(result.events.filter((event) => event.type === "toji-skip").length, 1);
+  assert.ok(result.events.some((event) => event.type === "toji-skip" && event.round === nextRound));
+  assert.equal(result.events.some((event) => event.type === "attack" && event.attackerId === "toji" && event.round === nextRound), false);
+  assert.ok(result.events.some((event) => event.type === "attack" && event.attackerId === "toji" && event.round > nextRound));
   const nextHit = result.events.slice(index + 1).find((event) => event.type === "attack" && event.targetId === "toji");
   assert.ok(nextHit);
   assert.equal(nextHit.damage, 67, "100 ATK against 120 DEF floors to 45, then multiplies by 1.5 and floors");

@@ -727,6 +727,7 @@ h2 { margin: 0; color: #3a455c; font-size: 11px; font-weight: 900; }
 .route-map-dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .route-map-dialog-header h2 { margin: 3px 0 0; font-size: 17px; }
 .route-map-readonly-note { margin: 6px 0 9px; color: #717e82; font-size: 10px; }
+.route-selection-feedback { color: #7c4b19 !important; font-weight: 800; }
 .route-map-dialog .route-map-scroll { flex: 1 1 auto; min-height: 300px; max-height: min(65dvh, 680px); background-attachment: scroll; }
 .route-map-world { min-height: 1100px; }
 .route-map-node { width: clamp(56px, 10vw, 72px); height: clamp(58px, 11vw, 74px); gap: 0; padding: 3px; background: rgba(24,35,53,.9); border-radius: 9px; cursor: default; font: inherit; text-align: center; }

@@ -116,7 +116,7 @@ test("level-two passives apply in combat without permanently multiplying base st
   const triggered = executeAttack(narutoState, narutoState.characters[0], narutoState.characters[1], () => .99, { skill: null });
   assert.equal(triggered.jinchurikiTriggered.effectiveAtk, Math.floor(narutoRun.atk * 1.30));
   assert.equal(triggered.jinchurikiLifesteal, Math.floor(triggered.actualDamage * .20));
-  assert.equal(narutoRun.atk, 170, "the battle-only attack boost does not mutate run growth");
+  assert.equal(narutoRun.atk, 190, "the battle-only attack boost does not mutate run growth");
 
   const kaneki = initializeBattle([ally("kaneki", { hp: 1000, currentHp: 100, atk: 200, critChance: 1,
     passiveSkillId: "kaneki-one-eye", passiveLevel: 2 }), enemy("foe", { hp: 10, currentHp: 10, def: 0 })]);
@@ -179,7 +179,7 @@ test("Gilgamesh gains separate 20 point dodge bonuses and the third cast heals w
     enemy("gilgamesh", { hp: 4200, currentHp: 4100, atk: 180, spd: 100, skills: [skill] })], () => .99);
   const heal = result.events.find((event) => event.type === "gilgamesh-heal");
   assert.ok(heal);
-  assert.equal(heal.hpAfter, Math.min(4200, heal.hpBefore + 300));
+  assert.equal(heal.hpAfter, Math.min(4200, heal.hpBefore + 100));
   assert.equal(heal.healedAmount, heal.hpAfter - heal.hpBefore);
   assert.ok(result.events.some((event) => event.round === heal.round + 1 && event.attackerId === "gilgamesh" && event.gilgameshCast === 4));
 });

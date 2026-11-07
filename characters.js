@@ -105,7 +105,7 @@ export const EVENT_ENEMY_DATA = Object.freeze({
 export const TRIAL_ENEMY_DATA = Object.freeze({
   heracles: { id: "heracles", name: "赫拉克勒斯", team: "enemy", type: "elite", role: "诸神试炼 · 力量", row: "front", position: "front",
     hp: 3000, atk: 550, def: 200, spd: 100, asset: "assets/trial-enemies/赫拉克勒斯.png", visualId: "heracles", attackType: "melee",
-    activeSkills: ["heracles-nine-heads"], trialPassive: "heracles", rosterOrder: 2,
+    activeSkills: ["heracles-nine-heads"], trialPassive: "heracles", trialPassiveSkill: { name: "不死试炼", description: "首次倒地后进入不死模式，抵挡接下来的 12 次攻击。" }, rosterOrder: 2,
     skillAnimationMap: { "heracles-nine-heads": "nineHeads" },
     animations: { idle: { type: "frames", frames: { idle: "assets/trial-enemies/赫拉克勒斯.png" } },
       meleeAttack: { type: "frames", frames: { punch: "assets/trial-enemies/赫拉克勒斯攻击.png" }, impactFrames: ["punch"] },
@@ -116,7 +116,7 @@ export const TRIAL_ENEMY_DATA = Object.freeze({
       nineHeads: { type: "frames", frames: { charge: "assets/trial-enemies/赫拉克勒斯蓄力.png", strike: "assets/trial-enemies/赫拉克勒斯技能.png" }, durationsMs: [500, 450] } } },
   odin: { id: "odin", name: "奥丁", team: "enemy", type: "elite", role: "诸神试炼 · 智慧", row: "back", position: "back",
     hp: 2500, atk: 500, def: 100, spd: 100, asset: "assets/trial-enemies/奥丁.png", visualId: "odin", attackType: "magic", attackAnimation: "magicAttack",
-    activeSkills: ["odin-gungnir"], extraPassiveSkillIds: ["odin-ravens"], trialPassive: "odin", rosterOrder: 2,
+    activeSkills: ["odin-gungnir"], extraPassiveSkillIds: ["odin-ravens"], trialPassive: "odin", trialPassiveSkill: { name: "奥丁的庇护", description: "受伤比例随回合变化，每 10 回合重置；周期首回合免疫伤害。" }, rosterOrder: 2,
     projectileAsset: "assets/trial-enemies/奥丁施法素材.png",
     skillAnimationMap: { "odin-gungnir": "gungnir" },
     animations: { idle: { type: "frames", frames: { idle: "assets/trial-enemies/奥丁.png" } },
@@ -128,22 +128,22 @@ export const TRIAL_ENEMY_DATA = Object.freeze({
   zhang_jiao: { id: "zhang_jiao", name: "张角", team: "enemy", role: "试炼敌人", row: "back", position: "back",
     asset: "assets/trial-enemies/zhang-jiao.png", visualId: "zhang_jiao", attackType: "magic", activeSkills: ["zhang-jiao-lightning"] },
   jogo: { id: "jogo", name: "漏壶", team: "enemy", role: "试炼敌人", row: "front", position: "front",
-    asset: "assets/trial-enemies/jogo.png", visualId: "jogo", attackType: "magic", trialPassive: "jogo" },
+    asset: "assets/trial-enemies/jogo.png", visualId: "jogo", attackType: "magic", trialPassive: "jogo", trialPassiveSkill: { name: "灼烧", description: "攻击造成有效伤害时，使目标增加 5 层灼烧。" } },
   esdeath: { id: "esdeath", name: "艾斯德斯", team: "enemy", role: "试炼敌人", row: "back", position: "back",
-    asset: "assets/trial-enemies/esdeath.png", visualId: "esdeath", attackType: "magic", trialPassive: "esdeath" },
+    asset: "assets/trial-enemies/esdeath.png", visualId: "esdeath", attackType: "magic", trialPassive: "esdeath", trialPassiveSkill: { name: "冰冻", description: "开战冻结所有存活对手至第 2 回合，并使其战斗 SPD -80。" } },
   hidan: { id: "hidan", name: "飞段", team: "enemy", role: "试炼敌人", row: "front", position: "front",
-    asset: "assets/trial-enemies/hidan.png", visualId: "hidan", attackType: "melee", trialPassive: "hidan" },
+    asset: "assets/trial-enemies/hidan.png", visualId: "hidan", attackType: "melee", trialPassive: "hidan", trialPassiveSkill: { name: "不死诅咒", description: "受到的伤害延迟 3 个战斗回合结算。" } },
   nami: { id: "nami", name: "娜美", team: "enemy", role: "试炼敌人", row: "back", position: "back",
-    asset: "assets/trial-enemies/nami.png", visualId: "nami", attackType: "melee", trialPassive: "ah_fu" },
+    asset: "assets/trial-enemies/nami.png", visualId: "nami", attackType: "melee", trialPassive: "ah_fu", trialPassiveSkill: { name: "窃取", description: "开战偷取一名对手至多 60 DEF；第 5 回合逃离，被击败则归还。" } },
   scorpion_lailai: { id: "scorpion_lailai", name: "蝎子莱莱", team: "enemy", role: "试炼敌人", row: "front", position: "front",
-    asset: "assets/trial-enemies/scorpion-lailai.png", visualId: "scorpion_lailai", attackType: "melee", trialPassive: "scorpion_lailai" },
+    asset: "assets/trial-enemies/scorpion-lailai.png", visualId: "scorpion_lailai", attackType: "melee", trialPassive: "scorpion_lailai", trialPassiveSkill: { name: "疗伤", description: "受到有效伤害时，为每名存活队友恢复该次伤害 30% 的 HP。" } },
 });
 
 // All balance values and lineup order live here.
 export const CHARACTER_DATA = [
   {
     id: "naruto", name: "鸣人", team: "ally", role: "战士", row: "front", position: "front",
-    hp: 1600, atk: 170, def: 70, spd: 85, baseStats: { maxHp: 1600, atk: 170, def: 70, spd: 85, critRate: 0.05, critMultiplier: 1.5 },
+    hp: 1600, atk: 190, def: 70, spd: 85, baseStats: { maxHp: 1600, atk: 190, def: 70, spd: 85, critRate: 0.05, critMultiplier: 1.5 },
     activeSkills: ["shadow-clone-rush", "rasengan"], passiveSkillId: "jinchuriki", attackType: "melee",
     skillAnimationMap: { "shadow-clone-rush": "skill1_shadow_clone", rasengan: "skill2_rasengan" },
     skill: { id: "shadow-clone-rush", name: "影分身突袭", chance: 0.45, multiplier: 1.8, effectType: "damage", attackType: "melee" }, deathPose: "cute-flop",
@@ -269,7 +269,7 @@ export const STARTING_CHARACTERS = [
     ] },
   {
     id: "eren", name: "艾伦", team: "ally", role: "调查兵", row: "front", position: "front",
-    hp: 1900, atk: 120, def: 90, spd: 50, baseStats: { maxHp: 1900, atk: 120, def: 90, spd: 50, critRate: 0.05, critMultiplier: 1.5 },
+    hp: 1900, atk: 140, def: 90, spd: 50, baseStats: { maxHp: 1900, atk: 140, def: 90, spd: 50, critRate: 0.05, critMultiplier: 1.5 },
     activeSkills: ["eren-free-will", "eren-tatakae"], passiveSkillId: "eren-2000-years", skill: null, attackType: "melee", deathPose: "cute-flop",
     asset: "assets/eren-v1/idle.png", rosterOrder: 0, entryPose: "steady",
     skillAnimationMap: { "eren-free-will": "skill1", "eren-tatakae": "skill2" },
@@ -317,8 +317,8 @@ export const STARTING_CHARACTERS = [
   },
   {
     id: "kaneki", name: "金木研", team: "ally", role: "刺客", row: "front", position: "front",
-    hp: 1300, atk: 200, def: 40, spd: 125,
-    baseStats: { maxHp: 1300, atk: 200, def: 40, spd: 125, critRate: 0.05, critMultiplier: 1.5 },
+    hp: 1300, atk: 220, def: 40, spd: 125,
+    baseStats: { maxHp: 1300, atk: 220, def: 40, spd: 125, critRate: 0.05, critMultiplier: 1.5 },
     activeSkills: ["kaneki-predator", "kaneki-1000-7"], passiveSkillId: "kaneki-one-eye",
     attackType: "melee", deathPose: "cute-flop", rosterOrder: 0,
     asset: "assets/kaneki/idle.png", visualId: "kaneki",
@@ -553,7 +553,7 @@ export const CAMPAIGN_BATTLES = [
   { number: 1, type: "normal", title: "风车原野", location: "风车原野", description: "击退拦路的敌人。", enemies: ["guard"], enemyNames: { guard: "巨人" } },
   { number: 2, type: "normal", title: "溪谷小径", location: "溪谷小径", description: "穿过溪谷，继续前进。", enemies: ["mage"], enemyNames: { mage: "小法师" } },
   { number: 3, type: "normal-hard", title: "古木关隘", location: "古木关隘", description: "更强的敌人守着关口。", enemies: ["guard", "mage"], enemyNames: { guard: "巨人", mage: "小法师" } },
-  { number: 5, type: "boss", title: "迪达拉", location: "迪达拉的艺术现场", description: "击败迪达拉，完成第一大关。", enemies: ["guard"], enemyNames: { guard: "迪达拉" }, enemyBaseStats: { guard: { hp: 1400, atk: 150, def: 40, spd: 75 } }, enemyMechanics: { guard: { c0DamagePerRound: 100 } } },
+  { number: 5, type: "boss", title: "迪达拉", location: "迪达拉的艺术现场", description: "击败迪达拉，完成第一大关。", enemies: ["guard"], enemyNames: { guard: "迪达拉" }, enemyBaseStats: { guard: { hp: 1400, atk: 130, def: 40, spd: 75 } }, enemyMechanics: { guard: { c0DamagePerRound: 70 } } },
 ];
 
 export const ADVENTURE_EVENTS = [

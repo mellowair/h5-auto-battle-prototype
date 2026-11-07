@@ -54,7 +54,7 @@ export const SKILL_DATA = {
     levels: { 1: { healFromCalculatedDamage: .3, emergencyThreshold: .4, critDamageBonus: .4, durationRounds: 3, killAttackBonus: 10 } } },
   "kaneki-glutton": { id: "kaneki-glutton", name: "暴食者", type: "active", triggerType: "on_action", maxLevel: 4,
     description: "以攻击与速度造成伤害；目标血量低于等级阈值时必暴击。",
-    levels: Object.fromEntries([[.6,1.2,.3,0],[.65,1.3,.3,0],[.7,1.4,.4,0],[.7,1.4,.5,100]].map(([chance,multiplier,guaranteedCritBelowHpRatio,killMaxHpBonus], index) =>
+    levels: Object.fromEntries([[.6,1.2,.3,50],[.65,1.3,.3,50],[.7,1.4,.4,50],[.7,1.4,.5,100]].map(([chance,multiplier,guaranteedCritBelowHpRatio,killMaxHpBonus], index) =>
       [index + 1, { chance, multiplier, guaranteedCritBelowHpRatio, killMaxHpBonus, lowestDefenseTarget: index === 3,
         attackFormula: "atk_plus_spd", effectType: "damage", attackType: "melee" }])) },
   "kaneki-2000-14": { id: "kaneki-2000-14", name: "2000-14", type: "active", triggerType: "on_damage", maxLevel: 4,
@@ -141,7 +141,7 @@ export const SKILL_DATA = {
     levels: { 1: { chance: 0.40, effectType: "rewind" } },
   },
   "toji-heavenly-restriction": {
-    id: "toji-heavenly-restriction", name: "天予咒缚", type: "passive", description: "行动时速度高于目标则连击；每次满足条件，连击段数递增。同一次连击实际打出第 5 段后，本场受到的最终伤害变为 1.5 倍，仍可正常行动。",
+    id: "toji-heavenly-restriction", name: "天予咒缚", type: "passive", description: "行动时速度高于目标则连击；每次满足条件，连击段数递增。同一次连击实际打出第 5 段后，本场受到的最终伤害变为 1.5 倍，并跳过下一次行动。",
     maxLevel: 1, levels: { 1: {} },
   },
   "killer-queen": {
@@ -158,7 +158,7 @@ export const SKILL_DATA = {
     castPhases: {
       1: { multiplier: 1.3, weaknessDamageReduction: 0.5 },
       2: { multiplier: 0.9, ignoreDefenseFraction: 0.4, targetRule: "all_living" },
-      3: { selfHeal: 300 },
+      3: { selfHeal: 100 },
       4: { trueDamageRatio: 0.4, targetRule: "lowest_current_hp" },
     },
     levels: { 1: { chance: 1, multiplier: 1.3, effectType: "damage", attackType: "magic" } },
@@ -330,7 +330,7 @@ export const ATTRIBUTE_UPGRADES = [
 ];
 
 export const CAMPFIRE_RULES = {
-  rest: { id: "rest", name: "休息", healFraction: 0.25 },
+  rest: { id: "rest", name: "休息", healFraction: 0.40 },
   skillUpgrade: { id: "skill_upgrade", name: "技能升级" },
 };
 

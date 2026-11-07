@@ -347,8 +347,8 @@ test("stage-two campfire heals both or upgrades each eligible member once", () =
   const options = getStageTwoCampfireOptions(campaign);
   assert.equal(options.length, 2);
   assert.ok(resolveStageTwoCampfire(campaign, "rest"));
-  assert.equal(campaign.runCharacterState.currentHp, 1 + Math.floor(campaign.runCharacterState.maxHp * .25));
-  assert.equal(campaign.partyStates[partnerId].currentHp, 1 + Math.floor(campaign.partyStates[partnerId].maxHp * .25));
+  assert.equal(campaign.runCharacterState.currentHp, 1 + Math.floor(campaign.runCharacterState.maxHp * .40));
+  assert.equal(campaign.partyStates[partnerId].currentHp, 1 + Math.floor(campaign.partyStates[partnerId].maxHp * .40));
   assert.equal(resolveStageTwoCampfire(campaign, "rest"), false);
 });
 

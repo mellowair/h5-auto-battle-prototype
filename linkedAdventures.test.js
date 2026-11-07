@@ -285,8 +285,8 @@ test("special rewards are one-recipient, post-victory, and campfire/anti-dodge m
   assert.equal(advanceEventEpilogue(c), false);
   assert.equal(claimCampaignSpecialReward(c, "eren").id, "drip_coffee");
   assert.equal(claimCampaignSpecialReward(c, "naruto"), false);
-  assert.equal(getCampfireOptions(c.partyStates.eren)[0].healAmount, Math.floor(c.partyStates.eren.maxHp * .4));
-  assert.equal(getCampfireOptions(c.partyStates.naruto)[0].healAmount, Math.floor(c.partyStates.naruto.maxHp * .25));
+  assert.equal(getCampfireOptions(c.partyStates.eren)[0].healAmount, Math.floor(c.partyStates.eren.maxHp * .55));
+  assert.equal(getCampfireOptions(c.partyStates.naruto)[0].healAmount, Math.floor(c.partyStates.naruto.maxHp * .40));
   c.partyStates.eren.permanentEffects.push({ id: "stone_mask" });
   assert.equal(getCampfireOptions(c.partyStates.eren)[0].healAmount, 0);
 

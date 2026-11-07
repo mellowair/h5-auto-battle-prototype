@@ -161,15 +161,15 @@ test("heart choice grants spinal fluid once on victory without healing current H
   const prepared = prepareBattle(campaign);
   assert.equal(prepared.roster.find((unit) => unit.id === "dina").maxHp, 1000);
   assert.equal(finishBattle(campaign, "victory", 800).next, "reward");
-  assert.deepEqual([campaign.runCharacterState.atk, campaign.runCharacterState.def, campaign.runCharacterState.maxHp, campaign.runCharacterState.currentHp], [170, 90, 1700, 800]);
+  assert.deepEqual([campaign.runCharacterState.atk, campaign.runCharacterState.def, campaign.runCharacterState.maxHp, campaign.runCharacterState.currentHp], [190, 90, 1700, 800]);
   assert.equal(campaign.runCharacterState.permanentEffects.length, 1);
   assert.equal(finishBattle(campaign, "victory", 800), false);
-  assert.deepEqual([campaign.runCharacterState.atk, campaign.runCharacterState.def, campaign.runCharacterState.maxHp], [170, 90, 1700]);
+  assert.deepEqual([campaign.runCharacterState.atk, campaign.runCharacterState.def, campaign.runCharacterState.maxHp], [190, 90, 1700]);
   const next = createCampaign(() => 0, { seed: 8 });
   startCampaign(next);
   next.candidateIds = ["naruto", "eren"];
   selectStartingCharacter(next, "naruto", "shadow-clone-rush");
-  assert.deepEqual([next.runCharacterState.atk, next.runCharacterState.def, next.runCharacterState.maxHp], [170, 70, 1600]);
+  assert.deepEqual([next.runCharacterState.atk, next.runCharacterState.def, next.runCharacterState.maxHp], [190, 70, 1600]);
 });
 
 test("winning after a failed escape keeps the normal battle reward but never grants spinal fluid", () => {
@@ -178,7 +178,7 @@ test("winning after a failed escape keeps the normal battle reward but never gra
   startCampaignEventBattle(campaign);
   prepareBattle(campaign);
   assert.equal(finishBattle(campaign, "victory", 700).next, "reward");
-  assert.deepEqual([campaign.runCharacterState.atk, campaign.runCharacterState.def, campaign.runCharacterState.maxHp, campaign.runCharacterState.currentHp], [170, 70, 1600, 700]);
+  assert.deepEqual([campaign.runCharacterState.atk, campaign.runCharacterState.def, campaign.runCharacterState.maxHp, campaign.runCharacterState.currentHp], [190, 70, 1600, 700]);
   assert.equal(campaign.runCharacterState.permanentEffects.length, 0);
 });
 

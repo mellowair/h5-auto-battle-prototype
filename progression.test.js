@@ -10,6 +10,7 @@ import {
   advanceTemporaryEffectsAfterBattle, chooseAdventureEventId, getAvailableAdventureEventIds,
   canDeclineNewSkill, getTemporaryCombatModifiers, getTemporaryEffectDisplayRows, getTemporaryEffects, getUnlearnedActiveSkills, getUpgradeableSkills, healRunCharacter, learnActiveSkill,
   resolveAdventureEvent, resolveCampfire, startAdventureBattle, upgradeActiveSkill,
+  claimTreasure, getTreasureCombatModifiers, grantEliteSukunaFinger, grantGiantSpinalFluid, grantGunDevilFragment,
 } from "./progression.js";
 import { createCampaign, selectStartingCharacter, startCampaign } from "./campaign.js";
 import { calculateDamage } from "./battle.js";
@@ -19,22 +20,22 @@ const makeNaruto = () => createRunCharacterState(naruto);
 
 test("run state migrates legacy stats without mutating base character data", () => {
   const run = makeNaruto();
-  assert.deepEqual([run.maxHp, run.currentHp, run.atk, run.def, run.spd, run.critRate, run.critMultiplier], [1600, 1600, 170, 70, 85, 0.05, 1.5]);
+  assert.deepEqual([run.maxHp, run.currentHp, run.atk, run.def, run.spd, run.critRate, run.critMultiplier], [1600, 1600, 190, 70, 85, 0.05, 1.5]);
   assert.deepEqual(run.learnedActiveSkills, ["shadow-clone-rush"]);
   assert.equal(run.skillLevels["shadow-clone-rush"], 1);
   assert.equal(run.passiveSkillId, "jinchuriki");
   run.atk += 10;
-  assert.equal(naruto.atk, 170);
+  assert.equal(naruto.atk, 190);
 });
 
 test("requested first-stage hero and existing enemy baseline stats are explicit", () => {
-  assert.deepEqual([naruto.baseStats.maxHp, naruto.baseStats.atk, naruto.baseStats.def, naruto.baseStats.spd], [1600, 170, 70, 85]);
+  assert.deepEqual([naruto.baseStats.maxHp, naruto.baseStats.atk, naruto.baseStats.def, naruto.baseStats.spd], [1600, 190, 70, 85]);
   const guard = CHARACTER_DATA.find((character) => character.id === "guard");
   const mage = CHARACTER_DATA.find((character) => character.id === "mage");
   assert.deepEqual([guard.hp, guard.atk, guard.def, guard.spd], [500, 60, 40, 30]);
   assert.deepEqual([mage.hp, mage.atk, mage.def, mage.spd], [400, 70, 20, 30]);
   const eren = STARTING_CHARACTERS.find((character) => character.id === "eren");
-  assert.deepEqual([eren.baseStats.maxHp, eren.baseStats.atk, eren.baseStats.def, eren.baseStats.spd], [1900, 120, 90, 50]);
+  assert.deepEqual([eren.baseStats.maxHp, eren.baseStats.atk, eren.baseStats.def, eren.baseStats.spd], [1900, 140, 90, 50]);
   assert.deepEqual(eren.activeSkills, ["eren-free-will", "eren-tatakae"]);
   assert.equal(eren.passiveSkillId, "eren-2000-years");
   assert.deepEqual([SKILL_DATA[eren.passiveSkillId].type, SKILL_DATA[eren.activeSkills[0]].type, SKILL_DATA[eren.activeSkills[1]].type], ["passive", "active", "active"]);
@@ -249,17 +250,51 @@ test("skill upgrades expose the next level's actual chance and damage values", (
   assert.equal(after.cloneCount, 2);
 });
 
-test("campfire rest heals 25 percent of max HP, clamps, and settles once", () => {
+test("campfire rest heals 40 percent of max HP, clamps, and settles once", () => {
   const run = makeNaruto();
   run.currentHp = 1000;
   const options = getCampfireOptions(run);
-  assert.equal(options[0].healAmount, 400);
-  assert.equal(resolveCampfire(run, "step-3-choice-1", "rest").restored, 400);
-  assert.equal(run.currentHp, 1400);
+  assert.equal(options[0].healAmount, 640);
+  assert.equal(resolveCampfire(run, "step-3-choice-1", "rest").restored, 600);
+  assert.equal(run.currentHp, 1600);
   assert.equal(resolveCampfire(run, "step-3-choice-1", "rest"), false);
   run.currentHp = 1400;
   assert.equal(healRunCharacter(run, 500, "cap-test").currentHp, 1600);
   assert.equal(healRunCharacter(run, 500, "cap-test"), null);
+});
+
+test("repeat max-HP treasures grant 150% positive stats without healing or duplicate source claims", () => {
+  const gun = makeNaruto();
+  gun.currentHp = 500;
+  assert.equal(grantGunDevilFragment(gun, "bomb-a").maxHp, 200);
+  assert.equal(grantGunDevilFragment(gun, "bomb-b").maxHp, 300);
+  assert.equal(grantGunDevilFragment(gun, "bomb-b"), false);
+  assert.deepEqual([gun.maxHp, gun.currentHp], [2100, 500]);
+
+  const giant = makeNaruto();
+  giant.currentHp = 500;
+  assert.equal(grantGiantSpinalFluid(giant, "titan-a").def, 20);
+  const second = grantGiantSpinalFluid(giant, "titan-b");
+  assert.deepEqual([second.def, second.maxHp, giant.def, giant.maxHp, giant.currentHp], [30, 150, 120, 1850, 500]);
+
+  const finger = makeNaruto();
+  finger.currentHp = 500;
+  assert.equal(grantEliteSukunaFinger(finger, "mahito").atk, 30);
+  createAdventureEventResult(finger, "treasury-repeat", "kings_treasury");
+  resolveAdventureEvent(finger, "treasury-repeat", "treasury_steal", () => .1);
+  finger.eventResults["treasury-repeat"].data.treasureOffer.choices = ["sukuna_finger", "magic_conch"];
+  assert.ok(claimTreasure(finger, "treasury-repeat", "sukuna_finger", finger, finger.characterId));
+  assert.deepEqual([finger.atk, finger.maxHp, finger.currentHp], [265, 1300, 500]);
+  assert.equal(finger.permanentEffects.at(-1).atk, 45);
+  assert.equal(claimTreasure(finger, "treasury-repeat", "sukuna_finger", finger, finger.characterId), false);
+
+  const conch = makeNaruto();
+  conch.permanentEffects.push({ id: "magic_conch", sourceId: "old" });
+  createAdventureEventResult(conch, "treasury-conch", "kings_treasury");
+  resolveAdventureEvent(conch, "treasury-conch", "treasury_steal", () => .1);
+  conch.eventResults["treasury-conch"].data.treasureOffer.choices = ["magic_conch", "odm_gear"];
+  assert.ok(claimTreasure(conch, "treasury-conch", "magic_conch", conch, conch.characterId));
+  assert.equal(getTreasureCombatModifiers(conch).damageReduction, .125);
 });
 
 test("campfire upgrades learned skills, then teaches an unlearned active skill at level one", () => {
@@ -485,7 +520,7 @@ test("sea beyond uses three percentage sacrifice tiers and random stat rewards, 
  resolveAdventureEvent(narutoRun,"sea-all","sea_sacrifice");
  const final=resolveAdventureEvent(narutoRun,"sea-all","sea_sacrifice");
  assert.equal(final.status,"completed"); assert.equal(final.result.hpLoss,1440); assert.equal(final.result.hpLossPercent,90); assert.equal(final.result.choicesUsed,3);
- assert.equal(narutoRun.maxHp,160); assert.equal(narutoRun.atk,170+30+50+70); assert.equal(narutoRun.def,70);
+ assert.equal(narutoRun.maxHp,160); assert.equal(narutoRun.atk,190+30+50+70); assert.equal(narutoRun.def,70);
  const firstOnly=makeNaruto();
  createAdventureEventResult(firstOnly,"sea-first","sea_beyond",()=>0);
  assert.equal(resolveAdventureEvent(firstOnly,"sea-first","sea_begin").result.choicesMade,1);

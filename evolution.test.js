@@ -108,9 +108,8 @@ test("hardening caps DEF at four casts; warhammer snapshots own DEF before spend
   assert.equal(hit.skillAttackPower, 500);
 });
 
-test("only Lv4 Kaneki glutton kills raise the run's HP ceiling by 100", () => {
-  assert.equal(effect("kaneki-glutton", 2).killMaxHpBonus, 0);
-  assert.equal(effect("kaneki-glutton", 3).killMaxHpBonus, 0);
+test("Kaneki glutton kills raise max HP by 50 at Lv1-3 and 100 at Lv4", () => {
+  for (const level of [1, 2, 3]) assert.equal(effect("kaneki-glutton", level).killMaxHpBonus, 50);
   const run = createRunCharacterState(starter("kaneki"));
   run.maxHp = 1000;
   const state = initializeBattle([testUnit("kaneki", "ally", { hp: 1000, maxHp: 1000, currentHp: 500,

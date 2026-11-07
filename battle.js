@@ -23,7 +23,7 @@ export function initializeBattle(config = CHARACTER_DATA, options = {}) {
       reactiveAttackHits: 0, attackActionHits: 0,
       ...(character.phaseSkills ? { borosPhase: 1, borosEnteredRound: 0, borosLastGrowthRound: 0, meteorCasts: 0 } : {}),
       ...(character.id === "eren" ? { freeWillDefenseStacks: 0 } : {}),
-      ...(character.elitePassiveId === "toji-heavenly-restriction" ? { fasterActions: 0, tojiExhausted: false } : {}),
+      ...(character.elitePassiveId === "toji-heavenly-restriction" ? { fasterActions: 0, tojiExhausted: false, tojiRestPending: false } : {}),
       ...(["shin", "noi"].includes(character.id) ? { bereavementActive: false, bereavementAttackBonus: 0 } : {}),
       ...(character.elitePassiveId === "killer-queen" ? { hpSnapshots: [], bitesDustNextAvailableRound: 1 } : {}),
       ...(character.id === "armored-titan" ? { armorReductionStartRound: null, armorReductionUntilRound: null } : {}),
@@ -1337,6 +1337,11 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
         events.push({ type: "trial-control-skip", targetId: attacker.id, round: state.round, reason: "眩晕" });
         continue;
       }
+      if (attacker.tojiRestPending) {
+        attacker.tojiRestPending = false;
+        events.push({ type: "toji-skip", attackerId: attacker.id, round: state.round });
+        continue;
+      }
       if (attacker.id === "tang" && attacker.tangMeditating) continue;
       if (attacker.periodicPassive?.onlyPeriodicActions) continue;
       const selectedSkill = (attacker.silencedThroughRound ?? 0) >= state.round ? null : triggeredSkill(attacker, random, state.round);
@@ -1535,6 +1540,7 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
         syncTangSummons(state, events);
         if (attacker.elitePassiveId === "toji-heavenly-restriction" && index + 1 === 5 && !attacker.tojiExhausted) {
           attacker.tojiExhausted = true;
+          attacker.tojiRestPending = true;
           events.push({ type: "toji-exhausted", attackerId: attacker.id, round: state.round,
             name: "出拳太快有点累了", damageTakenMultiplier: 1.5 });
         }

@@ -10,7 +10,7 @@ import {
   createStatUpgradeChoices, applyStatUpgrade, healRunCharacter, resolveAdventureEvent, resolveCampfire, startAdventureBattle, upgradePassiveSkill,
 } from "./progression.js";
 import { ATTRIBUTE_UPGRADES } from "./skills.js";
-import { TRIAL_TASKS, TRIAL_RULES, createTrialState, startTrialTask, completeTrialTask, failTrial, pickTrialEnemies, odinWeakestPointStat } from "./trial.js";
+import { TRIAL_TASKS, TRIAL_RULES, createTrialState, startTrialTask, completeTrialTask, pickTrialEnemies, odinWeakestPointStat } from "./trial.js";
 import { evolveTrialParty, chooseEvolutionUpgrade, evolutionDisplayName } from "./evolution.js";
 export { chooseEvolutionUpgrade };
 
@@ -300,7 +300,6 @@ export function prepareBattle(campaign) {
   if (!battle) return null;
   const playerTemplate = STARTING_CHARACTERS.find((character) => character.id === campaign.playerId);
   if (!playerTemplate) return null;
-  campaign.combatLaunched = true;
   const run = campaign.runCharacterState;
   if (!run || run.characterId !== playerTemplate.id) return null;
   const battleStartEffects = [];
@@ -453,7 +452,7 @@ export function prepareBattle(campaign) {
       } : {}),
       ...(template.elitePassiveId ? { elitePassiveId: template.elitePassiveId } : {}),
       ...(template.escapeAsset ? { escapeAsset: template.escapeAsset } : {}),
-      ...(isDeidaraBoss ? { skill: bossSkill, skills: [bossSkill], c0DamagePerRound: battle.enemyMechanics?.[enemyId]?.c0DamagePerRound ?? 100 } : {}),
+      ...(isDeidaraBoss ? { skill: bossSkill, skills: [bossSkill], c0DamagePerRound: battle.enemyMechanics?.[enemyId]?.c0DamagePerRound ?? 70 } : {}),
     };
   });
   const combatRunStates = { ...campaign.partyStates };
@@ -478,6 +477,7 @@ export function prepareBattle(campaign) {
         rosterOrder: enemies.length + 1, skills, skill: skills[0] ?? null });
     }
   }
+  campaign.combatLaunched = true;
   return {
     battle: campaign.currentBattle, roster: [...allies, ...enemies],
     combatOptions: { runCharacterState: run, runCharacterStates: combatRunStates, playerId: campaign.playerId, battleId, battleStartEffects },
@@ -545,7 +545,7 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
   }
   if (campaign.trialBattle) {
     const result = settleTrialBattle(campaign, outcome);
-    if (result?.status !== "trial_next_battle" &&
+    if (outcome === "victory" && result?.status !== "trial_next_battle" &&
         (result?.trialOutcome === "active" || result?.trialOutcome === "completed")) {
       // One completed trial challenge restores 25% of each member's current
       // maximum HP. The three divine-punishment fights remain one challenge.
@@ -941,38 +941,73 @@ export function chooseRoute(campaign, nodeId) {
   if (!node) return null;
   const current = campaign.routeMap.nodes.find((entry) => entry.id === campaign.routeMap.currentNodeId);
   if (!current || !current.nextNodeIds.includes(node.id)) return null;
-  campaign.routeMap.visitedEdges.push({ from: current.id, to: node.id });
-  node.status = "entered";
-  campaign.activeNode = node;
-  node.status = "in_progress";
-  if (node.type === "battle") {
-    return enterBattle(campaign, node, "normal");
-  }
-  if (node.type === "elite") return enterBattle(campaign, node, "elite");
-  if (node.type === "demon") return enterBattle(campaign, node, "boss");
-
-  if (node.type === "campfire") {
-    node.resolution = "campfire";
-    campaign.activeEventType = "campfire";
-    campaign.pendingEvent = null;
-  } else {
-    campaign.activeEventType = "adventure";
-    if (campaign.stageId === 3 && !campaign.chapter3FirstEncounterAssigned) {
-      campaign.chapter3FirstEncounterAssigned = true;
-      campaign.pendingEvent = { sourceId: node.id, eventId: "trial_land", name: "试炼之地",
-        description: "道路上，是无尽的试炼", image: "assets/events/event_trial_land.png",
-        status: "pending", type: "trial", data: { stageId: 3 } };
-      campaign.runCharacterState.eventResults[node.id] = campaign.pendingEvent;
-    } else {
-      const partyStates = campaign.partyIds.map((id) => campaign.partyStates[id]);
-      const eventId = chooseAdventureEventId(campaign.runCharacterState, campaign.random, campaign.step, partyStates, campaign.stageId);
-      campaign.pendingEvent = createAdventureEventResult(campaign.runCharacterState, node.id, eventId, campaign.random, partyStates, campaign.stageId);
+  const eventResults = campaign.runCharacterState?.eventResults;
+  const hadEventResult = Boolean(eventResults && Object.hasOwn(eventResults, node.id));
+  const previous = {
+    edgeCount: campaign.routeMap.visitedEdges.length,
+    nodeStatus: node.status, nodeResolution: node.resolution, nodeBattle: node.battle,
+    activeNode: campaign.activeNode, activeEventType: campaign.activeEventType,
+    pendingEvent: campaign.pendingEvent, eventResolved: campaign.eventResolved,
+    currentBattle: campaign.currentBattle, battleNumber: campaign.battleNumber,
+    consecutiveWithoutBattle: campaign.consecutiveWithoutBattle,
+    combatLaunched: campaign.combatLaunched, status: campaign.status,
+    chapter3FirstEncounterAssigned: campaign.chapter3FirstEncounterAssigned,
+    eventResult: eventResults?.[node.id],
+  };
+  try {
+    campaign.routeMap.visitedEdges.push({ from: current.id, to: node.id });
+    node.status = "entered";
+    campaign.activeNode = node;
+    node.status = "in_progress";
+    if (node.type === "battle") {
+      return enterBattle(campaign, node, "normal");
     }
-    node.resolution = campaign.pendingEvent.eventId;
+    if (node.type === "elite") return enterBattle(campaign, node, "elite");
+    if (node.type === "demon") return enterBattle(campaign, node, "boss");
+
+    if (node.type === "campfire") {
+      node.resolution = "campfire";
+      campaign.activeEventType = "campfire";
+      campaign.pendingEvent = null;
+    } else {
+      campaign.activeEventType = "adventure";
+      if (campaign.stageId === 3 && !campaign.chapter3FirstEncounterAssigned) {
+        campaign.chapter3FirstEncounterAssigned = true;
+        campaign.pendingEvent = { sourceId: node.id, eventId: "trial_land", name: "试炼之地",
+          description: "道路上，是无尽的试炼", image: "assets/events/event_trial_land.png",
+          status: "pending", type: "trial", data: { stageId: 3 } };
+        campaign.runCharacterState.eventResults[node.id] = campaign.pendingEvent;
+      } else {
+        const partyStates = campaign.partyIds.map((id) => campaign.partyStates[id]);
+        const eventId = chooseAdventureEventId(campaign.runCharacterState, campaign.random, campaign.step, partyStates, campaign.stageId);
+        campaign.pendingEvent = createAdventureEventResult(campaign.runCharacterState, node.id, eventId, campaign.random, partyStates, campaign.stageId);
+      }
+      node.resolution = campaign.pendingEvent.eventId;
+    }
+    campaign.eventResolved = false;
+    campaign.status = "event";
+    return { type: "event", event: campaign.pendingEvent, symbol: node.type === "question" ? "?" : "campfire" };
+  } catch (error) {
+    campaign.routeMap.visitedEdges.length = previous.edgeCount;
+    node.status = previous.nodeStatus;
+    node.resolution = previous.nodeResolution;
+    node.battle = previous.nodeBattle;
+    campaign.activeNode = previous.activeNode;
+    campaign.activeEventType = previous.activeEventType;
+    campaign.pendingEvent = previous.pendingEvent;
+    campaign.eventResolved = previous.eventResolved;
+    campaign.currentBattle = previous.currentBattle;
+    campaign.battleNumber = previous.battleNumber;
+    campaign.consecutiveWithoutBattle = previous.consecutiveWithoutBattle;
+    campaign.combatLaunched = previous.combatLaunched;
+    campaign.status = previous.status;
+    campaign.chapter3FirstEncounterAssigned = previous.chapter3FirstEncounterAssigned;
+    if (eventResults) {
+      if (hadEventResult) eventResults[node.id] = previous.eventResult;
+      else delete eventResults[node.id];
+    }
+    throw error;
   }
-  campaign.eventResolved = false;
-  campaign.status = "event";
-  return { type: "event", event: campaign.pendingEvent, symbol: node.type === "question" ? "?" : "campfire" };
 }
 
 export function resolveRouteEvent(campaign) {
@@ -1444,10 +1479,29 @@ export function settleTrialBattle(campaign, outcome) {
   campaign.trialBattle = null;
   campaign.currentBattle = null;
   if (outcome === "defeat") {
-    failTrial(campaign.trial);
-    applyTrialFailurePenalty(campaign);
-    campaign.status = "trial_result";
-    return { status: campaign.status, trialOutcome: "failed" };
+    const result = completeTrialTask(campaign.trial, taskId, "failed");
+    if (!result) return false;
+    if (result.status === "failed") {
+      applyTrialFailurePenalty(campaign);
+      campaign.status = "trial_result";
+      return { status: campaign.status, trialOutcome: "failed", failedCount: result.failedCount };
+    }
+    // The challenge ended; any unfinished divine-punishment battles must not
+    // carry its temporary maximum-HP reduction into another challenge.
+    for (const id of campaign.partyIds) {
+      const state = campaign.partyStates[id];
+      if (!state) continue;
+      if (state.divinePunishment?.battlesLeft > 0) {
+        state.maxHp += state.divinePunishment.reduction;
+        state.divinePunishment = null;
+      }
+      const before = state.currentHp;
+      state.currentHp = Math.min(state.maxHp, before + Math.max(1, Math.floor(state.maxHp * .5)));
+      campaign.lastBattleRecovery.push({ characterId: id, kind: "trial_failure_heal", restored: state.currentHp - before, currentHp: state.currentHp });
+    }
+    campaign.trial.divinePunishmentBattlesLeft = 0;
+    campaign.status = "trial_route";
+    return { status: campaign.status, trialOutcome: "retry", failedCount: result.failedCount, completedCount: result.completedCount };
   }
   campaign.completedBattles += 1;
   if (taskId === "will") {

@@ -129,7 +129,7 @@ test("seeded simulator is reproducible and reports observations without modifyin
   assert.ok(first.averageBattles > 0);
   assert.ok(Object.values(first.outcomes).reduce((sum, count) => sum + count, 0) === 4);
   assert.equal(first.observedVictoryRate, first.outcomes.victory / first.runs);
-  assert.equal(STARTING_CHARACTERS.find((hero) => hero.id === "naruto").baseStats.atk, 170);
+  assert.equal(STARTING_CHARACTERS.find((hero) => hero.id === "naruto").baseStats.atk, 190);
 });
 
 test("simulator rejects invalid run counts instead of silently changing the sample", () => {

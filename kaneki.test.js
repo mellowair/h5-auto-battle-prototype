@@ -16,7 +16,7 @@ const enemy = (overrides = {}) => ({ id: "enemy", team: "enemy", row: "front", h
   currentHp: 1000, alive: true, atk: 100, def: 0, spd: 0, ...overrides });
 
 test("Kaneki starter config uses the authored independent sprite frames", () => {
-  assert.deepEqual([kaneki.hp, kaneki.atk, kaneki.def, kaneki.spd], [1300, 200, 40, 125]);
+  assert.deepEqual([kaneki.hp, kaneki.atk, kaneki.def, kaneki.spd], [1300, 220, 40, 125]);
   assert.deepEqual(kaneki.activeSkills, ["kaneki-predator", "kaneki-1000-7"]);
   assert.equal(kaneki.passiveSkillId, "kaneki-one-eye");
   assert.equal(kaneki.asset, "assets/kaneki/idle.png");

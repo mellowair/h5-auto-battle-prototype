@@ -16,9 +16,9 @@ test("Eren human-form first-pass stats and skill configurations are explicit", (
   const eren = STARTING_CHARACTERS.find((entry) => entry.id === "eren");
   const naruto = STARTING_CHARACTERS.find((entry) => entry.id === "naruto");
   assert.ok(eren);
-  assert.deepEqual([eren.id, eren.hp, eren.atk, eren.def, eren.spd], ["eren", 1900, 120, 90, 50]);
-  assert.deepEqual([eren.baseStats.maxHp, eren.baseStats.atk, eren.baseStats.def, eren.baseStats.spd], [1900, 120, 90, 50]);
-  assert.deepEqual([naruto.hp, naruto.atk, naruto.def, naruto.spd], [1600, 170, 70, 85]);
+  assert.deepEqual([eren.id, eren.hp, eren.atk, eren.def, eren.spd], ["eren", 1900, 140, 90, 50]);
+  assert.deepEqual([eren.baseStats.maxHp, eren.baseStats.atk, eren.baseStats.def, eren.baseStats.spd], [1900, 140, 90, 50]);
+  assert.deepEqual([naruto.hp, naruto.atk, naruto.def, naruto.spd], [1600, 190, 70, 85]);
   assert.deepEqual(eren.activeSkills, ["eren-free-will", "eren-tatakae"]);
   assert.equal(eren.passiveSkillId, "eren-2000-years");
   assert.deepEqual(Object.values(SKILL_DATA["eren-free-will"].levels).map(({ chance, defenseBonus }) => [chance, defenseBonus]), [[0.5, 10], [0.55, 15], [0.6, 20], [0.7, 25]]);
@@ -79,10 +79,10 @@ test("fall rock's permanent attack and critical gains enter the next battle once
   campaign.currentBattle = { type: "normal", step: 3, enemies: ["guard"], enemyNames: { guard: "巡逻守卫" } };
   campaign.status = "combat";
   const roster = prepareBattle(campaign).roster;
-  assert.equal(roster[0].atk, 195);
+  assert.equal(roster[0].atk, 218);
   assert.ok(Math.abs(roster[0].critChance - 0.20) < 1e-9);
   assert.equal(roster[0].maxHp, 1444);
-  assert.equal(STARTING_CHARACTERS.find((entry) => entry.id === "naruto").atk, 170, "base character template remains unchanged");
+  assert.equal(STARTING_CHARACTERS.find((entry) => entry.id === "naruto").atk, 190, "base character template remains unchanged");
 });
 
 function queued(values, fallback = 0) {
@@ -251,7 +251,7 @@ test("growth state builds the next battle roster and syncs HP before a one-time 
   assert.deepEqual([hero.maxHp, hero.currentHp, hero.atk, hero.def, hero.spd], [1300, 800, 173, 77, 91]);
   assert.equal(hero.skills[0].level, 2);
   assert.equal(hero.skills[0].multiplier, 1.6);
-  assert.equal(base.atk, 170, "campaign upgrades do not mutate shared base character data");
+  assert.equal(base.atk, 190, "campaign upgrades do not mutate shared base character data");
 
   assert.equal(finishBattle(campaign, "victory", 640).status, "reward");
   assert.equal(campaign.runCharacterState.currentHp, 640);
@@ -294,6 +294,36 @@ test("route choices are graph children only, and completed nodes cannot be re-en
   assert.equal(chooseRoute(campaign, first.id), null, "completed node cannot be entered twice");
   const current = map.nodes.find((node) => node.id === map.currentNodeId);
   assert.ok(getRouteOptions(campaign).every((node) => current.nextNodeIds.includes(node.id)));
+});
+
+test("a failed route draw leaves its node available for another click", () => {
+  const campaign = createCampaign(() => 0, { seed: 3105 });
+  begin(campaign);
+  const question = getRouteOptions(campaign).find((node) => node.type === "question");
+  assert.ok(question);
+  const edgeCount = campaign.routeMap.visitedEdges.length;
+  campaign.random = () => { throw new Error("event draw failed"); };
+  assert.throws(() => chooseRoute(campaign, question.id), /event draw failed/);
+  assert.equal(campaign.status, "route");
+  assert.equal(question.status, "pending");
+  assert.equal(campaign.activeNode, null);
+  assert.equal(campaign.routeMap.visitedEdges.length, edgeCount);
+  assert.equal(campaign.runCharacterState.eventResults[question.id], undefined);
+  campaign.random = () => 0;
+  assert.ok(chooseRoute(campaign, question.id));
+});
+
+test("a failed battle preparation does not lock the route battle as launched", () => {
+  const campaign = createCampaign(() => 0, { seed: 3105 });
+  begin(campaign);
+  const battle = getRouteOptions(campaign).find((node) => node.type === "battle");
+  assert.ok(chooseRoute(campaign, battle.id));
+  const originalId = campaign.runCharacterState.characterId;
+  campaign.runCharacterState.characterId = "invalid";
+  assert.equal(prepareBattle(campaign), null);
+  assert.equal(campaign.combatLaunched, false);
+  campaign.runCharacterState.characterId = originalId;
+  assert.ok(prepareBattle(campaign));
 });
 
 test("different-length branches enter one shared room at their actual encounter steps", () => {
@@ -648,8 +678,8 @@ test("Boss follows the shared campfire and battle tail at the actual encounter s
   assert.equal(deidara.name, "迪达拉");
   assert.equal(deidara.role, "爆破艺术家");
   assert.equal(deidara.asset, "assets/deidara-v2/idle/idle_1.png", "the boss battle uses the new Deidara sprite");
-  assert.equal(deidara.c0DamagePerRound, 100);
-  assert.deepEqual([deidara.maxHp, deidara.atk, deidara.def, deidara.spd], [1400, 150, 40, 75]);
+  assert.equal(deidara.c0DamagePerRound, 70);
+  assert.deepEqual([deidara.maxHp, deidara.atk, deidara.def, deidara.spd], [1400, 130, 40, 75]);
   assert.equal(deidara.skill.id, "c4-garuda");
   assert.equal(deidara.skill.chance, 1);
   assert.equal(deidara.skill.multiplier, 1.2);

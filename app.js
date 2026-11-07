@@ -1304,6 +1304,8 @@ function openEnemyDetail(unit) {
     const passive = SKILL_DATA[id] ?? STAGE_TWO_NORMAL_PASSIVES[id] ?? STAGE_THREE_NORMAL_PASSIVES[id] ?? unit.periodicPassive;
     return passive ? `<div class="detail-skill-row"><div class="detail-skill-icon quiet">被</div><div class="detail-skill-copy"><b>${passive.name}</b><p>${shortSkillEffect({ ...passive, passive: true })}</p></div></div>` : "";
   }).join("");
+  const trialPassiveRow = unit.trialPassiveSkill
+    ? `<div class="detail-skill-row"><div class="detail-skill-icon quiet">被</div><div class="detail-skill-copy"><b>${unit.trialPassiveSkill.name}</b><p>${unit.trialPassiveSkill.description}</p></div></div>` : "";
   const summonRow = unit.summonPassive
     ? `<div class="detail-skill-row"><div class="detail-skill-icon quiet">被</div><div class="detail-skill-copy"><b>${unit.summonPassive.name}</b><p>第 ${unit.summonPassive.firstRound} 回合开始，每隔 ${unit.summonPassive.everyRounds} 回合召唤一名普通巨人。</p></div></div>` : "";
   const c0Row = Number.isFinite(unit.c0DamagePerRound)
@@ -1320,8 +1322,9 @@ function openEnemyDetail(unit) {
     `<div class="stat-card"><span>技能闪避率</span><b>${(getSkillDodgeChance(unit) * 100).toFixed(1)}%</b></div>` +
     `<div class="stat-card"><span>暴击率</span><b>${(getCritChance(unit) * 100).toFixed(1)}%</b></div>` +
     `<div class="stat-card"><span>暴击倍率</span><b>${(unit.critMultiplier ?? COMBAT_RULES.critMultiplier).toFixed(1)}×</b></div></div>` +
-    (skillRows || passiveRows || summonRow || c0Row ? `<section class="detail-skill"><h3>敌方技能</h3>${skillRows + passiveRows + summonRow + c0Row}</section>` : "");
+    (skillRows || passiveRows || trialPassiveRow || summonRow || c0Row ? `<section class="detail-skill"><h3>敌方技能</h3>${skillRows + passiveRows + trialPassiveRow + summonRow + c0Row}</section>` : "");
   installSkillDetails([...skillMap.values(), ...[...new Set(passiveIds)].map((id) => SKILL_DATA[id] ?? STAGE_TWO_NORMAL_PASSIVES[id] ?? STAGE_THREE_NORMAL_PASSIVES[id] ?? unit.periodicPassive),
+    ...(unit.trialPassiveSkill ? [{ ...unit.trialPassiveSkill, id: `trial-${unit.trialPassive}`, passive: true }] : []),
     ...(unit.summonPassive ? [{ ...unit.summonPassive, id: "summon-passive", passive: true,
       description: `第 ${unit.summonPassive.firstRound} 回合开始，每隔 ${unit.summonPassive.everyRounds} 回合召唤一名普通巨人。` }] : []),
     ...(Number.isFinite(unit.c0DamagePerRound) ? [{ id: "c0", name: "C0 终极艺术", passive: true,
@@ -1379,7 +1382,7 @@ function openCharacterDetail(characterId) {
   const treasureMarkup = ownedTreasures.length
     ? '<section class="detail-skill"><h3>本局宝物</h3>' + ownedTreasures.map((effect) =>
       '<div class="detail-skill-row"><div class="detail-skill-icon">' + (effect.image
-        ? '<img src="' + effect.image + '" alt="">' : '宝') + '</div><div class="detail-skill-copy"><b>' + effect.name + '</b><p>' + (TREASURE_DATA[effect.id]?.description ?? effect.description) + '</p></div></div>').join("") + '</section>'
+        ? '<img src="' + effect.image + '" alt="">' : '宝') + '</div><div class="detail-skill-copy"><b>' + effect.name + '</b><p>' + (effect.description ?? TREASURE_DATA[effect.id]?.description) + '</p></div></div>').join("") + '</section>'
     : '';
   $("#character-detail").innerHTML =
     '<div class="detail-profile"><div class="detail-portrait"><img src="' + character.asset +
@@ -1718,7 +1721,11 @@ function playEvent(event, finish) {
     const toji = viewState.characters.find((unit) => unit.id === event.attackerId);
     if (toji) toji.tojiExhausted = true;
     renderAllyStatusIcons();
-    addLog(`<b>${toji?.name ?? "伏黑甚尔"}</b> 获得「出拳太快有点累了」：本场受到的最终伤害变为 1.5 倍。`, "log-skill");
+    addLog(`<b>${toji?.name ?? "伏黑甚尔"}</b> 获得「出拳太快有点累了」：本场受到的最终伤害变为 1.5 倍，下次行动休息。`, "log-skill");
+    return finish();
+  }
+  if (event.type === "toji-skip") {
+    addLog(`<span class="round-label">R${event.round}</span> <b>伏黑甚尔</b> 太累了，休息一次。`, "log-enemy");
     return finish();
   }
   if (event.type === "jason-max-hp") {
@@ -2338,18 +2345,20 @@ function playEvent(event, finish) {
           startIdleCycle(fighter, unit);
         }
       }
-      if (recovery.restored > 0) addLog(`<b>${unit?.name ?? recovery.characterId}</b> ${recovery.kind === "revive" ? "战后重新站起" : recovery.kind === "trial_quarter_heal" ? "试炼小关完成" : "大天使的气息"}：HP +${recovery.restored}。`, "log-skill");
+      if (recovery.restored > 0) addLog(`<b>${unit?.name ?? recovery.characterId}</b> ${recovery.kind === "revive" ? "战后重新站起" : recovery.kind === "trial_quarter_heal" ? "试炼小关完成" : recovery.kind === "trial_failure_heal" ? "试炼小关失败后恢复" : "大天使的气息"}：HP +${recovery.restored}。`, "log-skill");
     }
     const rasenganSpeedGain = (campaign.runCharacterState?.spd ?? speedBeforeSettlement) - speedBeforeSettlement;
     if (rasenganSpeedGain > 0) addLog(`螺旋丸击杀 · <b>本局 SPD +${rasenganSpeedGain}</b>`, "log-skill");
     updateProgressionDisplays();
-    setStatus(win ? "战斗胜利" : transition?.trialOutcome === "failed" ? "试炼失败" : "战斗失败", "finished");
+    setStatus(win ? "战斗胜利" : transition?.trialOutcome === "failed" ? "试炼失败" : transition?.trialOutcome === "retry" ? "试炼小关失败，继续挑战" : "战斗失败", "finished");
     setBattleControls(false);
-    $("#battle-stamp").textContent = win ? "胜利！" : "战斗失败";
+    $("#battle-stamp").textContent = win ? "胜利！" : transition?.trialOutcome === "retry" ? "小关失败" : "战斗失败";
     $("#battle-stamp").classList.add("show", win ? "stamp-win" : "stamp-lose");
     addLog(win ? `第 ${campaign.battleNumber} 场 · <b>胜利</b>` : transition?.trialOutcome === "failed"
       ? `第 ${campaign.battleNumber} 场 · <b>试炼失败，返回第三关</b>`
-      : `第 ${campaign.battleNumber} 场 · <b>战败，本局结束</b>`, win ? "log-win" : "log-death");
+      : transition?.trialOutcome === "retry"
+        ? `第 ${campaign.battleNumber} 场 · <b>小关失败，队伍恢复 50% 最大 HP，继续选择剩余试炼</b>`
+        : `第 ${campaign.battleNumber} 场 · <b>战败，本局结束</b>`, win ? "log-win" : "log-death");
     const normalHoldMs = playbackDelay(ANIMATION_TIMING.attack.resultHoldMs);
     const defeatHoldMs = playbackDelay(ANIMATION_TIMING.boss.defeatHoldMs);
     if (!win) {
@@ -3416,13 +3425,13 @@ function playEnemyEntrance(entrance, token, onComplete) {
 }
 
 function beginBattle() {
-  if (battleStartPhase !== "idle" || playback || !campaign || campaign.status !== "combat") return;
+  if (battleStartPhase !== "idle" || playback || !campaign || campaign.status !== "combat") return false;
   $("#battle-screen").classList.toggle("stage-two", campaign.stageId >= 2);
   $("#battle-screen").classList.toggle("stage-three", campaign.stageId === 3);
   $("#battle-screen").classList.toggle("trial-battle", Boolean(campaign.trialBattle));
   $("#battle-screen .brand-copy .eyebrow").textContent = `PIXEL ROGUELIKE · ACT 0${campaign.stageId}`;
   const prepared = restoredBattle?.prepared ?? prepareBattle(campaign);
-  if (!prepared) return;
+  if (!prepared) return false;
   const initialMakimaSummons = restoredBattle?.result ? [] : prepared.roster.filter((unit) => unit.stageThreeMinion && unit.team === "enemy");
   if (restoredBattle) campaign.combatLaunched = true;
   lastPreparedBattle = prepared;
@@ -3599,6 +3608,7 @@ function beginBattle() {
     setStatus("强敌登场");
     playEnemyEntrance(entrance, token, startAfterAssets);
   } else startAfterAssets();
+  return true;
 }
 
 function renderTrialIntro() {
@@ -3616,7 +3626,7 @@ function renderTrialIntro() {
 function renderTrialMap() {
   if (campaign?.status !== "trial_route" || !campaign.trial) return;
   const trial = campaign.trial;
-  $("#trial-count").textContent = `${trial.completedCount} / 2`;
+  $("#trial-count").textContent = `${trial.completedCount} / 2 · 已失败 ${trial.failedCount ?? 0} 次`;
   const map = $("#trial-map");
   map.replaceChildren();
   trial.order.forEach((id) => {
@@ -3706,6 +3716,7 @@ function renderRoute() {
     ? campaign.trialOffered ? "选择一块路牌，继续第三关旅程。"
       : "下一个随机事件将带你前往试炼之地"
     : "选择一块路牌，踏上下一段旅程。";
+  $("#route-screen .flow-copy").classList.remove("route-selection-feedback");
   $("#route-health").textContent = campaign.partyIds.map((id) => {
     const member = partyPresentation(id);
     const state = campaign.partyStates[id];
@@ -3765,14 +3776,76 @@ function renderRoute() {
 }
 
 function selectRouteNode(nodeId) {
-  const selected = chooseRoute(campaign, nodeId);
-  if (!selected) return false;
+  const routeNode = campaign?.routeMap?.nodes.find((node) => node.id === nodeId);
+  const eventResults = campaign?.runCharacterState?.eventResults;
+  const hadEventResult = Boolean(eventResults && Object.hasOwn(eventResults, nodeId));
+  const previous = routeNode && {
+    edgeCount: campaign.routeMap.visitedEdges.length,
+    nodeStatus: routeNode.status, nodeResolution: routeNode.resolution, nodeBattle: routeNode.battle,
+    activeNode: campaign.activeNode, currentBattle: campaign.currentBattle,
+    battleNumber: campaign.battleNumber, consecutiveWithoutBattle: campaign.consecutiveWithoutBattle,
+    pendingEvent: campaign.pendingEvent, activeEventType: campaign.activeEventType,
+    eventResolved: campaign.eventResolved,
+    chapter3FirstEncounterAssigned: campaign.chapter3FirstEncounterAssigned,
+    eventResult: eventResults?.[nodeId],
+  };
+  let selected;
+  try {
+    selected = chooseRoute(campaign, nodeId);
+  } catch (error) {
+    console.error("Route selection failed:", nodeId, error);
+    showRouteSelectionFeedback("路线暂时无法进入，请重试；若仍失败，请刷新页面恢复本局进度。");
+    return false;
+  }
+  if (!selected) {
+    showRouteSelectionFeedback("只能选择当前位置相连的金色高亮地点，请重新选择。");
+    return false;
+  }
   const dialog = $("#route-map-dialog");
+  const wasMapOpen = dialog.open;
   if (dialog.open) dialog.close();
-  if (selected.type === "event") renderCampaignEvent();
-  else if (selected.type === "stage2_pending_end") renderStageTwoPendingEnd();
-  else beginBattle();
+  try {
+    if (selected.type === "event") renderCampaignEvent();
+    else if (selected.type === "stage2_pending_end") renderStageTwoPendingEnd();
+    else if (!beginBattle()) throw new Error("battle setup did not start");
+  } catch (error) {
+    console.error("Route transition failed:", nodeId, error);
+    if (previous && !campaign.combatLaunched) {
+      campaign.routeMap.visitedEdges.length = previous.edgeCount;
+      routeNode.status = previous.nodeStatus;
+      routeNode.resolution = previous.nodeResolution;
+      routeNode.battle = previous.nodeBattle;
+      campaign.activeNode = previous.activeNode;
+      campaign.currentBattle = previous.currentBattle;
+      campaign.battleNumber = previous.battleNumber;
+      campaign.consecutiveWithoutBattle = previous.consecutiveWithoutBattle;
+      campaign.pendingEvent = previous.pendingEvent;
+      campaign.activeEventType = previous.activeEventType;
+      campaign.eventResolved = previous.eventResolved;
+      campaign.chapter3FirstEncounterAssigned = previous.chapter3FirstEncounterAssigned;
+      if (eventResults) {
+        if (hadEventResult) eventResults[nodeId] = previous.eventResult;
+        else delete eventResults[nodeId];
+      }
+      campaign.status = "route";
+      renderRoute();
+      if (wasMapOpen) openRouteMap();
+    }
+    showRouteSelectionFeedback(previous && !campaign.combatLaunched
+      ? "进入该路线时出错，已保留当前进度。可以重试或选择另一条路线。"
+      : "进入该路线时出错。请刷新页面恢复本局进度。");
+    return false;
+  }
   return true;
+}
+
+function showRouteSelectionFeedback(message) {
+  const dialog = $("#route-map-dialog");
+  const hint = dialog.open ? dialog.querySelector(".route-map-readonly-note") : $("#route-screen .flow-copy");
+  if (hint) {
+    hint.textContent = message.trim();
+    hint.classList.add("route-selection-feedback");
+  }
 }
 
 function openRouteMap() {
@@ -3790,6 +3863,9 @@ function routeTypeLabel(type) {
 
 function renderRouteMap() {
   if (!campaign) return;
+  const hint = $("#route-map-dialog .route-map-readonly-note");
+  hint.textContent = "完整路线已生成。点击金色高亮的下一节点开始探索；其他节点尚不可进入。";
+  hint.classList.remove("route-selection-feedback");
   const routeMap = getRouteMap(campaign);
   const world = $("#route-map-world");
   const edgeLayer = $("#route-map-edges");
@@ -3820,16 +3896,20 @@ function renderRouteMap() {
   for (const node of routeMap.nodes) {
     const position = nodePosition(node);
     const selectable = campaign.status === "route" && getRouteOptions(campaign).some((option) => option.id === node.id);
-    const element = document.createElement(selectable ? "button" : "div");
+    const element = document.createElement("button");
     const isCurrent = node.id === routeMap.currentNodeId;
     element.className = `route-map-node route-map-${node.type} route-map-${node.status}${isCurrent ? " route-map-current" : ""}${selectable ? " route-map-selectable" : ""}`;
     element.style.left = `${position.x / 10}%`;
     element.style.top = `${position.y / mapHeight * 100}%`;
+    element.type = "button";
     if (selectable) {
-      element.type = "button";
       element.addEventListener("click", () => selectRouteNode(node.id));
     } else {
-      element.setAttribute("role", "img");
+      element.setAttribute("aria-disabled", "true");
+      element.addEventListener("click", () => showRouteSelectionFeedback(isCurrent
+        ? "这里是当前位置，请选择金色高亮的下一节点。"
+        : node.status === "completed" ? "这条路线已经走过，请选择金色高亮的下一节点。"
+          : "这个节点目前无法到达，请选择与当前位置相连的金色高亮节点。"));
     }
     element.setAttribute("aria-label", `${labels[node.type]}，地图第 ${node.layer} 排${selectable ? `，可作为第 ${campaign.step} 步进入` : isCurrent ? "，当前位置" : node.status === "completed" ? "，已完成" : "，暂不可达"}`);
     const icon = document.createElement("img");

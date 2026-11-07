@@ -37,7 +37,7 @@ export function createTrialState(random = Math.random) {
   return {
     status: "active", order: shuffleTrialTasks(random), index: 0,
     tasks: { will: "pending", strength: "pending", wisdom: "pending" },
-    completedCount: 0, battleIndex: 0, priorBattleEnemies: [],
+    completedCount: 0, failedCount: 0, battleIndex: 0, priorBattleEnemies: [],
     currentBattleEnemies: [], divinePunishmentBattlesLeft: 0,
     failurePenaltyApplied: false, currentTask: null,
   };
@@ -54,14 +54,16 @@ export function startTrialTask(trial, selectedTaskId = null) {
 
 export function completeTrialTask(trial, taskId, result = "completed") {
   if (trial?.status !== "active" || trial.currentTask !== taskId || trial.tasks[taskId] !== "active" ||
-      !["completed", "declined"].includes(result)) return false;
+      !["completed", "declined", "failed"].includes(result)) return false;
   trial.tasks[taskId] = result;
   if (result === "completed") trial.completedCount += 1;
+  if (result === "failed") trial.failedCount = (trial.failedCount ?? 0) + 1;
   trial.currentTask = null;
   trial.index += 1;
   if (trial.completedCount >= TRIAL_RULES.requiredTasks) trial.status = "completed";
-  else if (trial.index >= trial.order.length) trial.status = "failed";
+  else if (trial.failedCount >= 2 || trial.index >= trial.order.length) trial.status = "failed";
   return { status: trial.status, completedCount: trial.completedCount,
+    failedCount: trial.failedCount,
     nextTask: trial.order.find((id) => trial.tasks[id] === "pending") ?? null };
 }
 

@@ -200,12 +200,13 @@ test("route map UI renders the pre-generated graph with a distinct elite icon", 
   assert.match(app, /orderRouteOptionsByPosition\(routeMap, getRouteOptions\(campaign\)\)/);
   assert.match(app, /route-map-avatar/);
   assert.match(app, /const selectable = campaign\.status === "route" && getRouteOptions\(campaign\)\.some\(\(option\) => option\.id === node\.id\)/);
-  assert.match(app, /document\.createElement\(selectable \? "button" : "div"\)/);
+  assert.match(app, /const element = document\.createElement\("button"\)/);
+  assert.match(app, /element\.setAttribute\("aria-disabled", "true"\)/);
   assert.match(app, /button\.addEventListener\("click", \(\) => selectRouteNode\(node\.id\)\)/);
   assert.match(app, /function selectRouteNode\(nodeId\)/);
   assert.match(app, /campaign\.stageId === 1 && routeMap\.currentNodeId === routeMap\.startNodeId\) openRouteMap\(\)/);
   assert.match(app, /#route-map-open.*openRouteMap/);
-  assert.match(html, /点击高亮的下一节点开始探索/);
+  assert.match(html, /点击金色高亮的下一节点开始探索/);
   assert.match(html, /可纵向滚动选择和查看路线地图/);
   assert.doesNotMatch(html, /继续前进请在场景中选择路牌/);
   assert.match(app, /assets\/route-signs\/map-home\.svg/);
