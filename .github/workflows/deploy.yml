@@ -35,6 +35,10 @@ jobs:
         uses: actions/upload-pages-artifact@v4
         with:
           path: _site
+      - name: Wait for the automatic Pages build
+        # This repository also has GitHub's branch build enabled. Give that
+        # deployment time to release the Pages lock before publishing ours.
+        run: sleep 90
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
