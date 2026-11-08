@@ -88,7 +88,7 @@ test("stage-two giant spinal fluid is deferred until one selected recipient clai
   assert.equal(claimStageTwoGiantRecipient(campaign, "naruto"), false);
   assert.deepEqual([campaign.runCharacterState.atk, campaign.runCharacterState.maxHp], heroBefore);
   assert.deepEqual([campaign.partyStates.eren.atk, campaign.partyStates.eren.maxHp, campaign.partyStates.eren.currentHp],
-    [partnerBefore[0], partnerBefore[1] + 100, Math.min(partnerBefore[1] + 100, partnerBefore[2] + 100)]);
+    [partnerBefore[0], partnerBefore[1] + 150, Math.min(partnerBefore[1] + 150, partnerBefore[2] + 150)]);
   const offer = getCampaignRewardOffer(campaign);
   assert.equal(offer.choices.length, 3);
   assert.ok(claimStageTwoStatReward(campaign, "naruto", offer.choices[0]));

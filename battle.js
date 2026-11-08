@@ -121,7 +121,8 @@ export function calculateDamage(attacker, target, multiplier = 1) {
 }
 
 function applyTojiExhaustion(target, damage) {
-  return target.tojiExhausted && damage > 0 ? Math.floor(damage * 1.5) : damage;
+  return target.tojiExhausted && damage > 0
+    ? Math.floor(damage * SKILL_DATA["toji-heavenly-restriction"].levels[1].exhaustedDamageMultiplier) : damage;
 }
 
 function applyNormalDamageReduction(target, damage) {
@@ -604,11 +605,9 @@ export function detonateDueBombs(state) {
       const hpBefore = target.currentHp;
       const defense = combatDefense(target, state.round);
       const damage = bomb.accumulatedDamage > 0
-        ? applyNormalDamageReduction(target, calculateDamage({ atk: bomb.accumulatedDamage }, { def: defense * .6 })) : 0;
+        ? applyNormalDamageReduction(target, calculateDamage({ atk: bomb.accumulatedDamage }, { def: defense * .3 })) : 0;
       target.currentHp = Math.max(0, hpBefore - damage);
       const actualDamage = hpBefore - target.currentHp;
-      // This bomb is already removed, so its explosion only feeds other bombs.
-      accumulateBombDamage(state, target.id, actualDamage);
       const died = handleDeath(target);
       if (died) state.bombs = state.bombs.filter((entry) => entry.targetId !== target.id);
       events.push({ type: "bomb-explode", round: state.round, bombId: bomb.id, targetId: target.id,
@@ -1343,7 +1342,9 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
       }
       if (attacker.tojiRestPending) {
         attacker.tojiRestPending = false;
-        events.push({ type: "toji-skip", attackerId: attacker.id, round: state.round });
+        attacker.tojiExhausted = true;
+        events.push({ type: "toji-skip", attackerId: attacker.id, round: state.round,
+          damageTakenMultiplier: SKILL_DATA["toji-heavenly-restriction"].levels[1].exhaustedDamageMultiplier });
         continue;
       }
       if (attacker.id === "tang" && attacker.tangMeditating) continue;
@@ -1465,9 +1466,10 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
             .sort((a, b) => a.currentHp - b.currentHp || a.rosterOrder - b.rosterOrder)[0]
           : target];
       const faster = attacker.elitePassiveId === "toji-heavenly-restriction" && attacker.spd > target.spd;
-      if (faster) attacker.fasterActions += 1;
+      const tojiRule = SKILL_DATA["toji-heavenly-restriction"].levels[1];
+      if (faster) attacker.fasterActions = Math.min(tojiRule.maxHits - 1, attacker.fasterActions + 1);
       const segmentCount = attacker.elitePassiveId === "toji-heavenly-restriction"
-        ? faster ? 1 + attacker.fasterActions : 1 : targets.length;
+        ? faster ? Math.min(tojiRule.maxHits, 1 + attacker.fasterActions) : 1 : targets.length;
       for (let index = 0; index < segmentCount; index += 1) {
         const struck = targets[attacker.elitePassiveId === "toji-heavenly-restriction" ? 0 : index];
         if (!struck?.alive || struck.currentHp <= 0) break;
@@ -1542,11 +1544,11 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
         }
         if (event.targetDied) resolveAhFuDefeat(state, struck, events);
         syncTangSummons(state, events);
-        if (attacker.elitePassiveId === "toji-heavenly-restriction" && index + 1 === 5 && !attacker.tojiExhausted) {
-          attacker.tojiExhausted = true;
+        if (attacker.elitePassiveId === "toji-heavenly-restriction" && index + 1 === tojiRule.fatigueAtHit &&
+            !attacker.tojiExhausted && !attacker.tojiRestPending) {
           attacker.tojiRestPending = true;
           events.push({ type: "toji-exhausted", attackerId: attacker.id, round: state.round,
-            name: "出拳太快有点累了", damageTakenMultiplier: 1.5 });
+            name: "出拳太快有点累了", damageTakenMultiplier: tojiRule.exhaustedDamageMultiplier });
         }
         const jasonHit = event.type === "attack" ? resolveJasonBonus(state, attacker, struck, event) : null;
         if (jasonHit) events.push(jasonHit);

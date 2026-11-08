@@ -141,11 +141,11 @@ export const SKILL_DATA = {
     levels: { 1: { chance: 0.40, effectType: "rewind" } },
   },
   "toji-heavenly-restriction": {
-    id: "toji-heavenly-restriction", name: "天予咒缚", type: "passive", description: "行动时速度高于目标则连击；每次满足条件，连击段数递增。同一次连击实际打出第 5 段后，本场受到的最终伤害变为 1.5 倍，并跳过下一次行动。",
-    maxLevel: 1, levels: { 1: {} },
+    id: "toji-heavenly-restriction", name: "天予咒缚", type: "passive", description: "行动时速度高于目标则连击，最多连续出拳 5 次；一次连击打出第 4 段后，下次行动休息，休息后本场受到的最终伤害变为 1.5 倍。",
+    maxLevel: 1, levels: { 1: { maxHits: 5, fatigueAtHit: 4, exhaustedDamageMultiplier: 1.5 } },
   },
   "killer-queen": {
-    id: "killer-queen", name: "杀手皇后", type: "passive", description: "每次造成有效伤害都附加一枚炸弹；经过三个后续完整回合后引爆。",
+    id: "killer-queen", name: "杀手皇后", type: "passive", description: "每次造成有效伤害都附加一枚炸弹；经过三个后续完整回合后独立引爆，对所有存活对手造成伤害并无视 70% DEF，爆炸伤害不计入其他炸弹。",
     maxLevel: 1, levels: { 1: {} },
   },
   "boros-cosmic-overlord": {
@@ -199,9 +199,9 @@ export const SKILL_DATA = {
     levels: { 1: { chance: 0.30, multiplier: 1.8, effectType: "damage", attackType: "ranged" } },
   },
   "mahito-domain": {
-    id: "mahito-domain", name: "自闭圆顿裹", type: "passive", description: "HP 低于 50% 后触发；当回合 ATK +80，之后每个新回合 ATK 再 +80。",
+    id: "mahito-domain", name: "自闭圆顿裹", type: "passive", description: "HP 低于 50% 后触发；当回合 ATK +50，之后每个新回合 ATK 再 +50。",
     triggerType: "on_action", targetRule: "self", passive: true, unlockMethod: "elite", maxLevel: 1,
-    levels: { 1: { currentHpRatioBelow: 0.5, attackBonusPerRound: 80 } },
+    levels: { 1: { currentHpRatioBelow: 0.5, attackBonusPerRound: 50 } },
   },
   "shadow-clone-rush": {
     id: "shadow-clone-rush", name: "影分身突袭", type: "active", description: "触发时保留基础攻击，并由影分身各贡献 0.3 倍攻击力伤害。",

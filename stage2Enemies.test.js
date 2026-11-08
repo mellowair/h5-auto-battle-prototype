@@ -218,8 +218,8 @@ test("Kira attaches separate bombs only for actual damage, counts subsequent act
   state.round = 4;
   const explosion = detonateDueBombs(state);
   assert.equal(explosion.length, 1);
-  assert.equal(explosion[0].actualDamage, Math.floor(second.actualDamage * 100 / (100 + hero.def * .6)));
-  assert.equal(state.bombs[0].accumulatedDamage, explosion[0].actualDamage);
+  assert.equal(explosion[0].actualDamage, Math.floor(second.actualDamage * 100 / (100 + hero.def * .3)));
+  assert.equal(state.bombs[0].accumulatedDamage, 0, "an explosion cannot add damage to another bomb");
   assert.equal(detonateDueBombs(state).length, 0);
 });
 
@@ -237,7 +237,7 @@ test("dodged or immune hits cannot create a bomb, and a fresh battle has no old 
   assert.equal(nextBattle.nextBombId, 1);
 });
 
-test("simultaneous bomb detonations use attach order and feed later bombs without making a new one", () => {
+test("simultaneous bomb detonations use attach order without feeding later bombs", () => {
   const kira = ELITE_ENEMY_DATA.find((entry) => entry.id === "kira");
   const state = initializeBattle([ally("hero", { hp: 1000 }), foe(kira)]);
   state.round = 4;
@@ -246,21 +246,21 @@ test("simultaneous bomb detonations use attach order and feed later bombs withou
     { id: "bomb-2", targetId: "hero", attachedRound: 2, dueRound: 4, accumulatedDamage: 30 },
   ];
   const events = detonateDueBombs(state);
-  assert.deepEqual(events.map((event) => [event.bombId, event.actualDamage]), [["bomb-1", 62], ["bomb-2", 57]]);
-  assert.equal(state.characters[0].currentHp, 881);
+  assert.deepEqual(events.map((event) => [event.bombId, event.actualDamage]), [["bomb-1", 76], ["bomb-2", 23]]);
+  assert.equal(state.characters[0].currentHp, 901);
   assert.equal(state.bombs.length, 0);
   assert.equal(detonateDueBombs(state).length, 0);
 });
 
-test("Kira bomb hits every living opponent once using 60 percent of each DEF", () => {
+test("Kira bomb hits every living opponent once using 30 percent of each DEF", () => {
   const kira = ELITE_ENEMY_DATA.find((entry) => entry.id === "kira");
   const state = initializeBattle([ally("front", { hp: 1000, def: 100 }),
     ally("rear", { hp: 1000, def: 200, row: "back", rosterOrder: 1 }), foe(kira)]);
   state.round = 4;
   state.bombs = [{ id: "bomb-1", targetId: "front", attachedRound: 1, dueRound: 4, accumulatedDamage: 300 }];
   const events = detonateDueBombs(state);
-  assert.deepEqual(events.map((event) => [event.targetId, event.actualDamage]), [["front", 187], ["rear", 136]]);
-  assert.deepEqual(state.characters.slice(0, 2).map((unit) => [unit.currentHp, unit.def]), [[813, 100], [864, 200]]);
+  assert.deepEqual(events.map((event) => [event.targetId, event.actualDamage]), [["front", 230], ["rear", 187]]);
+  assert.deepEqual(state.characters.slice(0, 2).map((unit) => [unit.currentHp, unit.def]), [[770, 100], [813, 200]]);
   assert.equal(state.characters[2].currentHp, kira.hp);
   assert.deepEqual(detonateDueBombs(state), []);
   state.characters[1].alive = false;

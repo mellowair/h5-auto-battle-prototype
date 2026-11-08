@@ -382,7 +382,7 @@ export const STARTING_CHARACTERS = [
 export const ELITE_ENEMY_DATA = [
   {
     id: "mahito", name: "真人", type: "elite", role: "咒灵", row: "front", position: "front",
-    hp: 1100, atk: 40, def: 50, spd: 60, critChance: 0.05, critMultiplier: 1.5,
+    hp: 1100, atk: 70, def: 50, spd: 60, critChance: 0.05, critMultiplier: 1.5,
     asset: "assets/elites/mahito_idle.png", elitePassiveId: "mahito-domain",
     animations: {
       idle: { type: "frames", frames: { idle: "assets/elites/mahito_idle.png" } },
@@ -391,7 +391,7 @@ export const ELITE_ENEMY_DATA = [
   },
   {
     id: "bomb-demon", name: "炸弹恶魔", type: "elite", role: "爆破恶魔", row: "front", position: "front",
-    hp: 900, atk: 150, def: 40, spd: 120, critChance: 0.05, critMultiplier: 1.5,
+    hp: 900, atk: 150, def: 40, spd: 100, critChance: 0.05, critMultiplier: 1.5,
     asset: "assets/elites/bomb_demon_idle.png", activeSkills: ["bomb-demon-boom"], escapeAsset: "assets/elites/bomb_demon_escape.png",
     skillAnimationMap: { "bomb-demon-boom": "boom" },
     animations: {
@@ -426,7 +426,7 @@ export const ELITE_ENEMY_DATA = [
   {
     id: "armored-titan", name: "铠之巨人", type: "elite", stageId: 2, eliteEncounterId: "titan-duo",
     role: "铠甲巨人", row: "front", position: "front",
-    hp: 3000, atk: 280, def: 200, spd: 40, critChance: 0.05, critMultiplier: 1.5,
+    hp: 3000, atk: 280, def: 180, spd: 40, critChance: 0.05, critMultiplier: 1.5,
     asset: "assets/stage2-enemies/armored-titan.png", attackType: "melee",
     activeSkills: ["reiner-sat-down"],
     animations: { idle: { type: "frames", frames: { idle: "assets/stage2-enemies/armored-titan.png" } }, skill1: { type: "frames", frames: { hold: "assets/stage2-enemies/armored-titan-skill.png" } } },

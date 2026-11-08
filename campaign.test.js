@@ -562,8 +562,8 @@ test("route growth is applied once to normal and elite battle copies", () => {
     }
   }
 
-  const humanEliteExpected = new Map([[3, [1100, 40, 50, 60]], [6, [1265, 44, 52, 60]], [9, [1375, 46, 55, 60]]]);
-  const bombEliteExpected = new Map([[3, [900, 150, 40, 120]], [6, [1035, 165, 42, 120]], [9, [1125, 172, 44, 120]]]);
+  const humanEliteExpected = new Map([[3, [1100, 70, 50, 60]], [6, [1265, 77, 52, 60]], [9, [1375, 80, 55, 60]]]);
+  const bombEliteExpected = new Map([[3, [900, 150, 40, 100]], [6, [1035, 165, 42, 100]], [9, [1125, 172, 44, 100]]]);
   for (const [step, expected] of humanEliteExpected) {
     const { campaign: eliteCampaign, node: eliteNode } = campaignForEncounterStep(step, "elite", () => 0);
     const eliteSelected = travelTo(eliteCampaign, eliteNode.id);

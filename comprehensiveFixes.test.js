@@ -28,7 +28,7 @@ test("stage-two elites, Boss and two event enemies retain their final template s
   const lookup = new Map(ELITE_ENEMY_DATA.map((enemy) => [enemy.id, enemy]));
   for (const [id, expected] of [
     ["toji", [2600, 330, 120, 220]], ["kira", [2700, 350, 120, 100]],
-    ["armored-titan", [3000, 280, 200, 40]], ["colossal-titan", [2800, 0, 110, 1]],
+    ["armored-titan", [3000, 280, 180, 40]], ["colossal-titan", [2800, 0, 110, 1]],
   ]) {
     const enemy = lookup.get(id);
     assert.deepEqual([enemy.hp, enemy.atk, enemy.def, enemy.spd], expected, id);
@@ -44,7 +44,7 @@ test("stage-two encounter copies use the exact final stats at early and late rou
     ["boros", [5000, 550, 160, 150]],
     ["toji", [2600, 330, 120, 220]],
     ["kira", [2700, 350, 120, 100]],
-    ["armored-titan", [3000, 280, 200, 40]],
+    ["armored-titan", [3000, 280, 180, 40]],
     ["gilgamesh", [2800, 450, 120, 140]],
     ["suzuya", [2400, 250, 130, 100]],
   ]);

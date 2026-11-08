@@ -17,7 +17,7 @@ const enemy = (template, extra = {}) => ({ ...template, team: "enemy", maxHp: te
 const duo = (...allies) => initializeBattle([...allies, enemy(armoredTemplate), enemy(colossalTemplate)]);
 
 test("both giants have independent base data, positions, skills, and placeholder art", () => {
-  assert.deepEqual([armoredTemplate.hp, armoredTemplate.atk, armoredTemplate.def, armoredTemplate.spd], [3000, 280, 200, 40]);
+  assert.deepEqual([armoredTemplate.hp, armoredTemplate.atk, armoredTemplate.def, armoredTemplate.spd], [3000, 280, 180, 40]);
   assert.deepEqual([colossalTemplate.hp, colossalTemplate.atk, colossalTemplate.def, colossalTemplate.spd], [2800, 0, 110, 1]);
   assert.deepEqual([armoredTemplate.row, colossalTemplate.row], ["front", "back"]);
   assert.equal(armoredSkill.chance, .5);
@@ -37,16 +37,16 @@ test("armored skill schedules 25% final normal-damage reduction only for the nex
   assert.equal(cast.effectiveFromRound, 2);
   assert.equal(cast.effectiveUntilRound, 2);
   const sameRound = executeAttack(state, attacker, armored, () => .9, { skill: null });
-  assert.equal(sameRound.damage, 100);
+  assert.equal(sameRound.damage, 107);
   assert.equal(sameRound.armorReductionApplied, false);
   state.round = 2;
   const protectedHit = executeAttack(state, attacker, armored, () => .9, { skill: null });
-  assert.equal(protectedHit.damage, 75);
+  assert.equal(protectedHit.damage, 80);
   assert.equal(protectedHit.armorReductionApplied, true);
   assert.equal(expireArmoredShieldAtRoundEnd(state).type, "armor-shield-expired");
   assert.equal(expireArmoredShieldAtRoundEnd(state), null);
   state.round = 3;
-  assert.equal(executeAttack(state, attacker, armored, () => .9, { skill: null }).damage, 100);
+  assert.equal(executeAttack(state, attacker, armored, () => .9, { skill: null }).damage, 107);
 });
 
 test("armored action uses the configured 50% trigger roll and keeps normal attacks when it fails", () => {
@@ -70,10 +70,10 @@ test("repeat cast refreshes duration without stacking and death removes armor st
   state.round = 2;
   const refresh = executeAttack(state, armored, attacker, () => .9, { skill: armoredSkill });
   assert.deepEqual([refresh.effectiveFromRound, refresh.effectiveUntilRound], [2, 3]);
-  assert.equal(executeAttack(state, attacker, armored, () => .9, { skill: null }).damage, 75);
+  assert.equal(executeAttack(state, attacker, armored, () => .9, { skill: null }).damage, 80);
   assert.equal(expireArmoredShieldAtRoundEnd(state), null);
   state.round = 3;
-  assert.equal(executeAttack(state, attacker, armored, () => .9, { skill: null }).damage, 75);
+  assert.equal(executeAttack(state, attacker, armored, () => .9, { skill: null }).damage, 80);
   assert.ok(expireArmoredShieldAtRoundEnd(state));
   state.round = 4;
   attacker.atk = 100000;

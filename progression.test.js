@@ -10,7 +10,7 @@ import {
   advanceTemporaryEffectsAfterBattle, chooseAdventureEventId, getAvailableAdventureEventIds,
   canDeclineNewSkill, getTemporaryCombatModifiers, getTemporaryEffectDisplayRows, getTemporaryEffects, getUnlearnedActiveSkills, getUpgradeableSkills, healRunCharacter, learnActiveSkill,
   resolveAdventureEvent, resolveCampfire, startAdventureBattle, upgradeActiveSkill,
-  claimTreasure, getTreasureCombatModifiers, grantEliteSukunaFinger, grantGiantSpinalFluid, grantGunDevilFragment,
+  claimTreasure, getTreasureCombatModifiers, grantEliteSukunaFinger, grantGiantSpinalFluid, grantGunDevilFragment, previewGrowingDrop,
 } from "./progression.js";
 import { createCampaign, selectStartingCharacter, startCampaign } from "./campaign.js";
 import { calculateDamage } from "./battle.js";
@@ -325,6 +325,41 @@ test("first-stage giant encounter grants the same growing spinal fluid effect on
   const repeat = grantGiantSpinalFluid(run, "giant-elite");
   assert.deepEqual([repeat.acquisitionCount, repeat.maxHp, repeat.def, repeat.restoredHp], [2, 150, 30, 150]);
   assert.deepEqual([run.currentHp, run.maxHp, run.def], [750, 1850, 120]);
+});
+
+test("special drop stage growth and repeat growth both use first-stage base values", () => {
+  const gun = makeNaruto();
+  gun.currentHp = 500;
+  assert.deepEqual([grantGunDevilFragment(gun, "gun-1", 1).maxHp,
+    previewGrowingDrop(gun, "gun_devil_fragment", 2).maxHp], [200, 400]);
+  const second = grantGunDevilFragment(gun, "gun-2", 2);
+  assert.deepEqual([second.maxHp, second.restoredHp, gun.maxHp, gun.currentHp], [400, 400, 2200, 1100]);
+  assert.equal(grantGunDevilFragment(gun, "gun-3", 3).maxHp, 600);
+  for (const [stage, expected] of [[1, 200], [2, 300], [3, 400]]) {
+    const fresh = makeNaruto();
+    assert.equal(grantGunDevilFragment(fresh, `fresh-${stage}`, stage).maxHp, expected);
+  }
+  const giant = makeNaruto();
+  const first = grantGiantSpinalFluid(giant, "fluid-1", 1);
+  const crossStage = grantGiantSpinalFluid(giant, "fluid-2", 2);
+  assert.deepEqual([first.maxHp, first.def, crossStage.maxHp, crossStage.def], [100, 20, 200, 40]);
+  assert.deepEqual([grantGiantSpinalFluid(giant, "fluid-3", 3).maxHp, giant.def], [300, 190]);
+  for (const [stage, expectedHp, expectedDef] of [[1, 100, 20], [2, 150, 30], [3, 200, 40]]) {
+    const fresh = makeNaruto();
+    const effect = grantGiantSpinalFluid(fresh, `fresh-fluid-${stage}`, stage);
+    assert.deepEqual([effect.maxHp, effect.def], [expectedHp, expectedDef]);
+  }
+  const finger = makeNaruto();
+  const fingerFirst = grantEliteSukunaFinger(finger, "mahito-1", 1);
+  const fingerSecond = grantEliteSukunaFinger(finger, "mahito-2", 2);
+  assert.deepEqual([fingerFirst.atk, fingerSecond.atk, fingerFirst.maxHp, fingerSecond.maxHp], [30, 60, -150, -150]);
+  assert.equal(grantEliteSukunaFinger(makeNaruto(), "mahito-3", 3).atk, 60);
+  const treasury = makeNaruto();
+  createAdventureEventResult(treasury, "stage-two-treasury", "kings_treasury", () => 0, [treasury], 2);
+  resolveAdventureEvent(treasury, "stage-two-treasury", "treasury_steal", () => .1);
+  treasury.eventResults["stage-two-treasury"].data.treasureOffer.choices = ["sukuna_finger", "magic_conch"];
+  assert.ok(claimTreasure(treasury, "stage-two-treasury", "sukuna_finger", treasury, treasury.characterId));
+  assert.deepEqual([treasury.atk, treasury.maxHp], [235, 1450]);
 });
 
 test("campfire upgrades learned skills, then teaches an unlearned active skill at level one", () => {

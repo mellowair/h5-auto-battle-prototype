@@ -1222,7 +1222,9 @@ function renderAllyStatusIcons() {
   if (battleStatusState.tojiExhausted && viewState?.characters?.some((unit) => unit.id === "toji" && unit.alive)) {
     enemyStatuses.push({ id: "toji-exhausted", name: "出拳太快有点累了",
       image: "assets/stage2-enemies/toji/idle.png", tone: "danger",
-      description: "本场战斗中，伏黑甚尔受到的最终伤害变为 1.5 倍（包括真实伤害）。" });
+      description: battleStatusState.tojiExhausted === "pending"
+        ? "下次行动休息一轮，之后本场受到的最终伤害变为 1.5 倍。"
+        : "本场战斗中，伏黑甚尔受到的最终伤害变为 1.5 倍（包括真实伤害）。" });
   }
   for (const bomb of battleStatusState.bombs ?? []) {
     allyStatuses.push({ id: bomb.id, name: "杀手皇后炸弹", image: "assets/stage2-enemies/kira/idle.png", tone: "danger",
@@ -1720,14 +1722,18 @@ function playEvent(event, finish) {
     return;
   }
   if (event.type === "toji-exhausted") {
-    battleStatusState.tojiExhausted = true;
+    battleStatusState.tojiExhausted = "pending";
     const toji = viewState.characters.find((unit) => unit.id === event.attackerId);
-    if (toji) toji.tojiExhausted = true;
+    if (toji) toji.tojiRestPending = true;
     renderAllyStatusIcons();
-    addLog(`<b>${toji?.name ?? "伏黑甚尔"}</b> 获得「出拳太快有点累了」：本场受到的最终伤害变为 1.5 倍，下次行动休息。`, "log-skill");
+    addLog(`<b>${toji?.name ?? "伏黑甚尔"}</b> 连续出拳 4 次，下次行动休息；休息后本场受到的最终伤害变为 1.5 倍。`, "log-skill");
     return finish();
   }
   if (event.type === "toji-skip") {
+    battleStatusState.tojiExhausted = "active";
+    const toji = viewState.characters.find((unit) => unit.id === event.attackerId);
+    if (toji) { toji.tojiRestPending = false; toji.tojiExhausted = true; }
+    renderAllyStatusIcons();
     addLog(`<span class="round-label">R${event.round}</span> <b>伏黑甚尔</b> 太累了，休息一次。`, "log-enemy");
     return finish();
   }
@@ -4322,13 +4328,17 @@ function renderTreasureOffer() {
   const tierName = offer.tier === "royal" ? "王之财宝" : "小宝物";
   const choices = offer.choices.map((id) => {
     const treasure = TREASURE_DATA[id];
-    return decisionChoice(id, treasure.name, `${treasure.description} 选择后指定一名队员领取。`, false, treasure.image);
+    const summary = id === "sukuna_finger"
+      ? "ATK 随关卡与重复获取次数成长，最大 HP -150；选定领取者后显示本次准确数值。"
+      : treasure.description;
+    return decisionChoice(id, treasure.name, `${summary} 选择后指定一名队员领取。`, false, treasure.image);
   });
   renderDecisionScreen(`${tierName} · 选择宝物`, "随机展示两件不同的宝物，只能领取其中一件。", choices, "选择宝物", (treasureId) => {
     const treasure = TREASURE_DATA[treasureId];
     const recipients = campaign.partyIds.map((id) => {
       const character = partyPresentation(id);
-      return decisionChoice(id, character?.name ?? id, `领取「${treasure.name}」：${treasure.description}`);
+      const effect = previewGrowingDrop(campaign.partyStates[id], treasureId, campaign.stageId);
+      return decisionChoice(id, character?.name ?? id, `领取「${treasure.name}」：${effect?.description ?? treasure.description}`);
     });
     const claim = (recipientId) => {
       const result = claimCampaignTreasure(campaign, treasureId, recipientId);
@@ -4390,11 +4400,10 @@ function renderBattleReward() {
       : enemyIds.includes("bomb-demon") ? GUN_DEVIL_FRAGMENT : TREASURE_DATA.sukuna_finger;
     const choices = campaign.partyIds.map((id) => {
       const member = partyPresentation(id);
-      const reward = previewGrowingDrop(campaign.partyStates[id], item.id);
+      const reward = previewGrowingDrop(campaign.partyStates[id], item.id, campaign.stageId);
       return decisionChoice(id, member?.name ?? id, reward?.description ?? `由该角色领取「${item.name}」。`, false, member?.asset ?? null);
     });
-    renderDecisionScreen(`精英战利品 · ${item.name}`, previewGrowingDrop(campaign.partyStates[campaign.partyIds[0]], item.id)
-      ? "本次收益按所选角色此前获得同名宝物的次数计算。" : item.description, choices, "确认领取", (id) => {
+    renderDecisionScreen(`精英战利品 · ${item.name}`, "本次收益按当前关卡及所选角色此前获得同名宝物的次数计算。", choices, "确认领取", (id) => {
       const result = claimCampaignEliteDrop(campaign, id);
       if (!result?.status) {
         console.error("精英战利品领取未完成", { itemId: item.id, recipientId: id,
@@ -4412,7 +4421,7 @@ function renderBattleReward() {
   if (campaign.rewardPhase === "giant_recipient") {
     const choices = campaign.partyIds.map((id) => {
       const character = partyPresentation(id);
-      return decisionChoice(id, character?.name ?? id, previewGrowingDrop(campaign.partyStates[id], GIANT_SPINAL_FLUID.id).description);
+      return decisionChoice(id, character?.name ?? id, previewGrowingDrop(campaign.partyStates[id], GIANT_SPINAL_FLUID.id, campaign.stageId).description);
     });
     renderDecisionScreen("选择巨人脊髓液领取者", "整份奖励仅授予一名队员，恢复的 HP 不超过领取后的最大 HP。", choices,
       "领取奖励", (id) => {

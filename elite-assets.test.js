@@ -8,8 +8,8 @@ test("elite roster uses the four standalone transparent figure 1/2 assets", () =
   const mahito = ELITE_ENEMY_DATA.find((entry) => entry.id === "mahito");
   const bomb = ELITE_ENEMY_DATA.find((entry) => entry.id === "bomb-demon");
   assert.ok(mahito && bomb);
-  assert.deepEqual([mahito.hp, mahito.atk, mahito.def, mahito.spd], [1100, 40, 50, 60]);
-  assert.deepEqual([bomb.hp, bomb.atk, bomb.def, bomb.spd], [900, 150, 40, 120]);
+  assert.deepEqual([mahito.hp, mahito.atk, mahito.def, mahito.spd], [1100, 70, 50, 60]);
+  assert.deepEqual([bomb.hp, bomb.atk, bomb.def, bomb.spd], [900, 150, 40, 100]);
   assert.equal(mahito.asset, "assets/elites/mahito_idle.png");
   assert.equal(mahito.animations.domain.frames.domain, "assets/elites/mahito_domain.png");
   assert.equal(bomb.asset, "assets/elites/bomb_demon_idle.png");

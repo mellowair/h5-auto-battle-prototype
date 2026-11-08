@@ -127,7 +127,7 @@ test("level-two passives apply in combat without permanently multiplying base st
   assert.equal(critical.oneEyeHealedAmount, Math.floor(critical.calculatedDamage * .4));
 });
 
-test("Kira bomb pays defense before HP and feeds actual loss to a later bomb", () => {
+test("Kira bomb ignores 70 percent of DEF without feeding another bomb", () => {
   const state = initializeBattle([ally("hero", { def: 100 }), enemy("kira")]);
   state.round = 4;
   state.bombs = [
@@ -135,8 +135,8 @@ test("Kira bomb pays defense before HP and feeds actual loss to a later bomb", (
     { id: "bomb-2", targetId: "hero", attachedRound: 2, dueRound: 4, accumulatedDamage: 100 },
   ];
   const result = detonateDueBombs(state);
-  assert.deepEqual(result.map((event) => event.actualDamage), [312, 257]);
-  assert.equal(state.characters[0].currentHp, 2431);
+  assert.deepEqual(result.map((event) => event.actualDamage), [384, 76]);
+  assert.equal(state.characters[0].currentHp, 2540);
 });
 
 test("Dina's fourth living summoned giant forces defeat before actions", () => {

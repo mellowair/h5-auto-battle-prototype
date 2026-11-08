@@ -196,6 +196,25 @@ test("Dina stays unscaled while each summoned giant gets the ordinary guard's ac
   }
 });
 
+test("Dina grows linearly by stage and summons that stage's ordinary front-line stats", () => {
+  for (const [stageId, dinaStats, giantStats] of [
+    [1, [1000, 80, 60, 5], [625, 69, 44, 30]],
+    [2, [1300, 104, 78, 6], [1350, 117, 81, 54]],
+    [3, [1600, 128, 96, 8], [2400, 250, 140, 75]],
+  ]) {
+    const campaign = eventCampaign(8);
+    campaign.stageId = stageId;
+    campaign.stageStep = 4;
+    campaign.pendingEvent.data.stageId = stageId;
+    assert.ok(resolveCampaignEvent(campaign, "giant_heart"));
+    assert.ok(startCampaignEventBattle(campaign));
+    const dina = prepareBattle(campaign).roster.find((unit) => unit.id === "dina");
+    assert.deepEqual([dina.maxHp, dina.atk, dina.def, dina.spd], dinaStats);
+    const giant = dina.summonPassive.unit;
+    assert.deepEqual([giant.maxHp, giant.atk, giant.def, giant.spd], giantStats);
+  }
+});
+
 test("Dina summons at rounds 2, 8, 14, 20 and fourth living giant ends combat once", () => {
   const campaign = eventCampaign(3);
   resolveCampaignEvent(campaign, "giant_heart");

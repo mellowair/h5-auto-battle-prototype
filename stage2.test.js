@@ -155,13 +155,43 @@ test("second-stage elite nodes draw Toji, Kira, or one shared titan duo encounte
       const armored = prepared.roster.find((entry) => entry.id === "armored-titan");
       const colossal = prepared.roster.find((entry) => entry.id === "colossal-titan");
       assert.deepEqual([armored.maxHp, armored.atk, armored.def, armored.spd],
-        [3000, 280, 200, 40]);
+        [3000, 280, 180, 40]);
       assert.deepEqual([colossal.maxHp, colossal.atk, colossal.def, colossal.spd],
         [2800, 0, 110, 1]);
     }
     assert.equal(finishBattle(campaign, "victory", campaign.playerHp).status, "reward");
     assert.equal(finishBattle(campaign, "victory", campaign.playerHp), false, "the shared encounter cannot issue another reward");
   }
+});
+
+test("elite encounters prefer unseen stage entries and reuse the pool only after exhaustion", () => {
+  const first = createCampaign(() => 0, { seed: 731 });
+  startCampaign(first);
+  first.candidateIds = ["naruto", "eren"];
+  selectStartingCharacter(first, "naruto");
+  chooseStartingSkill(first, "shadow-clone-rush");
+  beginJourney(first);
+  const second = stageTwoRun(731).campaign;
+  for (const [campaign, expected] of [[first, ["mahito", "bomb-demon", "mahito"]],
+    [second, ["toji", "kira", "titan-duo", "toji"]]]) {
+    const elite = campaign.routeMap.nodes.find((node) => node.type === "elite");
+    const parent = campaign.routeMap.nodes.find((node) => node.nextNodeIds.includes(elite.id));
+    assert.ok(parent);
+    campaign.random = () => 0;
+    for (const encounterId of expected) {
+      campaign.routeMap.currentNodeId = parent.id;
+      campaign.status = "route";
+      campaign.activeNode = null;
+      campaign.currentBattle = null;
+      campaign.combatLaunched = false;
+      elite.status = "pending";
+      assert.equal(chooseRoute(campaign, elite.id).battle.eliteId, encounterId);
+    }
+    assert.deepEqual(campaign.eliteEncounterHistory, expected);
+  }
+  assert.equal(second.eliteEncounterHistory[0], "toji", "stage two starts with an empty encounter history");
+  const nextStage = stageTwoRun(732, (campaign) => { campaign.eliteEncounterHistory = ["mahito", "bomb-demon"]; }).campaign;
+  assert.deepEqual(nextStage.eliteEncounterHistory, [], "entering a new stage clears the previous elite encounters");
 });
 
 test("stage-two growth uses the local visited-room step and caps at step nine", () => {

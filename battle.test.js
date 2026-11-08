@@ -112,20 +112,20 @@ test("the configured 30% Boom active skill uses its 1.8x multiplier through the 
   assert.equal(event.damage, 270);
 });
 
-test("Mahito activates his passive once below half HP and gains another 80 ATK each new round", () => {
+test("Mahito activates his passive once below half HP and gains another 50 ATK each new round", () => {
   const hero = { id: "hero", team: "ally", atk: 600, def: 10000, spd: 100, maxHp: 99999, currentHp: 99999, alive: true, critChance: 0, rosterOrder: 0 };
   const mahito = { id: "mahito", name: "真人", team: "enemy", atk: 40, def: 0, spd: 60, maxHp: 1000, currentHp: 1000, alive: true, critChance: 0, elitePassiveId: "mahito-domain", rosterOrder: 1 };
   const result = simulateBattle([hero, mahito], () => 0.99);
   const activation = result.events.find((event) => event.type === "elite-passive-trigger");
   assert.ok(activation);
-  assert.equal(activation.attackBonus, 80);
-  assert.equal(activation.effectiveAtk, 120);
+  assert.equal(activation.attackBonus, 50);
+  assert.equal(activation.effectiveAtk, 90);
   assert.equal(result.events.filter((event) => event.type === "elite-passive-trigger").length, 1);
   const laterGrowth = result.events.find((event) => event.type === "elite-passive-growth");
   assert.ok(laterGrowth);
   assert.equal(laterGrowth.round, activation.round + 1);
-  assert.equal(laterGrowth.attackBonus, 80);
-  assert.equal(laterGrowth.effectiveAtk, activation.effectiveAtk + 80);
+  assert.equal(laterGrowth.attackBonus, 50);
+  assert.equal(laterGrowth.effectiveAtk, activation.effectiveAtk + 50);
   assert.equal(result.events.filter((event) => event.type === "elite-passive-growth" && event.round === laterGrowth.round).length, 1);
 });
 

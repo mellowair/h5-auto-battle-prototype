@@ -18,6 +18,7 @@ const enemyTemplates = new Map(CHARACTER_DATA.filter((character) => character.te
 const ROUTE_LENGTH = ROUTE_MAP_FINAL_STEP;
 // Balance adjustment for ordinary route battles in the first two stages only.
 const EARLY_NORMAL_ENEMY_STAT_SCALE = 0.9;
+const DINA_STAGE_GROWTH = 0.3;
 export const STAGE_TWO_STAT_UPGRADES = Object.freeze([
   { id: "maxHp", name: "最大生命 +100", value: 100 },
   { id: "atk", name: "攻击 +10", value: 10 },
@@ -99,7 +100,12 @@ function encounterFor(campaign, type, node, forcedEncounterId = null) {
     const pool = ELITE_ENEMY_DATA.filter((entry) => (entry.stageId ?? 1) === campaign.stageId);
     const encounterIds = [...new Set(pool.map((entry) => entry.eliteEncounterId ?? entry.id))];
     if (forcedEncounterId && !encounterIds.includes(forcedEncounterId)) throw new RangeError(`unknown stage-two elite: ${forcedEncounterId}`);
-    const encounterId = forcedEncounterId ?? encounterIds[Math.min(encounterIds.length - 1, Math.floor(Math.max(0, Math.min(0.999999999, campaign.random())) * encounterIds.length))];
+    if (!encounterIds.length) throw new RangeError(`No elite encounter for stage ${campaign.stageId}`);
+    campaign.eliteEncounterHistory ??= [];
+    const unseen = encounterIds.filter((id) => !campaign.eliteEncounterHistory.includes(id));
+    const candidates = unseen.length ? unseen : encounterIds;
+    const encounterId = forcedEncounterId ?? candidates[Math.min(candidates.length - 1, Math.floor(Math.max(0, Math.min(0.999999999, campaign.random())) * candidates.length))];
+    campaign.eliteEncounterHistory.push(encounterId);
     const enemies = pool.filter((entry) => (entry.eliteEncounterId ?? entry.id) === encounterId);
     const title = enemies.map((entry) => entry.name).join(" + ");
     return {
@@ -230,7 +236,7 @@ export function createCampaign(random = Math.random, options = {}) {
   return {
     status: "intro", random, stageId: 1, step: 0, stageStep: 0, battleNumber: 0, completedBattles: 0,
     candidateIds: null, playerId: null, partyIds: [], partyStates: {}, playerHp: 0, playerMaxHp: 0, runCharacterState: null, nextAttackMultiplier: 1,
-    consecutiveWithoutBattle: 0, routeMap: generateRouteMap(seed), routeOptions: [], history: [], activeNode: null,
+    consecutiveWithoutBattle: 0, routeMap: generateRouteMap(seed), routeOptions: [], history: [], eliteEncounterHistory: [], activeNode: null,
     currentBattle: null, pendingEvent: null, resolvedEvents: [], eventResolved: false, combatLaunched: false,
     startingSkillSelected: false, activeEventType: null, eventBattleSourceId: null,
     rewardBattleId: null, rewardPhase: null, rewardBattleType: null, stageTransition: null, stageTwoReward: null,
@@ -383,7 +389,10 @@ export function prepareBattle(campaign) {
     const stageTwoNormal = campaign.stageId === 2 && battle.type === "normal";
     const stageThreeNormal = campaign.stageId === 3 && battle.type === "normal";
     const trialNormal = campaign.trialBattle?.taskId === "will" && !["heracles", "odin"].includes(enemyId);
-    const baseStats = trialNormal ? getStageThreeNormalEnemyStats(template.row === "front" ? "guard" : "mage", routeStep)
+    const dinaStageMultiplier = 1 + DINA_STAGE_GROWTH * (campaign.stageId - 1);
+    const baseStats = enemyId === "dina" ? Object.fromEntries(["hp", "atk", "def", "spd"].map((stat) =>
+      [stat, Math.max(1, Math.floor(template[stat] * dinaStageMultiplier))]))
+      : trialNormal ? getStageThreeNormalEnemyStats(template.row === "front" ? "guard" : "mage", routeStep)
       : stageTwoNormal ? getStageTwoNormalEnemyStats(enemyId, routeStep)
       : stageThreeNormal ? getStageThreeNormalEnemyStats(enemyId, routeStep)
       : battle.enemyBaseStats?.[enemyId] ?? (campaign.stageId === 1 && battle.type === "normal"
@@ -396,12 +405,19 @@ export function prepareBattle(campaign) {
     const maxHp = Math.max(1, Math.floor(Math.floor(baseHp * enemyGrowth.hp) * normalScale * trialScale));
     const summonedGuard = template.summonPassive?.unitId === "guard" ? (() => {
       const guard = enemyTemplates.get("guard");
-      const growth = getRouteEnemyGrowth("normal", routeStep, campaign.stageId);
-      const hp = Math.max(1, Math.floor(guard.hp * growth.hp));
+      const stageStats = campaign.stageId === 1 ? guard
+        : campaign.stageId === 2 ? getStageTwoNormalEnemyStats("guard", routeStep)
+        : campaign.stageId === 3 ? getStageThreeNormalEnemyStats("guard", routeStep) : null;
+      if (!stageStats) throw new RangeError(`No ordinary front-line stats for stage ${campaign.stageId}`);
+      const growth = campaign.stageId === 1 ? getRouteEnemyGrowth("normal", routeStep, campaign.stageId)
+        : { hp: 1, atk: 1, def: 1 };
+      const normalScale = campaign.stageId === 2 ? EARLY_NORMAL_ENEMY_STAT_SCALE : 1;
+      const hp = Math.max(1, Math.floor(stageStats.hp * growth.hp * normalScale));
       return { ...guard, name: "普通巨人", asset: NORMAL_ENEMY_APPEARANCES.giant.asset,
         appearanceId: "giant", visualId: "giant", hp, maxHp: hp, currentHp: hp,
-        atk: Math.max(1, Math.floor(guard.atk * growth.atk)),
-        def: Math.max(1, Math.floor(guard.def * growth.def)), spd: guard.spd,
+        atk: Math.max(1, Math.floor(stageStats.atk * growth.atk * normalScale)),
+        def: Math.max(1, Math.floor(stageStats.def * growth.def * normalScale)),
+        spd: Math.max(1, Math.floor(stageStats.spd * normalScale)),
         skill: null, skills: [], rosterOrder: 1 };
     })() : null;
     const isDeidaraBoss = battle.type === "boss" && battle.enemyNames?.[enemyId] === "迪达拉";
@@ -603,7 +619,7 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
     : campaign.currentBattle?.type === "elite" || campaign.activeNode?.resolution === "elite" ? "elite" : "normal";
   if (campaign.eventBattleSourceId) {
     const result = completeAdventureBattle(campaign.runCharacterState, campaign.eventBattleSourceId, "victory", campaign.random,
-      { deferSpinalFluid: campaign.stageId === 2 });
+      { deferSpinalFluid: campaign.stageId >= 2 });
     if (!result || result.status !== "awaiting_reward") return false;
     campaign.playerMaxHp = campaign.runCharacterState.maxHp;
     campaign.playerHp = campaign.runCharacterState.currentHp;
@@ -613,7 +629,7 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
     if (campaign.stageId === 1) createBattleRewardOffer(campaign.runCharacterState, campaign.rewardBattleId, campaign.rewardBattleType, campaign.random);
   }
   const giantRecord = campaign.eventBattleSourceId && campaign.runCharacterState.eventResults[campaign.eventBattleSourceId];
-  campaign.rewardPhase = campaign.stageId === 2 && giantRecord?.eventId === "giant_encirclement" &&
+  campaign.rewardPhase = campaign.stageId >= 2 && giantRecord?.eventId === "giant_encirclement" &&
     giantRecord.data.choiceId === "giant_heart" ? "giant_recipient"
     : giantRecord?.eventId === "kings_treasury" ? "treasure"
       : giantRecord?.data.quinquePending ? "quinque"
@@ -721,10 +737,10 @@ export function claimCampaignEliteDrop(campaign, recipientId) {
   // A failed route transition must be retryable without granting the item twice.
   const existing = recipient.permanentEffects?.find((item) => item.id === dropId && item.sourceId === sourceId);
   const effect = existing ?? (dropId === "giant_spinal_fluid"
-    ? grantGiantSpinalFluid(recipient, sourceId)
+    ? grantGiantSpinalFluid(recipient, sourceId, campaign.stageId)
     : dropId === "gun_devil_fragment"
-      ? grantGunDevilFragment(recipient, sourceId)
-      : grantEliteSukunaFinger(recipient, sourceId));
+      ? grantGunDevilFragment(recipient, sourceId, campaign.stageId)
+      : grantEliteSukunaFinger(recipient, sourceId, campaign.stageId));
   if (!effect) return false;
   campaign.playerHp = campaign.runCharacterState.currentHp;
   campaign.playerMaxHp = campaign.runCharacterState.maxHp;
@@ -813,12 +829,12 @@ export function claimCampaignQuinque(campaign, recipientId, rewardId) {
 }
 
 export function claimStageTwoGiantRecipient(campaign, characterId) {
-  if (campaign?.stageId !== 2 || campaign.status !== "reward" || campaign.rewardPhase !== "giant_recipient" ||
+  if (campaign?.stageId < 2 || campaign.status !== "reward" || campaign.rewardPhase !== "giant_recipient" ||
     !campaign.partyIds.includes(characterId) || !campaign.eventBattleSourceId) return false;
   const record = campaign.runCharacterState.eventResults[campaign.eventBattleSourceId];
   if (record?.eventId !== "giant_encirclement" || record.data.choiceId !== "giant_heart" ||
     record.status !== "awaiting_reward" || record.data.spinalFluidGranted) return false;
-  const effect = grantGiantSpinalFluid(campaign.partyStates[characterId], record.sourceId);
+  const effect = grantGiantSpinalFluid(campaign.partyStates[characterId], record.sourceId, campaign.stageId);
   if (!effect) return false;
   record.data.spinalFluidGranted = true;
   record.data.spinalFluidRecipientId = characterId;
@@ -952,6 +968,7 @@ export function chooseRoute(campaign, nodeId) {
     currentBattle: campaign.currentBattle, battleNumber: campaign.battleNumber,
     consecutiveWithoutBattle: campaign.consecutiveWithoutBattle,
     combatLaunched: campaign.combatLaunched, status: campaign.status,
+    eliteEncounterCount: campaign.eliteEncounterHistory?.length ?? 0,
     chapter3FirstEncounterAssigned: campaign.chapter3FirstEncounterAssigned,
     eventResult: eventResults?.[node.id],
   };
@@ -1002,6 +1019,7 @@ export function chooseRoute(campaign, nodeId) {
     campaign.consecutiveWithoutBattle = previous.consecutiveWithoutBattle;
     campaign.combatLaunched = previous.combatLaunched;
     campaign.status = previous.status;
+    if (campaign.eliteEncounterHistory) campaign.eliteEncounterHistory.length = previous.eliteEncounterCount;
     campaign.chapter3FirstEncounterAssigned = previous.chapter3FirstEncounterAssigned;
     if (eventResults) {
       if (hadEventResult) eventResults[node.id] = previous.eventResult;
@@ -1308,6 +1326,7 @@ export function beginStageTwo(campaign) {
     campaign.partyIds.length !== 2) return false;
   restorePartyHealthForStage(campaign, 2);
   campaign.stageId = 2;
+  campaign.eliteEncounterHistory = [];
   campaign.stageStep = 1;
   campaign.routeMap = generateRouteMap(`stage2:${campaign.routeMap.seed}`, { stageId: 2 });
   campaign.activeNode = null;
@@ -1324,6 +1343,7 @@ export function beginStageThree(campaign) {
       campaign.stageId !== 2 || campaign.partyIds.length !== 2) return false;
   restorePartyHealthForStage(campaign, 3);
   campaign.stageId = 3;
+  campaign.eliteEncounterHistory = [];
   campaign.chapter3Entered = true;
   campaign.stageStep = 1;
   campaign.routeMap = generateRouteMap(`stage3:${campaign.routeMap.seed}`, { stageId: 3 });
