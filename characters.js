@@ -539,7 +539,7 @@ export const STAGE_THREE_MINIONS = Object.freeze({
     asset: "assets/stage3-enemies/katana_idle.png", visualId: "katana-devil",
     extraPassiveSkillIds: ["stage3-bleed"] },
   quanxi: { id: "quanxi", name: "光熙", team: "enemy", row: "front", position: "front",
-    hp: 1500, atk: 450, def: 100, spd: 300, attackType: "melee", stageThreeMinion: true, stageThreeKind: "quanxi",
+    hp: 2000, atk: 450, def: 100, spd: 300, attackType: "melee", stageThreeMinion: true, stageThreeKind: "quanxi",
     asset: "assets/stage3-enemies/quanxi_idle.png", visualId: "quanxi",
     animations: { meleeAttack: { type: "frames", frames: {
       flash: "assets/stage3-enemies/quanxi_flash.png", strike: "assets/stage3-enemies/quanxi_attack.png",
