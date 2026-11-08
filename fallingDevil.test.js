@@ -12,14 +12,14 @@ const ally = (id, spd = 100, def = 100) => ({ id, name: id, team: "ally", row: "
   hp: 30000, currentHp: 30000, atk: 1, def, spd, critChance: 0, normalDodgeRate: 0 });
 
 test("falling devil joins the stage-three elite registry with all eight real art files", () => {
-  assert.deepEqual([devil.stageId, devil.row, devil.hp, devil.atk, devil.def, devil.spd], [3, "back", 6000, 250, 150, 140]);
+  assert.deepEqual([devil.stageId, devil.row, devil.hp, devil.atk, devil.def, devil.spd], [3, "back", 6000, 250, 170, 140]);
   for (const path of [devil.asset, devil.gravityCircleAsset, devil.dishAsset,
     ...Object.values(devil.animations).flatMap((animation) => Object.values(animation.frames))])
     assert.ok(existsSync(new URL(`./${path}`, import.meta.url)), path);
   const campaign = createStageThreeTestCampaign({ heroId: "naruto", partnerId: "eren", opponent: "falling-devil" });
   const enemy = prepareBattle(campaign).roster.find((unit) => unit.id === "falling-devil");
   assert.equal(campaign.currentBattle.type, "elite");
-  assert.deepEqual([enemy.maxHp, enemy.atk, enemy.def, enemy.spd], [6000, 250, 150, 140]);
+  assert.deepEqual([enemy.maxHp, enemy.atk, enemy.def, enemy.spd], [6000, 250, 170, 140]);
 });
 
 test("gravity fixes combat speed at one without changing individual entry speed snapshots", () => {
