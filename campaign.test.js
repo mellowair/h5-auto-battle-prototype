@@ -11,6 +11,14 @@ function safeAdventureChoice(event) {
     giant_rock_2: "rock_avoid_again", death_note: "death_note_pass", fate_gate: "fate_accept",
     kings_treasury: "treasury_leave" })[event.eventId] ?? event.data.skillChoices?.[0] ?? "scroll_leave";
 }
+function resolveSafeAdventure(campaign) {
+  if (campaign.pendingEvent?.type === "gamble") {
+    const id = campaign.playerId;
+    assert.ok(resolveCampaignEvent(campaign, `gamble_recipient|${id}`));
+    return resolveCampaignEvent(campaign, "gamble_quit");
+  }
+  return resolveCampaignEvent(campaign, safeAdventureChoice(campaign.pendingEvent));
+}
 
 test("Eren human-form first-pass stats and skill configurations are explicit", () => {
   const eren = STARTING_CHARACTERS.find((entry) => entry.id === "eren");
@@ -178,8 +186,7 @@ function travelTo(campaign, targetId, targetEventId = null) {
           winCurrentBattle(campaign);
           continue;
         }
-        const choice = safeAdventureChoice(event);
-        resolveCampaignEvent(campaign, choice);
+        resolveSafeAdventure(campaign);
       }
       completeLocation(campaign);
     } else if (campaign.status === "combat") winCurrentBattle(campaign);
@@ -269,7 +276,7 @@ test("growth state builds the next battle roster and syncs HP before a one-time 
   while (!nextHero) {
     nextNode = getRouteOptions(campaign).find((node) => ["battle", "elite"].includes(node.type));
     if (nextNode) { chooseRoute(campaign, nextNode.id); nextHero = prepareBattle(campaign).roster.find((entry) => entry.team === "ally"); }
-    else { const eventNode = getRouteOptions(campaign)[0]; assert.ok(eventNode); chooseRoute(campaign, eventNode.id); if (campaign.activeEventType === "campfire") resolveCampaignEvent(campaign, "rest"); else resolveCampaignEvent(campaign, safeAdventureChoice(campaign.pendingEvent)); completeLocation(campaign); }
+    else { const eventNode = getRouteOptions(campaign)[0]; assert.ok(eventNode); chooseRoute(campaign, eventNode.id); if (campaign.activeEventType === "campfire") resolveCampaignEvent(campaign, "rest"); else resolveSafeAdventure(campaign); completeLocation(campaign); }
   }
   assert.equal(nextHero.currentHp, 640);
   assert.equal(nextHero.atk, upgradedAtk);
@@ -336,8 +343,7 @@ test("different-length branches enter one shared room at their actual encounter 
     if (campaign.status === "combat") winCurrentBattle(campaign);
     else {
       const event = campaign.pendingEvent;
-      const choice = safeAdventureChoice(event);
-      assert.ok(resolveCampaignEvent(campaign, choice));
+      assert.ok(resolveSafeAdventure(campaign));
       completeLocation(campaign);
     }
     const selected = travelTo(campaign, "join-1");
@@ -380,8 +386,7 @@ test("short and long complete routes use their visited-room count for the Boss",
       if (campaign.status === "combat") winCurrentBattle(campaign);
       else {
         const event = campaign.pendingEvent;
-        const choice = campaign.activeEventType === "campfire" ? "rest" : safeAdventureChoice(event);
-        assert.ok(resolveCampaignEvent(campaign, choice));
+        assert.ok(campaign.activeEventType === "campfire" ? resolveCampaignEvent(campaign, "rest") : resolveSafeAdventure(campaign));
         assert.equal(completeLocation(campaign), "route");
       }
     });
@@ -442,7 +447,7 @@ test("an exhausted adventure pool turns reachable question rooms into battles", 
   campaign.candidateIds = ["naruto", "eren"];
   selectStartingCharacter(campaign, "naruto");
   const state = campaign.runCharacterState;
-  for (const eventId of ["death_note", "fate_gate", "giant_encirclement", "kings_treasury"])
+  for (const eventId of ["death_note", "fate_gate", "giant_encirclement", "kings_treasury", "gamble", "gamble_2"])
     state.eventResults[`seen:${eventId}`] = { eventId, status: "completed" };
   for (const key of ["scroll", "sea", "anteiku", "rock"])
     state.eventSeries[key] = { permanentExcluded: true };
@@ -599,8 +604,7 @@ test("Fate Gate waits through a noncombat node and guarantees one stable learned
   assert.ok(question, "seed 7 exposes a first-step noncombat question node");
   chooseRoute(campaign, question.id);
   const event = campaign.pendingEvent;
-  const choice = safeAdventureChoice(event);
-  assert.ok(resolveCampaignEvent(campaign, choice));
+  assert.ok(resolveSafeAdventure(campaign));
   completeLocation(campaign);
   assert.deepEqual(campaign.runCharacterState.nextBattleSkillGuarantee, { sourceId: "test-fate", skillIds: ["shadow-clone-rush", "rasengan"] });
 

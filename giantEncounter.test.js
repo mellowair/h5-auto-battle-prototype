@@ -101,6 +101,12 @@ test("a real late-route question opens the giant encounter and carries its choic
       if (claimed.phase === "elite_drop") assert.equal(claimCampaignEliteDrop(campaign, campaign.playerId).status, "route");
     } else {
       const eventId = campaign.pendingEvent?.eventId;
+      if (campaign.pendingEvent?.type === "gamble") {
+        assert.ok(resolveCampaignEvent(campaign, `gamble_recipient|${campaign.playerId}`));
+        assert.ok(resolveCampaignEvent(campaign, "gamble_quit"));
+        assert.equal(completeLocation(campaign), "route");
+        continue;
+      }
       const choice = node.type === "campfire" ? "rest" : ({ kings_treasury: "treasury_leave", sea_beyond: "sea_pass",
         sea_beyond_2: "sea_home", old_scroll_2: "scroll_not_yet", coffee_shop: "coffee_leave",
         anteiku_2: "anteiku_leave", big_rock: "rock_bypass", giant_rock_2: "rock_avoid_again",

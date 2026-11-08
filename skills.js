@@ -141,8 +141,8 @@ export const SKILL_DATA = {
     levels: { 1: { chance: 0.40, effectType: "rewind" } },
   },
   "toji-heavenly-restriction": {
-    id: "toji-heavenly-restriction", name: "天予咒缚", type: "passive", description: "行动时速度高于目标则连击，最多连续出拳 5 次；一次连击打出第 4 段后，下次行动休息，休息后本场受到的最终伤害变为 1.5 倍。",
-    maxLevel: 1, levels: { 1: { maxHits: 5, fatigueAtHit: 4, exhaustedDamageMultiplier: 1.5 } },
+    id: "toji-heavenly-restriction", name: "天予咒缚", type: "passive", description: "速度高于目标时连击，最多连续出拳 5 次；出拳达到 3 次后，每行动一次便休息一次；达到 4 次后，本场受到的最终伤害变为 1.5 倍。",
+    maxLevel: 1, levels: { 1: { maxHits: 5, fatigueAtHit: 3, vulnerableAtHit: 4, exhaustedDamageMultiplier: 1.5 } },
   },
   "killer-queen": {
     id: "killer-queen", name: "杀手皇后", type: "passive", description: "每次造成有效伤害都附加一枚炸弹；经过三个后续完整回合后独立引爆，对所有存活对手造成伤害并无视 70% DEF，爆炸伤害不计入其他炸弹。",
@@ -380,6 +380,8 @@ export const ADVENTURE_EVENT_DATA = {
     image: "assets/events/event_kings_treasury.png", effectText: "决定如何面对王之宝库。",
     containsBattle: false, providesReward: true, requiresChoice: true,
   },
+  gamble: { id: "gamble", name: "一次豪赌", type: "gamble", description: "小赌怡情，大赌伤身（三局两胜者，当赏！）", image: "assets/events/event_gamble.png", effectText: "先选择一名队员，再决定是否参与每一轮赌博。", containsBattle: false, providesReward: true, requiresChoice: true },
+  gamble_2: { id: "gamble_2", name: "一次豪赌（2）", type: "gamble", description: "小赌怡情，大赌伤身（三局两胜者，当赏！）", image: "assets/events/event_gamble.png", effectText: "先选择一名队员，再决定是否参与每一轮赌博。", containsBattle: false, providesReward: true, requiresChoice: true },
 };
 
 export const GIANT_SPINAL_FLUID = Object.freeze({

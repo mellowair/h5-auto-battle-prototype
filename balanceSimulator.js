@@ -79,6 +79,11 @@ function resolveEvent(campaign, stats) {
       while (result?.status === "pending") result = resolveCampaignEvent(campaign, "sea_sacrifice");
       if (!result) throw new Error("Could not resolve simulated event: sea_beyond");
     }
+    else if (event.type === "gamble") {
+      if (!resolveCampaignEvent(campaign, `gamble_recipient|${campaign.playerId}`) ||
+          !resolveCampaignEvent(campaign, "gamble_quit")) throw new Error(`Could not resolve simulated event: ${event.eventId}`);
+      return completeLocation(campaign);
+    }
     else if (event.eventId === "kings_treasury") choice = "treasury_leave";
     else if (event.eventId === "sea_beyond_2") choice = "sea_home";
     else if (event.eventId === "old_scroll_2") choice = "scroll_not_yet";

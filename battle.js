@@ -23,7 +23,7 @@ export function initializeBattle(config = CHARACTER_DATA, options = {}) {
       reactiveAttackHits: 0, attackActionHits: 0,
       ...(character.phaseSkills ? { borosPhase: 1, borosEnteredRound: 0, borosLastGrowthRound: 0, meteorCasts: 0 } : {}),
       ...(character.id === "eren" ? { freeWillDefenseStacks: 0 } : {}),
-      ...(character.elitePassiveId === "toji-heavenly-restriction" ? { fasterActions: 0, tojiExhausted: false, tojiRestPending: false } : {}),
+      ...(character.elitePassiveId === "toji-heavenly-restriction" ? { fasterActions: 0, tojiFatigued: false, tojiExhausted: false, tojiRestPending: false, tojiResting: false } : {}),
       ...(["shin", "noi"].includes(character.id) ? { bereavementActive: false, bereavementAttackBonus: 0 } : {}),
       ...(character.elitePassiveId === "killer-queen" ? { hpSnapshots: [], bitesDustNextAvailableRound: 1 } : {}),
       ...(character.id === "armored-titan" ? { armorReductionStartRound: null, armorReductionUntilRound: null } : {}),
@@ -1342,10 +1342,14 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
       }
       if (attacker.tojiRestPending) {
         attacker.tojiRestPending = false;
-        attacker.tojiExhausted = true;
+        attacker.tojiResting = true;
         events.push({ type: "toji-skip", attackerId: attacker.id, round: state.round,
-          damageTakenMultiplier: SKILL_DATA["toji-heavenly-restriction"].levels[1].exhaustedDamageMultiplier });
+          fatigued: true });
         continue;
+      }
+      if (attacker.tojiResting) {
+        attacker.tojiResting = false;
+        events.push({ type: "toji-resume", attackerId: attacker.id, round: state.round });
       }
       if (attacker.id === "tang" && attacker.tangMeditating) continue;
       if (attacker.periodicPassive?.onlyPeriodicActions) continue;
@@ -1544,11 +1548,15 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
         }
         if (event.targetDied) resolveAhFuDefeat(state, struck, events);
         syncTangSummons(state, events);
-        if (attacker.elitePassiveId === "toji-heavenly-restriction" && index + 1 === tojiRule.fatigueAtHit &&
-            !attacker.tojiExhausted && !attacker.tojiRestPending) {
-          attacker.tojiRestPending = true;
+        if (attacker.elitePassiveId === "toji-heavenly-restriction" && index + 1 === tojiRule.fatigueAtHit && !attacker.tojiFatigued) {
+          attacker.tojiFatigued = true;
+          events.push({ type: "toji-fatigue", attackerId: attacker.id, round: state.round,
+            name: "出拳太快有点累了" });
+        }
+        if (attacker.elitePassiveId === "toji-heavenly-restriction" && index + 1 === tojiRule.vulnerableAtHit && !attacker.tojiExhausted) {
+          attacker.tojiExhausted = true;
           events.push({ type: "toji-exhausted", attackerId: attacker.id, round: state.round,
-            name: "出拳太快有点累了", damageTakenMultiplier: tojiRule.exhaustedDamageMultiplier });
+            name: "额外承伤", damageTakenMultiplier: tojiRule.exhaustedDamageMultiplier });
         }
         const jasonHit = event.type === "attack" ? resolveJasonBonus(state, attacker, struck, event) : null;
         if (jasonHit) events.push(jasonHit);
@@ -1583,6 +1591,10 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
         }
         outcome = isBattleOver(state);
         if (outcome || (attacker.elitePassiveId === "toji-heavenly-restriction" && targetDied)) break;
+      }
+      if (attacker.elitePassiveId === "toji-heavenly-restriction" && attacker.tojiFatigued && attacker.alive && !outcome) {
+        attacker.tojiRestPending = true;
+        events.push({ type: "toji-rest-ready", attackerId: attacker.id, round: state.round });
       }
       if (outcome) break;
     }

@@ -56,29 +56,32 @@ test("Jason max HP reduction survives battle settlement and the next roster with
     initial, "a new run starts from its normal maximum HP");
 });
 
-test("Toji's fourth combo strike schedules one rest, then 1.5x damage taken, with five-hit cap", () => {
+test("Toji becomes fatigued at hit three, rests after every action, and takes 1.5x damage from hit four", () => {
   const template = ELITE_ENEMY_DATA.find((entry) => entry.id === "toji");
   assert.deepEqual([template.hp, template.atk, template.def, template.spd], [2600, 330, 120, 220]);
   const result = simulateBattle([unit("hero", "ally", { hp: 10000, currentHp: 10000,
     atk: 100, def: 500, spd: 50 }), unit("toji", "enemy", { ...template,
     currentHp: template.hp, critChance: 0 })], () => .99);
+  const fatigueIndex = result.events.findIndex((event) => event.type === "toji-fatigue");
+  assert.ok(fatigueIndex >= 0);
+  assert.equal(result.events[fatigueIndex - 1].segmentIndex, 3);
   const index = result.events.findIndex((event) => event.type === "toji-exhausted");
-  assert.ok(index >= 0);
+  assert.ok(index > fatigueIndex);
   const fourth = result.events[index - 1];
   assert.equal(fourth.attackerId, "toji");
   assert.equal(fourth.segmentIndex, 4);
   assert.ok(result.events.filter((event) => event.type === "attack" && event.attackerId === "toji")
     .every((event) => event.segmentCount <= 5));
   assert.equal(result.events.filter((event) => event.type === "toji-exhausted").length, 1);
-  const nextRound = result.events[index].round + 1;
-  assert.equal(result.events.filter((event) => event.type === "toji-skip").length, 1);
-  assert.ok(result.events.some((event) => event.type === "toji-skip" && event.round === nextRound));
-  assert.equal(result.events.some((event) => event.type === "attack" && event.attackerId === "toji" && event.round === nextRound), false);
-  assert.ok(result.events.some((event) => event.type === "attack" && event.attackerId === "toji" && event.round > nextRound));
-  const skipIndex = result.events.findIndex((event) => event.type === "toji-skip");
-  const beforeRestHit = result.events.slice(index + 1, skipIndex).find((event) => event.type === "attack" && event.targetId === "toji");
-  if (beforeRestHit) assert.equal(beforeRestHit.damage, 45, "fatigue has not increased damage before the skipped action");
-  const nextHit = result.events.slice(skipIndex + 1).find((event) => event.type === "attack" && event.targetId === "toji");
+  const firstSkip = result.events.find((event) => event.type === "toji-skip");
+  assert.equal(firstSkip.round, result.events[fatigueIndex].round + 1);
+  const skips = result.events.filter((event) => event.type === "toji-skip");
+  assert.ok(skips.length >= 2);
+  assert.ok(skips.every((skip) => !result.events.some((event) => event.type === "attack" && event.attackerId === "toji" && event.round === skip.round)));
+  assert.ok(result.events.filter((event) => event.type === "toji-rest-ready").length >= skips.length);
+  const beforeVulnerable = result.events.slice(fatigueIndex, index).find((event) => event.type === "attack" && event.targetId === "toji");
+  if (beforeVulnerable) assert.equal(beforeVulnerable.damage, 45);
+  const nextHit = result.events.slice(index + 1).find((event) => event.type === "attack" && event.targetId === "toji");
   assert.ok(nextHit);
   assert.equal(nextHit.damage, 67, "100 ATK against 120 DEF floors to 45, then multiplies by 1.5 and floors");
 });

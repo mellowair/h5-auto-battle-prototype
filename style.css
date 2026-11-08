@@ -184,6 +184,11 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 @keyframes steam-fall { 0%,100% { transform: rotate(0); } 45%,75% { transform: translateX(-12px) rotate(-18deg); } }
 .sprite-visual { position: absolute; z-index: 2; bottom: 5px; left: 50%; margin-left: calc(var(--visual-frame-width, 84px) * -.5); display: grid; place-items: end center; width: var(--visual-frame-width, 84px); height: var(--visual-frame-height, 98px); scale: var(--visual-scale, 1); translate: calc(var(--visual-offset-x, 0px) + var(--visual-action-offset-x, 0px)) calc(0px - var(--visual-offset-y, 0px) - var(--visual-stage-foot-offset-y, 0px) - var(--visual-action-offset-y, 0px)); transform-origin: center bottom; }
 .cannot-act-effect { position: absolute; z-index: 15; left: 50%; bottom: 6%; width: 145%; height: 115%; max-width: none; object-fit: contain; transform: translateX(-50%); pointer-events: none; image-rendering: pixelated; animation: cannot-act-pulse 1.2s ease-in-out infinite alternate; }
+.gamble-coin { display: block; width: 104px; height: 104px; margin: 28px auto; image-rendering: pixelated; filter: drop-shadow(0 8px 0 #4b321a); }
+.gamble-coin.is-flipping { animation: gamble-coin-toss 1.35s ease-in-out both; }
+.gamble-coin.is-landed { animation: gamble-coin-land .32s steps(3) both; }
+@keyframes gamble-coin-toss { 0% { transform: translateY(40px) scaleX(1) rotate(0); } 30% { transform: translateY(-80px) scaleX(.15) rotate(360deg); } 58% { transform: translateY(-100px) scaleX(1) rotate(720deg); } 83% { transform: translateY(-35px) scaleX(.14) rotate(1080deg); } 100% { transform: translateY(0) scaleX(1) rotate(1440deg); } }
+@keyframes gamble-coin-land { from { transform: scale(1.18); } to { transform: scale(1); } }
 @keyframes cannot-act-pulse { from { opacity: .75; } to { opacity: 1; } }
 .fighter[data-team="enemy"][data-controlled-by-makima="true"] .sprite-visual { transform: scaleX(-1); }
 .fighter[data-character="falling-devil"] .sprite-visual { transform: scaleX(-1); }

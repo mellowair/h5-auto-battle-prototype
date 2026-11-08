@@ -1074,12 +1074,16 @@ export function resolveCampaignEvent(campaign, choiceId = null, skillId = null) 
     }
     if (campaign.stageId >= 2 && record?.eventId === "scroll" && choiceId !== "scroll_leave" && !record.data.recipientId) return false;
     if (record?.eventId === "old_scroll_2" && choiceId === "scroll_mountain" && !record.data.recipientId) return false;
+    const gambleRecipientId = record?.type === "gamble" && choiceId?.startsWith("gamble_recipient|")
+      ? choiceId.split("|")[1] : record?.type === "gamble" ? record.data.recipientId : null;
+    if (gambleRecipientId && !campaign.partyIds.includes(gambleRecipientId)) return false;
     const seaRecipientId = record?.eventId === "sea_beyond" && choiceId?.startsWith("sea_recipient|")
       ? choiceId.split("|")[1] : record?.eventId === "sea_beyond_2" && choiceId === "sea_stay"
         ? campaign.runCharacterState.eventSeries.sea?.recipientId : record?.eventId === "sea_beyond"
           ? record.data.recipientId : null;
     if (seaRecipientId && !campaign.partyIds.includes(seaRecipientId)) return false;
-    const recipient = seaRecipientId ? campaign.partyStates[seaRecipientId]
+    const recipient = gambleRecipientId ? campaign.partyStates[gambleRecipientId]
+      : seaRecipientId ? campaign.partyStates[seaRecipientId]
       : ["scroll", "old_scroll_2"].includes(record?.eventId) && record.data.recipientId
         ? campaign.partyStates[record.data.recipientId] : campaign.runCharacterState;
     result = resolveAdventureEvent(campaign.runCharacterState, campaign.activeNode.id, choiceId, campaign.random, recipient);

@@ -5,7 +5,7 @@ const copy = (value) => value == null ? value : JSON.parse(JSON.stringify(value)
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 const rngIndex = (length, random) => Math.min(length - 1, Math.floor(Math.max(0, Math.min(0.999999999999, finite(random(), 0))) * length));
 const has = (list, value) => Array.isArray(list) && list.includes(value);
-const SINGLE_ENCOUNTER_EVENTS = new Set(["death_note", "fate_gate", "giant_encirclement", "kings_treasury"]);
+const SINGLE_ENCOUNTER_EVENTS = new Set(["death_note", "fate_gate", "giant_encirclement", "kings_treasury", "gamble", "gamble_2"]);
 
 function ensureRunState(state) {
   if (!state || typeof state !== "object") throw new TypeError("runCharacterState is required");
@@ -160,6 +160,24 @@ export function claimTreasure(runState, sourceId, treasureId, recipientState, re
   return { treasureId, recipientId, name: treasure.name, currentHp: recipientState.currentHp, maxHp: recipientState.maxHp };
 }
 
+function grantGambleTreasure(member, sourceId, treasureId, stageId) {
+  const treasure = TREASURE_DATA[treasureId];
+  if (treasureId === GIANT_SPINAL_FLUID.id) return grantGiantSpinalFluid(member, sourceId, stageId);
+  if (treasureId === GUN_DEVIL_FRAGMENT.id) return grantGunDevilFragment(member, sourceId, stageId);
+  if (treasureId === TREASURE_DATA.sukuna_finger.id) return grantEliteSukunaFinger(member, sourceId, stageId);
+  if (!treasure || !["magic_conch", "odm_gear"].includes(treasureId) ||
+      !recordAction(member, makeActionKey(`gamble-treasure:${treasureId}`, sourceId))) return false;
+  const multiplier = treasureAttributeMultiplier(member, treasureId);
+  const gains = Object.fromEntries(["damageReduction", "dodgeRateBonus", "critRateBonus"]
+    .filter((stat) => Number.isFinite(treasure[stat]))
+    .map((stat) => [stat, scaledTreasureAttribute(treasure[stat], multiplier)]));
+  if (gains.critRateBonus) member.critRate = Math.min(COMBAT_RULES.maxCritChance, member.critRate + gains.critRateBonus);
+  const effect = { id: treasure.id, name: treasure.name, sourceId,
+    description: repeatedTreasureDescription(treasure, multiplier, gains), ...gains };
+  member.permanentEffects.push(effect);
+  return effect;
+}
+
 export function getSkillAtLevel(runState, skillId) {
   ensureRunState(runState);
   const config = SKILL_DATA[skillId];
@@ -226,6 +244,10 @@ export function getAvailableAdventureEventIds(runState, step = 1, partyStates = 
   return Object.keys(ADVENTURE_EVENT_DATA).filter((eventId) =>
     !ADVENTURE_EVENT_DATA[eventId].containsBattle
     && (!SINGLE_ENCOUNTER_EVENTS.has(eventId) || !encountered.has(eventId))
+    && (eventId !== "gamble" || !encountered.has("gamble_2"))
+    && (eventId !== "gamble_2" || Object.values(runState.eventResults).some((record) =>
+      record.eventId === "gamble" && record.status === "completed" && record.data.stageId < stageId) &&
+      !Object.values(runState.eventResults).some((record) => record.eventId === "gamble_2"))
     && (eventId !== "kings_treasury" || stageId === 2)
     && (eventId !== "giant_encirclement" || step >= 8)
     && (eventId !== "scroll" || eligible("scroll", 1, partyStates.some((state) => getUnlearnedActiveSkills(state).length > 0)))
@@ -526,12 +548,14 @@ export function createAdventureEventResult(runState, sourceId, eventId, random =
   const config = ADVENTURE_EVENT_DATA[eventId];
   if (!config) throw new RangeError(`unknown adventure event: ${eventId}`);
   if (SINGLE_ENCOUNTER_EVENTS.has(eventId) && Object.values(runState.eventResults).some((record) => record.eventId === eventId)) return null;
+  if (eventId === "gamble_2" && !getAvailableAdventureEventIds(runState, 1, partyStates, stageId).includes(eventId)) return null;
   if (eventId === "scroll" && !partyStates.some((state) => getUnlearnedActiveSkills(state).length)) return null;
   if (eventId === "fall_rock" && (runState.fallRockCompleted || runState.fallRockCount >= config.stages.length)) return null;
   if (eventId === "sea_beyond" && Object.values(runState.eventResults).some((event) => event.eventId === "sea_beyond")) return null;
   if (["sea_beyond_2", "old_scroll_2", "anteiku_2", "anteiku_3", "giant_rock_2"].includes(eventId) &&
     !getAvailableAdventureEventIds(runState, 1, partyStates, stageId).includes(eventId)) return null;
   const record = { sourceId, eventId, name: config.name, description: config.description, image: config.image, effectText: config.effectText, status: config.containsBattle ? "pending_battle" : "pending", type: config.type, containsBattle: config.containsBattle, data: { stageId } };
+  if (eventId === "gamble" || eventId === "gamble_2") record.data = { stageId, phase: "recipient", round: 1, successCount: 0, rounds: [] };
   if (eventId === "fall_rock") {
     const stage = runState.fallRockCount + 1;
     const rule = config.stages[stage - 1];
@@ -607,7 +631,69 @@ export function resolveAdventureEvent(runState, sourceId, choiceId = null, rando
   let keepPending = false;
   const series = runState.eventSeries;
   const stageId = record.data.stageId ?? 1;
-  if (record.eventId === "kings_treasury") {
+  if (record.type === "gamble") {
+    const data = record.data;
+    if (data.phase === "recipient") {
+      if (choiceId !== `gamble_recipient|${recipientState.characterId}`) return false;
+      data.recipientId = recipientState.characterId;
+      data.phase = "choice";
+      keepPending = true;
+      result = { continued: true };
+    } else if (recipientState.characterId !== data.recipientId) return false;
+    else if (data.phase === "choice" && choiceId === "gamble_quit") {
+      result = { gambleFinished: true, quit: true, rounds: copy(data.rounds), successCount: data.successCount, recipientId: data.recipientId };
+    } else if (data.phase === "choice" && choiceId === "gamble_play") {
+      const types = getUpgradeableSkills(recipientState).length ? ["skill", "atk", "def"] : ["atk", "def"];
+      data.pendingGamble = { round: data.round, type: types[rngIndex(types.length, random)],
+        success: random() < (data.round === 1 ? .6 : .5) };
+      data.phase = "coin";
+      keepPending = true;
+      result = { coinPending: true, ...copy(data.pendingGamble) };
+    } else if (data.phase === "coin" && choiceId === "gamble_settle" && data.pendingGamble) {
+      const gamble = data.pendingGamble;
+      let change;
+      if (gamble.type === "skill") {
+        if (gamble.success) {
+          const skills = getUpgradeableSkills(recipientState);
+          if (!skills.length) return false;
+          const skill = upgradeActiveSkill(recipientState, skills[rngIndex(skills.length, random)], `${sourceId}:round:${data.round}`);
+          if (!skill) return false;
+          change = { skillId: skill.id, skillName: skill.name, level: skill.level };
+        } else {
+          const loss = Math.min(Math.floor(recipientState.maxHp * .4), Math.max(0, recipientState.currentHp - 1));
+          recipientState.currentHp -= loss;
+          change = { hpLoss: loss, currentHp: recipientState.currentHp, maxHp: recipientState.maxHp };
+        }
+      } else {
+        const amount = [30, 40, 50][data.round - 1];
+        const stat = gamble.type === "atk" ? (gamble.success ? "atk" : "def") : (gamble.success ? "def" : "atk");
+        const delta = gamble.success ? amount : -amount;
+        const before = recipientState[stat];
+        recipientState[stat] = Math.max(0, recipientState[stat] + delta);
+        change = { stat, amount: recipientState[stat] - before, value: recipientState[stat] };
+      }
+      const settled = { ...gamble, change };
+      data.rounds.push(settled);
+      if (gamble.success) data.successCount += 1;
+      data.pendingGamble = null;
+      if (data.round === 3) {
+        const pairPool = [[GIANT_SPINAL_FLUID.id, "odm_gear"], ["sukuna_finger", "magic_conch"], [GUN_DEVIL_FRAGMENT.id, "magic_conch"]];
+        const treasureIds = data.successCount >= 2 ? pairPool[rngIndex(pairPool.length, random)] : [];
+        const treasures = treasureIds.map((id) => grantGambleTreasure(recipientState, `${sourceId}:${id}`, id, stageId));
+        result = { gambleFinished: true, settled, rounds: copy(data.rounds), successCount: data.successCount,
+          recipientId: data.recipientId, treasures: treasures.filter(Boolean).map((effect) => ({ id: effect.id, name: effect.name, description: effect.description })) };
+      } else {
+        data.phase = "result";
+        keepPending = true;
+        result = { gambleResult: true, settled, round: data.round, successCount: data.successCount, recipientId: data.recipientId };
+      }
+    } else if (data.phase === "result" && choiceId === "gamble_next") {
+      data.round += 1;
+      data.phase = "choice";
+      keepPending = true;
+      result = { continued: true };
+    } else return false;
+  } else if (record.eventId === "kings_treasury") {
     if (!["treasury_leave", "treasury_steal", "treasury_advance"].includes(choiceId)) return false;
     record.data.choiceId = choiceId;
     if (choiceId === "treasury_leave") result = { skipped: true };

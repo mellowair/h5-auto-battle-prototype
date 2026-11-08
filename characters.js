@@ -60,7 +60,7 @@ export const EVENT_ENEMY_DATA = Object.freeze({
     asset: "assets/event-enemies/suzuya.png", visualId: "suzuya", rosterOrder: 1,
     animations: { idle: { type: "frames", frames: { idle: "assets/event-enemies/suzuya.png" } }, meleeAttack: { type: "frames", frames: { punch: "assets/event-enemies/suzuya-punch.png" }, impactFrames: ["punch"] } },
     everyThirdNormalAttack: { id: "jason", name: "杰森！", maxHpRatio: .08,
-      description: "每第 3 次普通攻击若命中，永久降低目标当前最大 HP 的 8%（最低保留 1 点最大 HP）；这不是额外伤害。" },
+      description: "每第 3 次普通攻击若命中并造成有效伤害，永久降低存活目标当前最大 HP 的 8%（最低保留 1 点最大 HP）；这不是额外伤害。" },
   },
   six_ear: {
     id: "six_ear", name: "六耳猕猴", team: "enemy", role: "真假美猴王", row: "front", position: "front",

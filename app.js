@@ -397,6 +397,7 @@ function displayUpgrade(upgradeId) {
 function describeEventResult(result) {
   result = result?.result ?? result;
   if (!result) return "事件已完成。";
+  if (result.gambleFinished) return `已完成 ${result.rounds.length} 轮，成功 ${result.successCount} 次。${result.treasures?.length ? `额外获得：${result.treasures.map((item) => `${item.name}（${item.description}）`).join("、")}。` : "没有额外宝物。"}`;
   if (result.escape === "success") return `逃跑成功！本局速度 -10，当前 SPD ${result.currentSpd}。`;
   if (result.escape === "failed") return "逃跑失败！戴娜挡住了去路。确认后开始战斗。";
   if (result.weaponPenalty) return "主角和伙伴的最大 HP 与 ATK 均降低 30%，持续本局。";
@@ -1112,7 +1113,7 @@ function updateHealth(character) {
 function syncCannotActVisual(unit) {
   const fighter = document.querySelector(`[data-character="${unit.id}"]`);
   const visual = fighter?.querySelector(".sprite-visual");
-  const active = unit.alive && (unit.stunNextAction ||
+  const active = unit.alive && (unit.stunNextAction || unit.tojiRestPending || unit.tojiResting ||
     (Number.isInteger(unit.frozenThroughRound) && unit.frozenThroughRound > 0 && unit.frozenThroughRound >= battleStatusState.currentRound));
   const effect = visual?.querySelector(".cannot-act-effect");
   if (!active) { effect?.remove(); return; }
@@ -1140,11 +1141,12 @@ function renderAllyStatusIcons() {
     const statuses = unit.team === "ally" ? allyStatuses : enemyStatuses;
     const frozen = Number.isInteger(unit.frozenThroughRound) && unit.frozenThroughRound > 0 &&
       unit.frozenThroughRound >= battleStatusState.currentRound;
-    if (frozen || unit.stunNextAction) {
+    if (frozen || unit.stunNextAction || unit.tojiRestPending || unit.tojiResting) {
       statuses.push({ id: `cannot-act-${unit.id}`, name: `${unit.name} · 无法行动`,
         image: "assets/status-cannot-act.png", tone: "debuff",
         description: frozen ? `${unit.name} 受到冰冻，第 ${unit.frozenThroughRound} 回合结束前无法行动。`
-          : `${unit.name} 受到眩晕，将跳过下一次行动。` });
+          : unit.tojiRestPending || unit.tojiResting ? `${unit.name} 因疲劳休息，跳过一次行动。`
+            : `${unit.name} 受到眩晕，将跳过下一次行动。` });
     }
     if ((unit.silencedThroughRound ?? 0) >= battleStatusState.currentRound && unit.silencedThroughRound > 0)
       statuses.push({ id: `silence-${unit.id}`, name: `${unit.name} · 沉默`, image: "assets/status-cannot-act.png", tone: "debuff",
@@ -1219,13 +1221,13 @@ function renderAllyStatusIcons() {
         ? `第 ${shield.startRound} 回合开始，铠之巨人受到的普通伤害减少 25%。`
         : `铠之巨人受到的普通伤害减少 25%，持续至第 ${shield.untilRound} 回合结束。` });
   }
-  if (battleStatusState.tojiExhausted && viewState?.characters?.some((unit) => unit.id === "toji" && unit.alive)) {
-    enemyStatuses.push({ id: "toji-exhausted", name: "出拳太快有点累了",
-      image: "assets/stage2-enemies/toji/idle.png", tone: "danger",
-      description: battleStatusState.tojiExhausted === "pending"
-        ? "下次行动休息一轮，之后本场受到的最终伤害变为 1.5 倍。"
-        : "本场战斗中，伏黑甚尔受到的最终伤害变为 1.5 倍（包括真实伤害）。" });
-  }
+  const toji = viewState?.characters?.find((unit) => unit.id === "toji" && unit.alive);
+  if (toji?.tojiFatigued) enemyStatuses.push({ id: "toji-fatigue", name: "出拳太快有点累了",
+    image: "assets/status-cannot-act.png", tone: "debuff",
+    description: "出拳达到 3 次后，行动一次、休息一次。" });
+  if (toji?.tojiExhausted) enemyStatuses.push({ id: "toji-exhausted", name: "额外承伤",
+    image: "assets/stage2-enemies/toji/idle.png", tone: "debuff",
+    description: "出拳达到 4 次后，本场受到的最终伤害变为 1.5 倍，包括真实伤害。" });
   for (const bomb of battleStatusState.bombs ?? []) {
     allyStatuses.push({ id: bomb.id, name: "杀手皇后炸弹", image: "assets/stage2-enemies/kira/idle.png", tone: "danger",
       description: `${bomb.targetName}身上已附着炸弹；剩余 ${Math.max(0, bomb.dueRound - battleStatusState.currentRound)} 个完整回合（第 ${bomb.dueRound} 回合引爆）。` });
@@ -1309,6 +1311,8 @@ function openEnemyDetail(unit) {
     const passive = SKILL_DATA[id] ?? STAGE_TWO_NORMAL_PASSIVES[id] ?? STAGE_THREE_NORMAL_PASSIVES[id] ?? unit.periodicPassive;
     return passive ? `<div class="detail-skill-row"><div class="detail-skill-icon quiet">被</div><div class="detail-skill-copy"><b>${passive.name}</b><p>${shortSkillEffect({ ...passive, passive: true })}</p></div></div>` : "";
   }).join("");
+  const suzuyaPassiveRow = unit.everyThirdNormalAttack
+    ? `<div class="detail-skill-row"><div class="detail-skill-icon quiet">被</div><div class="detail-skill-copy"><b>${unit.everyThirdNormalAttack.name}</b><p>${unit.everyThirdNormalAttack.description}</p></div></div>` : "";
   const trialPassiveRow = unit.trialPassiveSkill
     ? `<div class="detail-skill-row"><div class="detail-skill-icon quiet">被</div><div class="detail-skill-copy"><b>${unit.trialPassiveSkill.name}</b><p>${unit.trialPassiveSkill.description}</p></div></div>` : "";
   const summonRow = unit.summonPassive
@@ -1327,8 +1331,9 @@ function openEnemyDetail(unit) {
     `<div class="stat-card"><span>技能闪避率</span><b>${(getSkillDodgeChance(unit) * 100).toFixed(1)}%</b></div>` +
     `<div class="stat-card"><span>暴击率</span><b>${(getCritChance(unit) * 100).toFixed(1)}%</b></div>` +
     `<div class="stat-card"><span>暴击倍率</span><b>${(unit.critMultiplier ?? COMBAT_RULES.critMultiplier).toFixed(1)}×</b></div></div>` +
-    (skillRows || passiveRows || trialPassiveRow || summonRow || c0Row ? `<section class="detail-skill"><h3>敌方技能</h3>${skillRows + passiveRows + trialPassiveRow + summonRow + c0Row}</section>` : "");
+    (skillRows || passiveRows || suzuyaPassiveRow || trialPassiveRow || summonRow || c0Row ? `<section class="detail-skill"><h3>敌方技能</h3>${skillRows + passiveRows + suzuyaPassiveRow + trialPassiveRow + summonRow + c0Row}</section>` : "");
   installSkillDetails([...skillMap.values(), ...[...new Set(passiveIds)].map((id) => SKILL_DATA[id] ?? STAGE_TWO_NORMAL_PASSIVES[id] ?? STAGE_THREE_NORMAL_PASSIVES[id] ?? unit.periodicPassive),
+    ...(unit.everyThirdNormalAttack ? [{ ...unit.everyThirdNormalAttack, passive: true, type: "passive", levels: { 1: { description: unit.everyThirdNormalAttack.description } } }] : []),
     ...(unit.trialPassiveSkill ? [{ ...unit.trialPassiveSkill, id: `trial-${unit.trialPassive}`, passive: true }] : []),
     ...(unit.summonPassive ? [{ ...unit.summonPassive, id: "summon-passive", passive: true,
       description: `第 ${unit.summonPassive.firstRound} 回合开始，每隔 ${unit.summonPassive.everyRounds} 回合召唤一名普通巨人。` }] : []),
@@ -1721,20 +1726,38 @@ function playEvent(event, finish) {
     }, playbackDelay(500, 240));
     return;
   }
+  if (event.type === "toji-fatigue") {
+    const toji = viewState.characters.find((unit) => unit.id === event.attackerId);
+    if (toji) toji.tojiFatigued = true;
+    renderAllyStatusIcons();
+    addLog(`<b>${toji?.name ?? "伏黑甚尔"}</b> 连续出拳 3 次，进入疲劳状态：行动一次、休息一次。`, "log-skill");
+    return finish();
+  }
   if (event.type === "toji-exhausted") {
-    battleStatusState.tojiExhausted = "pending";
+    battleStatusState.tojiExhausted = "active";
+    const toji = viewState.characters.find((unit) => unit.id === event.attackerId);
+    if (toji) toji.tojiExhausted = true;
+    renderAllyStatusIcons();
+    addLog(`<b>${toji?.name ?? "伏黑甚尔"}</b> 连续出拳 4 次，本场受到的最终伤害变为 1.5 倍。`, "log-skill");
+    return finish();
+  }
+  if (event.type === "toji-rest-ready") {
     const toji = viewState.characters.find((unit) => unit.id === event.attackerId);
     if (toji) toji.tojiRestPending = true;
     renderAllyStatusIcons();
-    addLog(`<b>${toji?.name ?? "伏黑甚尔"}</b> 连续出拳 4 次，下次行动休息；休息后本场受到的最终伤害变为 1.5 倍。`, "log-skill");
     return finish();
   }
   if (event.type === "toji-skip") {
-    battleStatusState.tojiExhausted = "active";
     const toji = viewState.characters.find((unit) => unit.id === event.attackerId);
-    if (toji) { toji.tojiRestPending = false; toji.tojiExhausted = true; }
+    if (toji) { toji.tojiRestPending = false; toji.tojiResting = true; }
     renderAllyStatusIcons();
     addLog(`<span class="round-label">R${event.round}</span> <b>伏黑甚尔</b> 太累了，休息一次。`, "log-enemy");
+    return window.setTimeout(finish, playbackDelay(500, 220));
+  }
+  if (event.type === "toji-resume") {
+    const toji = viewState.characters.find((unit) => unit.id === event.attackerId);
+    if (toji) toji.tojiResting = false;
+    renderAllyStatusIcons();
     return finish();
   }
   if (event.type === "jason-max-hp") {
@@ -4545,6 +4568,44 @@ function finishEventAndAdvance() {
   return next === "route" || next === "combat";
 }
 
+function gambleRoundText(result) {
+  const { type, success, change, round } = result.settled;
+  const label = { skill: "技能赌博", atk: "攻击赌博", def: "防御赌博" }[type];
+  const outcome = change.skillId ? `「${change.skillName}」提升至 Lv.${change.level}`
+    : Number.isFinite(change.hpLoss) ? `损失 ${change.hpLoss} HP，剩余 ${change.currentHp}/${change.maxHp} HP`
+      : `${change.stat.toUpperCase()} ${change.amount >= 0 ? "+" : ""}${change.amount}，当前 ${change.value}`;
+  return `第 ${round} 轮 · ${label}：${success ? "正面，成功" : "反面，失败"}。${outcome}。`;
+}
+
+function renderGambleRoundResult(result) {
+  renderDecisionScreen(`第 ${result.round} 轮结果`, gambleRoundText(result),
+    [decisionChoice("gamble_next", "进入下一轮", "")], "继续", () => resolveVisibleEvent("gamble_next"),
+    "ACT 01 · GAMBLE", campaign.pendingEvent?.image);
+}
+
+function playGambleCoin(result) {
+  const record = campaign.pendingEvent;
+  if (!result?.coinPending || record?.data.phase !== "coin") return;
+  renderDecisionScreen(`第 ${result.round} 轮 · 抛硬币`, "硬币已经抛出，正在等待落地……", [], "等待结果",
+    () => false, "ACT 01 · GAMBLE", record.image);
+  const revision = decisionRevision;
+  const coin = document.createElement("img");
+  coin.className = "gamble-coin is-flipping";
+  coin.src = "assets/events/gamble-coin-front.svg";
+  coin.alt = "硬币正在旋转";
+  $("#decision-copy").append(coin);
+  window.setTimeout(() => {
+    if (revision !== decisionRevision || campaign.pendingEvent?.data.phase !== "coin") return;
+    coin.src = result.success ? "assets/events/gamble-coin-front.svg" : "assets/events/gamble-coin-back.svg";
+    coin.className = "gamble-coin is-landed";
+    coin.alt = result.success ? "硬币正面" : "硬币反面";
+    $("#decision-copy").firstChild.textContent = result.success ? "硬币落地：正面。" : "硬币落地：反面。";
+    window.setTimeout(() => {
+      if (revision === decisionRevision && campaign.pendingEvent?.data.phase === "coin") resolveVisibleEvent("gamble_settle");
+    }, 450);
+  }, 1350);
+}
+
 function renderEventResult(result) {
   const title = result?.result?.escape === "success" ? "逃跑成功"
     : campaign.activeEventType === "campfire" ? "篝火休整完成" : `${campaign.pendingEvent?.name ?? "奇遇"} · 已完成`;
@@ -4560,6 +4621,19 @@ function resolveVisibleEvent(choiceId, skillId = null) {
   const result = resolveCampaignEvent(campaign, choiceId, skillId);
   if (!result) return false;
   updateProgressionDisplays();
+  if (campaign.pendingEvent?.type === "gamble") {
+    if (result.result?.coinPending) { playGambleCoin(result.result); return true; }
+    if (result.result?.gambleResult) { renderGambleRoundResult(result.result); return true; }
+    if (campaign.eventResolved) {
+      const summary = result.result?.settled ? `${gambleRoundText(result.result)} ${describeEventResult(result)}` : describeEventResult(result);
+      renderDecisionScreen(`${campaign.pendingEvent.name} · 已完成`, summary,
+        [decisionChoice("__continue__", "继续前进", "")], "继续前进", () => finishEventAndAdvance(),
+        "ACT 01 · EVENT RESULT", campaign.pendingEvent.image);
+      return true;
+    }
+    renderAdventureEvent();
+    return true;
+  }
   if (campaign.pendingEvent?.eventId === "kings_treasury" && result.result?.pendingBattle) {
     renderDecisionScreen("王之宝库", "此时，你听到一声利呵“杂修”，回头望去，一个耀眼的家伙坐在王座之上", [
       decisionChoice("__fight__", "迎战吉尔伽美什", "确认后进入战斗。"),
@@ -4685,6 +4759,8 @@ function renderCampfire() {
 function renderAdventureEvent() {
   const record = campaign?.pendingEvent;
   if (!record) return;
+  if (record.type === "gamble" && record.data.phase === "coin") { playGambleCoin(record.result); return; }
+  if (record.type === "gamble" && record.data.phase === "result") { renderGambleRoundResult(record.result); return; }
   if (record.eventId === "trial_land") {
     renderDecisionScreen("试炼之地", "道路上，是无尽的试炼", [
       decisionChoice("trial_accept", "前往试炼，失败则受到严惩", ""),
@@ -4735,7 +4811,15 @@ function renderAdventureEvent() {
   }
 
   const choices = [];
-  if (record.eventId === "kings_treasury") {
+  if (record.type === "gamble") {
+    if (record.data.phase === "recipient") for (const id of campaign.partyIds) {
+      choices.push(decisionChoice(`gamble_recipient|${id}`, partyPresentation(id)?.name ?? id, ""));
+    }
+    else if (record.data.phase === "choice") {
+      choices.push(decisionChoice("gamble_play", ["赌一把", "再赌一把", "最后一搏"][record.data.round - 1], ""));
+      choices.push(decisionChoice("gamble_quit", record.data.round === 3 ? "点到为止" : "不赌为妙", ""));
+    }
+  } else if (record.eventId === "kings_treasury") {
     choices.push(decisionChoice("treasury_leave", "转身离开", "不属于你的东西，最好还是放下。"));
     choices.push(decisionChoice("treasury_steal", "随手拿一件并偷偷溜走", ""));
     choices.push(decisionChoice("treasury_advance", "再往前走走", ""));
@@ -4809,7 +4893,10 @@ function renderAdventureEvent() {
   // Event choices reveal outcomes only after selection; phase-two skill lists
   // are shown after the initial decision and still expose only names.
   for (const choice of choices) choice.description = "";
-  const eventDescription = record.eventId === "fate_gate"
+  const eventDescription = record.type === "gamble"
+    ? record.data.phase === "recipient" ? `${record.description}\n请选择本次赌博的角色。`
+      : `${record.data.round === 3 ? "贪心不足蛇吞象" : record.description}\n第 ${record.data.round} 轮 · ${partyPresentation(record.data.recipientId)?.name ?? "角色"}`
+    : record.eventId === "fate_gate"
     ? `${record.description} ${record.data.skillChoices.length ? record.effectText : "当前没有已学习且可触发的技能；确认后正常结束事件。"}`
     : record.eventId === "fall_rock"
       ? `${record.description} ${record.effectText}`
