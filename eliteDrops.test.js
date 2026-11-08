@@ -196,7 +196,7 @@ test("titan duo grants one spinal fluid to chosen party member after both stat r
   assert.ok(claimCampaignEliteDrop(campaign, partnerId));
   assert.deepEqual([hero.maxHp, hero.atk, hero.def], heroBefore);
   assert.deepEqual([partner.maxHp, partner.atk, partner.def, partner.currentHp],
-    [partnerBefore[0] + 150, partnerBefore[1], partnerBefore[2] + 30, Math.min(partnerBefore[0] + 150, partnerBefore[3] + 150)]);
+    [partnerBefore[0] + 225, partnerBefore[1], partnerBefore[2] + 30, Math.min(partnerBefore[0] + 225, partnerBefore[3] + 225)]);
   assert.equal(partner.permanentEffects.filter((effect) => effect.id === "giant_spinal_fluid").length, 1);
   assert.equal(claimCampaignEliteDrop(campaign, partnerId), false);
   assert.equal(campaign.status, "route");

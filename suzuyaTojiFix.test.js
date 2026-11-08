@@ -56,51 +56,41 @@ test("Jason max HP reduction survives battle settlement and the next roster with
     initial, "a new run starts from its normal maximum HP");
 });
 
-test("Toji becomes fatigued at hit three, rests after every action, and takes 1.5x damage from hit four", () => {
+test("Toji rests for exactly one action after every fatigued action", () => {
   const template = ELITE_ENEMY_DATA.find((entry) => entry.id === "toji");
-  assert.deepEqual([template.hp, template.atk, template.def, template.spd], [2600, 330, 120, 220]);
   const result = simulateBattle([unit("hero", "ally", { hp: 10000, currentHp: 10000,
     atk: 100, def: 500, spd: 50 }), unit("toji", "enemy", { ...template,
     currentHp: template.hp, critChance: 0 })], () => .99);
   const fatigueIndex = result.events.findIndex((event) => event.type === "toji-fatigue");
   assert.ok(fatigueIndex >= 0);
   assert.equal(result.events[fatigueIndex - 1].segmentIndex, 3);
-  const index = result.events.findIndex((event) => event.type === "toji-exhausted");
-  assert.ok(index > fatigueIndex);
-  const fourth = result.events[index - 1];
-  assert.equal(fourth.attackerId, "toji");
-  assert.equal(fourth.segmentIndex, 4);
+  assert.equal(result.events.some((event) => event.type === "toji-exhausted"), false);
   assert.ok(result.events.filter((event) => event.type === "attack" && event.attackerId === "toji")
     .every((event) => event.segmentCount <= 5));
-  assert.equal(result.events.filter((event) => event.type === "toji-exhausted").length, 1);
-  const firstSkip = result.events.find((event) => event.type === "toji-skip");
-  assert.equal(firstSkip.round, result.events[fatigueIndex].round + 1);
   const skips = result.events.filter((event) => event.type === "toji-skip");
   assert.ok(skips.length >= 2);
-  assert.ok(skips.every((skip) => !result.events.some((event) => event.type === "attack" && event.attackerId === "toji" && event.round === skip.round)));
-  assert.ok(result.events.filter((event) => event.type === "toji-rest-ready").length >= skips.length);
-  const beforeVulnerable = result.events.slice(fatigueIndex, index).find((event) => event.type === "attack" && event.targetId === "toji");
-  if (beforeVulnerable) assert.equal(beforeVulnerable.damage, 45);
-  const nextHit = result.events.slice(index + 1).find((event) => event.type === "attack" && event.targetId === "toji");
-  assert.ok(nextHit);
-  assert.equal(nextHit.damage, 67, "100 ATK against 120 DEF floors to 45, then multiplies by 1.5 and floors");
+  assert.equal(skips[0].round, result.events[fatigueIndex].round + 1);
+  for (const skip of skips) {
+    assert.equal(result.events.some((event) => event.type === "attack" && event.attackerId === "toji" && event.round === skip.round), false);
+    const resume = result.events.find((event) => event.type === "toji-resume" && event.round === skip.round);
+    assert.ok(resume, "rest status ends during the skipped round");
+  }
+  assert.ok(result.events.some((event) => event.type === "attack" && event.attackerId === "toji" && event.round === skips[0].round + 1),
+    "Toji attacks at the next opportunity after one skipped round");
 });
 
-test("Toji takes 1.5x final normal and true damage without changing DEF or stacking", () => {
+test("Toji fatigue does not amplify normal or true damage", () => {
   const tojiTemplate = ELITE_ENEMY_DATA.find((entry) => entry.id === "toji");
   const freeWill = { ...SKILL_DATA["eren-free-will"], ...SKILL_DATA["eren-free-will"].levels[4], level: 4 };
   const battle = initializeBattle([unit("eren", "ally", { atk: 100, def: 100, skills: [freeWill] }),
     unit("toji", "enemy", { ...tojiTemplate, currentHp: 2600, critChance: 0 })]);
   const [eren, toji] = battle.characters;
   battle.round = 1;
-  toji.tojiExhausted = true;
+  toji.tojiFatigued = true;
   eren.freeWillTriggers = 2;
   const hit = executeAttack(battle, eren, toji, () => .99, { skill: freeWill });
-  assert.equal(hit.damage, 67, "normal damage multiplies after DEF mitigation");
+  assert.equal(hit.damage, 45);
   assert.equal(hit.extraTrueDamage.requested, 125);
-  assert.equal(hit.extraTrueDamage.actualDamage, 187);
+  assert.equal(hit.extraTrueDamage.actualDamage, 125);
   assert.equal(toji.def, 120);
-  assert.equal(toji.tojiExhausted, true);
-  const fresh = initializeBattle([unit("hero", "ally"), unit("toji", "enemy", tojiTemplate)]);
-  assert.equal(fresh.characters[1].tojiExhausted, false);
 });

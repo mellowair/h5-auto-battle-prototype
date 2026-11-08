@@ -35,7 +35,7 @@ test("three locked coin outcomes award one treasure pair to the selected member"
   for (let round = 1; round <= 3; round += 1) {
     const flip = resolveAdventureEvent(hero, "bet", "gamble_play", rolls(0.4, 0), partner);
     assert.deepEqual([flip.result.type, flip.result.success, flip.result.round], ["atk", true, round]);
-    assert.equal(partner.atk, partnerAttack + [0, 30, 70][round - 1], "no effect before coin settlement");
+    assert.equal(partner.atk, partnerAttack + [0, 20, 40][round - 1], "no effect before coin settlement");
     assert.equal(resolveAdventureEvent(hero, "bet", "gamble_play", () => 0, partner), false);
     const settled = resolveAdventureEvent(hero, "bet", "gamble_settle", () => 0, partner);
     assert.ok(settled);
@@ -121,7 +121,7 @@ test("campaign keeps the selected partner through coin settlement and marks the 
   assert.equal(resolveCampaignEvent(campaign, "gamble_play").result.coinPending, true);
   assert.equal(partner.atk, partnerAttack);
   assert.equal(resolveCampaignEvent(campaign, "gamble_settle").result.gambleResult, true);
-  assert.equal(partner.atk, partnerAttack + 30);
+  assert.equal(partner.atk, partnerAttack + 20);
   assert.equal(hero.atk, heroAttack);
   resolveCampaignEvent(campaign, "gamble_next");
   assert.ok(resolveCampaignEvent(campaign, "gamble_quit"));

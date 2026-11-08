@@ -122,7 +122,7 @@ test("a real late-route question opens the giant encounter and carries its choic
   assert.deepEqual([roster[1].atk, roster[1].def, roster[1].row], [80, 60, "back"]);
   const before = [campaign.runCharacterState.atk, campaign.runCharacterState.def, campaign.runCharacterState.maxHp];
   assert.equal(finishBattle(campaign, "victory", campaign.runCharacterState.currentHp).next, "reward");
-  assert.deepEqual([campaign.runCharacterState.atk - before[0], campaign.runCharacterState.def - before[1], campaign.runCharacterState.maxHp - before[2]], [0, 20, 100]);
+  assert.deepEqual([campaign.runCharacterState.atk - before[0], campaign.runCharacterState.def - before[1], campaign.runCharacterState.maxHp - before[2]], [0, 20, 150]);
   assert.equal(finishBattle(campaign, "victory", campaign.runCharacterState.currentHp), false);
 });
 
@@ -167,10 +167,10 @@ test("heart choice grants spinal fluid once on victory and heals by its max HP g
   const prepared = prepareBattle(campaign);
   assert.equal(prepared.roster.find((unit) => unit.id === "dina").maxHp, 1000);
   assert.equal(finishBattle(campaign, "victory", 800).next, "reward");
-  assert.deepEqual([campaign.runCharacterState.atk, campaign.runCharacterState.def, campaign.runCharacterState.maxHp, campaign.runCharacterState.currentHp], [190, 90, 1700, 900]);
+  assert.deepEqual([campaign.runCharacterState.atk, campaign.runCharacterState.def, campaign.runCharacterState.maxHp, campaign.runCharacterState.currentHp], [190, 90, 1750, 950]);
   assert.equal(campaign.runCharacterState.permanentEffects.length, 1);
   assert.equal(finishBattle(campaign, "victory", 800), false);
-  assert.deepEqual([campaign.runCharacterState.atk, campaign.runCharacterState.def, campaign.runCharacterState.maxHp], [190, 90, 1700]);
+  assert.deepEqual([campaign.runCharacterState.atk, campaign.runCharacterState.def, campaign.runCharacterState.maxHp], [190, 90, 1750]);
   const next = createCampaign(() => 0, { seed: 8 });
   startCampaign(next);
   next.candidateIds = ["naruto", "eren"];

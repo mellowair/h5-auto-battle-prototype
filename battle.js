@@ -1344,6 +1344,16 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
       const attacker = state.characters.find((c) => c.id === orderedActor.id);
       if (!attacker?.alive || attacker.currentHp <= 0) continue;
       syncNineTailsPassive(attacker);
+      if (attacker.tojiRestPending) {
+        attacker.tojiRestPending = false;
+        attacker.stunNextAction = false;
+        attacker.tojiResting = true;
+        events.push({ type: "toji-skip", attackerId: attacker.id, round: state.round,
+          fatigued: true });
+        attacker.tojiResting = false;
+        events.push({ type: "toji-resume", attackerId: attacker.id, round: state.round });
+        continue;
+      }
       if ((attacker.frozenThroughRound ?? 0) >= state.round) {
         events.push({ type: "trial-control-skip", targetId: attacker.id, round: state.round, reason: "冻结" });
         continue;
@@ -1352,17 +1362,6 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
         attacker.stunNextAction = false;
         events.push({ type: "trial-control-skip", targetId: attacker.id, round: state.round, reason: "眩晕" });
         continue;
-      }
-      if (attacker.tojiRestPending) {
-        attacker.tojiRestPending = false;
-        attacker.tojiResting = true;
-        events.push({ type: "toji-skip", attackerId: attacker.id, round: state.round,
-          fatigued: true });
-        continue;
-      }
-      if (attacker.tojiResting) {
-        attacker.tojiResting = false;
-        events.push({ type: "toji-resume", attackerId: attacker.id, round: state.round });
       }
       if (attacker.id === "tang" && attacker.tangMeditating) continue;
       if (attacker.periodicPassive?.onlyPeriodicActions) continue;

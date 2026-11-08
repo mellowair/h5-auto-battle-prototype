@@ -1032,6 +1032,10 @@ function playSummonPortal(fighter, auraAsset, kind, onComplete) {
 }
 
 function layoutBattleFormation(characters) {
+  const arena = document.querySelector(".arena");
+  const allies = characters.filter((character) => character.team === "ally" && !character.tangSummonKind);
+  arena?.classList.toggle("ally-duo", allies.length === 2);
+  arena?.classList.toggle("ally-mixed-rows", allies.some((unit) => unit.row === "front") && allies.some((unit) => unit.row === "back"));
   const makimaBattle = characters.some((character) => character.id === "makima" && character.team === "enemy");
   const shinNoiBattle = characters.some((character) => character.id === "shin" && character.team === "enemy") &&
     characters.some((character) => character.id === "noi" && character.team === "enemy");

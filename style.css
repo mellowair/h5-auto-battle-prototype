@@ -769,3 +769,19 @@ h2 { margin: 0; color: #3a455c; font-size: 11px; font-weight: 900; }
 @keyframes c0-frame-three { 0%,14% { opacity: 0; transform: translate(-50%,-50%) scale(.24); } 28%,48% { opacity: 1; transform: translate(-50%,-50%) scale(.8); } 57%,100% { opacity: 0; transform: translate(-50%,-50%) scale(1.02); } }
 @keyframes c0-frame-four { 0%,42% { opacity: 0; transform: translate(-50%,-50%) scale(.48); } 56%,78% { opacity: 1; transform: translate(-50%,-50%) scale(1.04); } 100% { opacity: 0; transform: translate(-50%,-50%) scale(1.25); } }
 @keyframes c0-title-flash { 0%,16% { opacity: 0; transform: translateY(14px) scale(.78); } 28%,76% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(-5px) scale(1.08); } }
+
+/* Keep both allies readable, including Tang behind Naruto on narrow screens. */
+.arena.ally-duo .fighter[data-team="ally"][data-row="front"] { left: calc(9% + var(--formation-offset, 0%)); }
+.arena.ally-duo .fighter[data-team="ally"].fighter-partner[data-row="front"] { left: calc(30% + var(--formation-offset, 0%)); }
+.arena.ally-duo .fighter[data-team="ally"][data-row="back"] { left: calc(5% + var(--formation-offset, 0%)); }
+.arena.ally-duo .fighter[data-team="ally"].fighter-partner[data-row="back"] { left: calc(17% + var(--formation-offset, 0%)); }
+.arena.ally-duo.ally-mixed-rows .fighter[data-team="ally"][data-row="back"] { left: 2%; }
+.arena.ally-duo.ally-mixed-rows .fighter[data-team="ally"][data-row="front"] { left: 29%; }
+@media (max-width: 699px) {
+  .arena.ally-duo .fighter[data-team="ally"][data-row="front"] { left: calc(2% + var(--formation-offset, 0%)); }
+  .arena.ally-duo .fighter[data-team="ally"].fighter-partner[data-row="front"] { left: calc(34% + var(--formation-offset, 0%)); }
+  .arena.ally-duo .fighter[data-team="ally"][data-row="back"] { left: 2%; }
+  .arena.ally-duo .fighter[data-team="ally"].fighter-partner[data-row="back"] { left: 12%; }
+  .arena.ally-duo.ally-mixed-rows .fighter[data-team="ally"][data-row="back"] { left: 0; }
+  .arena.ally-duo.ally-mixed-rows .fighter[data-team="ally"][data-row="front"] { left: 34%; }
+}

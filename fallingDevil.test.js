@@ -44,34 +44,34 @@ test("falling happens only every third completed round and stops after the devil
   assert.deepEqual(resolveFallingRoundEnd(state), []);
 });
 
-test("actual healing accumulates per target and removes one stack per 500 HP", () => {
+test("each actual healing event removes one gravity stack per target", () => {
   const state = initializeBattle([ally("hero"), ally("friend"), devil]);
   const [hero, friend] = state.characters;
   hero.gravityStacks = 4; friend.gravityStacks = 2;
   hero.currentHp -= 2000;
   hero.currentHp += 499;
-  assert.deepEqual([hero.gravityStacks, hero.gravityHealProgress], [4, 499]);
-  hero.currentHp += 1;
   assert.deepEqual([hero.gravityStacks, hero.gravityHealProgress], [3, 0]);
+  hero.currentHp += 1;
+  assert.deepEqual([hero.gravityStacks, hero.gravityHealProgress], [2, 0]);
   hero.currentHp += 1200;
-  assert.deepEqual([hero.gravityStacks, hero.gravityHealProgress], [1, 200]);
+  assert.deepEqual([hero.gravityStacks, hero.gravityHealProgress], [1, 0]);
   hero.currentHp += 100;
-  assert.deepEqual([hero.gravityStacks, hero.gravityHealProgress], [1, 300]);
+  assert.deepEqual([hero.gravityStacks, hero.gravityHealProgress], [0, 0]);
   hero.currentHp += 200;
   assert.deepEqual([hero.gravityStacks, hero.gravityHealProgress], [0, 0]);
   assert.deepEqual(state.gravityHealEvents.map((event) => [event.targetId, event.layersRemoved]),
-    [["hero", 0], ["hero", 1], ["hero", 2], ["hero", 0], ["hero", 1]]);
+    [["hero", 1], ["hero", 1], ["hero", 1], ["hero", 1]]);
   friend.currentHp -= 400;
   friend.currentHp += 400;
-  assert.deepEqual([friend.gravityStacks, friend.gravityHealProgress], [2, 400]);
+  assert.deepEqual([friend.gravityStacks, friend.gravityHealProgress], [1, 0]);
   friend.currentHp = friend.maxHp + 100;
-  assert.deepEqual([friend.gravityStacks, friend.gravityHealProgress], [2, 400]);
+  assert.deepEqual([friend.gravityStacks, friend.gravityHealProgress], [1, 0]);
   hero.currentHp -= 500;
   hero.currentHp += 500;
   assert.deepEqual([hero.gravityStacks, hero.gravityHealProgress], [0, 0]);
 });
 
-test("critical healing and treasure lifesteal contribute their actual HP to one 500-point counter", () => {
+test("critical healing and treasure lifesteal each remove one gravity stack", () => {
   const kaneki = { ...ally("kaneki"), atk: 5000, critChance: 1, passiveSkillId: "kaneki-one-eye",
     passiveLevel: 1, lifesteal: .25 };
   const state = initializeBattle([kaneki, devil]);
@@ -82,9 +82,8 @@ test("critical healing and treasure lifesteal contribute their actual HP to one 
   const hit = executeAttack(state, hero, enemy, () => .99, { skill: null });
   assert.ok(hit.oneEyeHealedAmount > 0);
   assert.ok(hit.treasureLifesteal > 0);
-  const healed = hit.oneEyeHealedAmount + hit.treasureLifesteal;
-  assert.equal(hero.gravityStacks, 3 - Math.floor(healed / 500));
-  assert.equal(hero.gravityHealProgress, healed % 500);
+  assert.equal(hero.gravityStacks, 1);
+  assert.equal(hero.gravityHealProgress, 0);
   assert.deepEqual(state.gravityHealEvents.map((event) => event.restored),
     [hit.oneEyeHealedAmount, hit.treasureLifesteal]);
 });

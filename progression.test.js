@@ -284,9 +284,9 @@ test("Gun Devil and spinal fluid drops grow linearly per recipient and restore t
     const effect = grantGiantSpinalFluid(giant, `titan-${index}`);
     assert.equal(effect.acquisitionCount, index);
     assert.deepEqual([effect.def, effect.maxHp, effect.restoredHp],
-      [20 + (index - 1) * 10, 100 + (index - 1) * 50, 100 + (index - 1) * 50]);
+      [20 + (index - 1) * 10, 150 + (index - 1) * 75, 150 + (index - 1) * 75]);
   }
-  assert.deepEqual([giant.def, giant.maxHp, giant.currentHp], [160, 2050, 950]);
+  assert.deepEqual([giant.def, giant.maxHp, giant.currentHp], [160, 2275, 1175]);
   assert.equal(grantGiantSpinalFluid(giant, "titan-3"), false);
   assert.equal(grantGunDevilFragment(giant, "bomb-other").acquisitionCount, 1,
     "the two item acquisition counts are independent");
@@ -319,12 +319,12 @@ test("first-stage giant encounter grants the same growing spinal fluid effect on
   assert.ok(startAdventureBattle(run, "giant-first"));
   const result = completeAdventureBattle(run, "giant-first", "victory", () => 0);
   assert.equal(result.spinalFluidGranted, true);
-  assert.deepEqual([run.currentHp, run.maxHp, run.def], [600, 1700, 90]);
+  assert.deepEqual([run.currentHp, run.maxHp, run.def], [650, 1750, 90]);
   assert.equal(run.permanentEffects.at(-1).acquisitionCount, 1);
   assert.equal(completeAdventureBattle(run, "giant-first", "victory", () => 0), false);
   const repeat = grantGiantSpinalFluid(run, "giant-elite");
-  assert.deepEqual([repeat.acquisitionCount, repeat.maxHp, repeat.def, repeat.restoredHp], [2, 150, 30, 150]);
-  assert.deepEqual([run.currentHp, run.maxHp, run.def], [750, 1850, 120]);
+  assert.deepEqual([repeat.acquisitionCount, repeat.maxHp, repeat.def, repeat.restoredHp], [2, 225, 30, 225]);
+  assert.deepEqual([run.currentHp, run.maxHp, run.def], [875, 1975, 120]);
 });
 
 test("special drop stage growth and repeat growth both use first-stage base values", () => {
@@ -342,9 +342,9 @@ test("special drop stage growth and repeat growth both use first-stage base valu
   const giant = makeNaruto();
   const first = grantGiantSpinalFluid(giant, "fluid-1", 1);
   const crossStage = grantGiantSpinalFluid(giant, "fluid-2", 2);
-  assert.deepEqual([first.maxHp, first.def, crossStage.maxHp, crossStage.def], [100, 20, 200, 40]);
-  assert.deepEqual([grantGiantSpinalFluid(giant, "fluid-3", 3).maxHp, giant.def], [300, 190]);
-  for (const [stage, expectedHp, expectedDef] of [[1, 100, 20], [2, 150, 30], [3, 200, 40]]) {
+  assert.deepEqual([first.maxHp, first.def, crossStage.maxHp, crossStage.def], [150, 20, 300, 40]);
+  assert.deepEqual([grantGiantSpinalFluid(giant, "fluid-3", 3).maxHp, giant.def], [450, 190]);
+  for (const [stage, expectedHp, expectedDef] of [[1, 150, 20], [2, 225, 30], [3, 300, 40]]) {
     const fresh = makeNaruto();
     const effect = grantGiantSpinalFluid(fresh, `fresh-fluid-${stage}`, stage);
     assert.deepEqual([effect.maxHp, effect.def], [expectedHp, expectedDef]);
@@ -545,7 +545,17 @@ test("event images point to copied local resources and decision UI renders them"
   assert.equal(Object.keys(ADVENTURE_EVENT_DATA).length, 16);
   const app=readFileSync(new URL("./app.js",import.meta.url),"utf8"), html=readFileSync(new URL("./index.html",import.meta.url),"utf8"), css=readFileSync(new URL("./style.css",import.meta.url),"utf8");
   assert.match(app,/eventImage\.src = image/); assert.match(html,/id="decision-event-image"/); assert.match(css,/\.decision-event-image\[hidden\]\s*\{\s*display:\s*none/);
-  for (const id of ["sea_beyond","death_note","fate_gate","giant_encirclement","kings_treasury","gamble","gamble_2"]) { const event=ADVENTURE_EVENT_DATA[id]; assert.ok(event.image.startsWith("assets/events/")); const png=readFileSync(new URL("./"+event.image,import.meta.url)); assert.equal(png.toString("ascii",1,4),"PNG"); assert.ok(png.readUInt32BE(16)>=256); assert.ok(png.readUInt32BE(20)>=256); }
+  for (const id of ["sea_beyond","death_note","fate_gate","giant_encirclement","kings_treasury","gamble","gamble_2"]) {
+    const event = ADVENTURE_EVENT_DATA[id];
+    assert.ok(event.image.startsWith("assets/events/"));
+    const image = readFileSync(new URL("./" + event.image, import.meta.url));
+    if (id.startsWith("gamble")) assert.match(image.toString("utf8"), /<svg[\s>]/);
+    else {
+      assert.equal(image.toString("ascii", 1, 4), "PNG");
+      assert.ok(image.readUInt32BE(16) >= 256);
+      assert.ok(image.readUInt32BE(20) >= 256);
+    }
+  }
 });
 
 test("sea beyond uses three percentage sacrifice tiers and random stat rewards, then applies selected choices once", () => {

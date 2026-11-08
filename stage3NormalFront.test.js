@@ -25,7 +25,7 @@ test("stage-three front appearances have deployed art and passive descriptions",
   assert.deepEqual([guard.name, guard.appearanceId, guard.normalPassiveId], ["牛魔王", "bull_king", "bull_king"]);
 });
 
-test("third-stage route encounters draw all six new front enemies without changing the back pool", () => {
+test("third-stage route encounters draw six front enemies and the corrected back pool", () => {
   const seenFront = new Set();
   for (let seed = 1; seed <= 120; seed += 1) {
     const campaign = createStageThreeTestCampaign({ heroId: "naruto", partnerId: "eren", opponent: "route", seed });
@@ -34,7 +34,7 @@ test("third-stage route encounters draw all six new front enemies without changi
     const frontId = encounter.enemyAppearanceIds.guard;
     const backId = encounter.enemyAppearanceIds.mage;
     if (frontId) { assert.ok(frontIds.includes(frontId)); seenFront.add(frontId); }
-    if (backId) assert.ok(["jack", "teruhashi", "gollum"].includes(backId));
+    if (backId) assert.ok(["shiji", "loki", "medusa"].includes(backId));
   }
   assert.deepEqual([...seenFront].sort(), [...frontIds].sort());
 });
