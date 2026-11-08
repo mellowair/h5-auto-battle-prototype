@@ -460,7 +460,7 @@ export const ELITE_ENEMY_DATA = [
     },
     extraPassiveSkillIds: ["stage3-resurrection"] },
   { id: "falling-devil", name: "下落恶魔", type: "elite", stageId: 3, team: "enemy",
-    role: "机制型精英", row: "back", position: "back", hp: 6000, atk: 250, def: 170, spd: 140,
+    role: "机制型精英", row: "back", position: "back", hp: 6000, atk: 250, def: 130, spd: 140,
     attackType: "ranged", attackAnimation: "magicAttack", asset: "assets/stage3-elites/falling/idle.png", visualId: "falling-devil",
     extraPassiveSkillIds: ["falling-gravity-domain", "falling-weightlessness", "falling-main-course"],
     gravityCircleAsset: "assets/stage3-elites/falling/gravity-circle.png",

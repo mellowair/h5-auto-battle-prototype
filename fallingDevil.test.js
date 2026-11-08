@@ -12,14 +12,14 @@ const ally = (id, spd = 100, def = 100) => ({ id, name: id, team: "ally", row: "
   hp: 30000, currentHp: 30000, atk: 1, def, spd, critChance: 0, normalDodgeRate: 0 });
 
 test("falling devil joins the stage-three elite registry with all eight real art files", () => {
-  assert.deepEqual([devil.stageId, devil.row, devil.hp, devil.atk, devil.def, devil.spd], [3, "back", 6000, 250, 170, 140]);
+  assert.deepEqual([devil.stageId, devil.row, devil.hp, devil.atk, devil.def, devil.spd], [3, "back", 6000, 250, 130, 140]);
   for (const path of [devil.asset, devil.gravityCircleAsset, devil.dishAsset,
     ...Object.values(devil.animations).flatMap((animation) => Object.values(animation.frames))])
     assert.ok(existsSync(new URL(`./${path}`, import.meta.url)), path);
   const campaign = createStageThreeTestCampaign({ heroId: "naruto", partnerId: "eren", opponent: "falling-devil" });
   const enemy = prepareBattle(campaign).roster.find((unit) => unit.id === "falling-devil");
   assert.equal(campaign.currentBattle.type, "elite");
-  assert.deepEqual([enemy.maxHp, enemy.atk, enemy.def, enemy.spd], [6000, 250, 170, 140]);
+  assert.deepEqual([enemy.maxHp, enemy.atk, enemy.def, enemy.spd], [6000, 250, 130, 140]);
 });
 
 test("gravity fixes combat speed at one without changing individual entry speed snapshots", () => {
@@ -104,6 +104,63 @@ test("the fifth fall executes only surviving five-stack targets regardless of re
   assert.equal(fall[0].hits[0].fellDead, true);
   assert.equal(fall[0].hits[0].stacks, 0);
   assert.equal(fall.some((event) => event.type === "gravity-execution"), false);
+});
+
+test("main course executes at 260 defense and deals true damage above 260", () => {
+  const boundary = initializeBattle([ally("boundary", 100, 260), devil]);
+  boundary.round = 15;
+  boundary.characters[0].gravityStacks = 4;
+  const boundaryEvents = resolveFallingRoundEnd(boundary);
+  assert.deepEqual(boundaryEvents.map((event) => event.type), ["gravity-fall", "gravity-execution"]);
+  assert.equal(boundary.characters[0].alive, false);
+
+  const resistant = initializeBattle([ally("resistant", 100, 261), devil]);
+  resistant.round = 15;
+  resistant.characters[0].gravityStacks = 4;
+  const events = resolveFallingRoundEnd(resistant);
+  assert.deepEqual(events.map((event) => event.type), ["gravity-fall", "gravity-main-course-damage"]);
+  assert.equal(events[1].defenseAtTrigger, 261);
+  assert.equal(events[1].requestedDamage, 800);
+  assert.equal(events[1].actualDamage, 800);
+  assert.equal(events[1].targetDied, false);
+  assert.equal(resistant.characters[0].currentHp, events[0].hits[0].hpAfter - 800);
+  assert.equal(resistant.characters[0].gravityStacks, 5);
+});
+
+test("main course checks current combat defense and applies shield rules", () => {
+  const state = initializeBattle([ally("buffed", 100, 250), devil]);
+  state.round = 15;
+  const target = state.characters[0];
+  target.gravityStacks = 4;
+  target.defenseBuff = 20;
+  target.defenseBuffUntilRound = 15;
+  target.shieldHp = 500;
+  const events = resolveFallingRoundEnd(state);
+  const fall = events[0].hits[0];
+  const mainCourse = events[1];
+  assert.equal(mainCourse.type, "gravity-main-course-damage");
+  assert.equal(mainCourse.defenseAtTrigger, 270);
+  assert.equal(mainCourse.shieldAbsorbed, fall.shieldHp);
+  assert.equal(mainCourse.actualDamage, 800 - fall.shieldHp);
+  assert.equal(target.currentHp, fall.hpAfter - mainCourse.actualDamage);
+});
+
+test("main course treats a summon separately from the hero", () => {
+  const summon = { ...ally("summon", 120, 300), hp: 900, currentHp: 900,
+    originalTeam: "ally", tangSummonKind: "bajie" };
+  const state = initializeBattle([ally("hero"), summon, devil]);
+  state.round = 15;
+  const hero = state.characters[0];
+  const summoned = state.characters[1];
+  summoned.gravityStacks = 4;
+  const events = resolveFallingRoundEnd(state);
+  assert.equal(events[1].type, "gravity-main-course-damage");
+  assert.equal(events[1].targetId, "summon");
+  assert.equal(events[1].targetDied, true);
+  assert.equal(summoned.alive, false);
+  assert.equal(hero.alive, true);
+  assert.equal(hero.gravityStacks, 1);
+  assert.equal(events.some((event) => event.type === "gravity-execution"), false);
 });
 
 test("full simulation keeps the three-round schedule and normal ranged attacks", () => {

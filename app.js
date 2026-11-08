@@ -1157,7 +1157,7 @@ function renderAllyStatusIcons() {
         description: `${unit.name} 至第 ${unit.silencedThroughRound} 回合结束前无法释放主动技能，仍可普通攻击。` });
     if (unit.gravityStacks > 0) statuses.push({ id: `gravity-${unit.id}`, name: `失去引力 ×${unit.gravityStacks}`,
       image: "assets/stage3-elites/falling/gravity-circle.png", tone: "debuff",
-      description: `${unit.name}：失去引力 ${unit.gravityStacks}/5 层；每次实际恢复 HP 消除 1 层；达到 5 层立即被处决。` });
+      description: `${unit.name}：失去引力 ${unit.gravityStacks}/5 层；每次实际恢复 HP 消除 1 层；达到 5 层时，战斗 DEF 高于 260 改受 800 点真实伤害，否则立即被处决。` });
     if (unit.burnStacks > 0) statuses.push({ id: `burn-${unit.id}`, name: "烧伤", image: "assets/status-burn.svg", tone: "danger",
       description: `${unit.name}：${unit.burnStacks} 层烧伤，每层在完整战斗回合结束时结算持续伤害。` });
     if (unit.bleedStacks > 0) statuses.push({ id: `bleed-${unit.id}`, name: "流血", image: "assets/status-bleed.svg", tone: "danger",
@@ -1719,6 +1719,37 @@ function playEvent(event, finish) {
           }, dropMs);
         }, hoverMs);
       }, riseMs);
+    }, playbackDelay(500, 240));
+    return;
+  }
+  if (event.type === "gravity-main-course-damage") {
+    const devil = viewState.characters.find((unit) => unit.id === event.attackerId);
+    const target = viewState.characters.find((unit) => unit.id === event.targetId);
+    const source = document.querySelector('[data-character="' + event.attackerId + '"]');
+    const fighter = document.querySelector('[data-character="' + event.targetId + '"]');
+    if (!devil || !target || !source || !fighter) return finish();
+    showFighterFrame(source, devil, "execution", "cast");
+    addLog("<b>下落恶魔</b> 的「主菜」命中 <b>" + target.name + "</b>：战斗 DEF " +
+      event.defenseAtTrigger + " 高于 260，改为 800 点真实伤害；实际失去 " +
+      event.actualDamage + " HP" + (event.targetDied ? "，倒地。" : "。"), "log-enemy");
+    timer = window.setTimeout(() => {
+      timer = null;
+      target.currentHp = event.hpAfter; target.alive = !event.targetDied;
+      target.shieldHp = event.shieldHp; target.gravityStacks = event.stacks;
+      updateHealth(target);
+      const number = fighter.querySelector(".damage-number");
+      if (number && event.actualDamage > 0) {
+        number.textContent = "-" + event.actualDamage;
+        number.classList.remove("is-heal", "pop");
+        void number.offsetWidth;
+        number.classList.add("pop");
+      }
+      if (event.targetDied) fighter.classList.add("is-dead");
+      renderAllyStatusIcons(); renderSquad();
+      timer = window.setTimeout(() => {
+        timer = null; startIdleCycle(source, devil);
+        if (playbackPaused) pausedContinuation = finish; else finish();
+      }, playbackDelay(650, 300));
     }, playbackDelay(500, 240));
     return;
   }

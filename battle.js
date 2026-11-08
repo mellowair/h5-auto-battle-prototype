@@ -297,6 +297,7 @@ export function resolveFallingRoundEnd(state) {
   if (!devil || state.round < 3 || state.round % 3 !== 0) return [];
   const hits = [];
   const executions = [];
+  const healingBeforeFall = state.gravityHealEvents.splice(0);
   for (const target of state.characters.filter((unit) => unit.originalTeam === "ally" && unit.alive && unit.currentHp > 0)) {
     const baseDamage = target.entryPanelSpd * 4 + 250;
     const afterDefense = calculateDamage({ atk: baseDamage }, { def: combatDefense(target, state.round) });
@@ -312,21 +313,35 @@ export function resolveFallingRoundEnd(state) {
     const actualDamage = Math.max(0, before - target.currentHp);
     const fellDead = handleDeath(target);
     const hpAfterFall = target.currentHp;
+    const shieldHpAfterFall = target.shieldHp;
+    healingBeforeFall.push(...state.gravityHealEvents.splice(0));
+    let fallStacks = target.gravityStacks;
     if (!fellDead) {
-      target.gravityStacks += 1;
-      if (target.gravityStacks >= 5) {
-        target.currentHp = 0;
-        target.alive = false;
-        executions.push({ type: "gravity-execution", round: state.round, attackerId: devil.id,
-          targetId: target.id, stacks: target.gravityStacks, hpAfter: 0 });
+      fallStacks = target.gravityStacks = Math.min(5, target.gravityStacks + 1);
+      if (fallStacks >= 5) {
+        const defenseAtTrigger = combatDefense(target, state.round);
+        if (defenseAtTrigger > 260) {
+          const hit = resolveTrueDamageSkill(state, devil, target,
+            { ...SKILL_DATA["falling-main-course"], level: 1 }, 800);
+          executions.push({ type: "gravity-main-course-damage", round: state.round, attackerId: devil.id,
+            targetId: target.id, defenseAtTrigger, requestedDamage: 800,
+            actualDamage: hit.actualDamage, shieldAbsorbed: hit.shieldAbsorbed,
+            shieldHp: hit.targetShield, hpAfter: hit.targetHp, targetDied: hit.targetDied,
+            stacks: target.gravityStacks });
+          executions.push(...state.gravityHealEvents.splice(0));
+        } else {
+          target.currentHp = 0;
+          target.alive = false;
+          executions.push({ type: "gravity-execution", round: state.round, attackerId: devil.id,
+            targetId: target.id, stacks: fallStacks, hpAfter: 0 });
+        }
       }
     }
     hits.push({ targetId: target.id, entryPanelSpd: target.entryPanelSpd, baseDamage,
-      afterDefense, actualDamage, shieldAbsorbed, shieldHp: target.shieldHp,
-      hpAfter: hpAfterFall,
-      stacks: target.gravityStacks, fellDead, protection });
+      afterDefense, actualDamage, shieldAbsorbed, shieldHp: shieldHpAfterFall,
+      hpAfter: hpAfterFall, stacks: fallStacks, fellDead, protection });
   }
-  return [...state.gravityHealEvents.splice(0),
+  return [...healingBeforeFall,
     { type: "gravity-fall", round: state.round, attackerId: devil.id, hits }, ...executions];
 }
 

@@ -7,7 +7,7 @@ export const SKILL_DATA = {
   "falling-weightlessness": { id: "falling-weightlessness", name: "失重", type: "passive", passive: true,
     description: "第 3、6、9……回合结束时，使所有存活玩家角色坠落；基础伤害为各自入场面板 SPD × 4 + 250，再按 DEF 和现有防护规则结算。", levels: { 1: {} } },
   "falling-main-course": { id: "falling-main-course", name: "主菜", type: "passive", passive: true,
-    description: "每次失重后存活者获得 1 层失去引力；每次实际获得治疗减少 1 层。任一角色达到 5 层时立即被处决。", levels: { 1: {} } },
+    description: "每次失重后存活者获得 1 层失去引力；每次实际获得治疗减少 1 层。达到 5 层时，实际战斗 DEF 高于 260 的目标改受 800 点真实伤害，否则立即被处决。", levels: { 1: {} } },
   "stage3-resurrection": { id: "stage3-resurrection", name: "双人复活", type: "passive", passive: true,
     description: "倒地时另一人若存活，等待四回合后以 40% 最大 HP 复活；等待期间存活者攻击力翻倍；两人同时倒地则战斗结束。", levels: { 1: {} } },
   "makima-weapons": { id: "makima-weapons", name: "武器人", type: "passive", passive: true,
