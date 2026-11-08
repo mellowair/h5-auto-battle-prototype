@@ -122,7 +122,7 @@ function encounterFor(campaign, type, node, forcedEncounterId = null) {
     const frontPool = campaign.stageId === 3
       ? ["bull_king", "headless_knight", "anubis", "loki", "medusa", "shiji"]
       : ["lubu", "dementor", "deep_sea_king"];
-    const backPool = ["jack", "teruhashi", "gollum"];
+    const backPool = campaign.stageId === 3 ? ["shiji", "loki", "medusa"] : ["jack", "teruhashi", "gollum"];
     const pick = (pool) => pool[Math.floor(random() * pool.length)];
     const single = campaign.stageStep <= 4;
     const useFront = !single || random() < .5;
@@ -703,7 +703,7 @@ function eliteDropId(campaign) {
   if (campaign?.currentBattle?.type !== "elite") return null;
   const enemies = campaign.currentBattle.enemies ?? [];
   if (enemies.includes("mahito")) return "sukuna_finger";
-  if (enemies.includes("bomb-demon")) return "gun_devil_fragment";
+  if (enemies.some((id) => id === "bomb-demon" || /devil/i.test(id))) return "gun_devil_fragment";
   if (campaign.stageId === 2 && enemies.includes("armored-titan") && enemies.includes("colossal-titan"))
     return "giant_spinal_fluid";
   return null;
@@ -742,6 +742,7 @@ export function claimCampaignEliteDrop(campaign, recipientId) {
       ? grantGunDevilFragment(recipient, sourceId, campaign.stageId)
       : grantEliteSukunaFinger(recipient, sourceId, campaign.stageId));
   if (!effect) return false;
+  effect.sourceLabel = `${campaign.currentBattle?.enemyNames?.[campaign.currentBattle?.enemies?.[0]] ?? campaign.currentBattle?.title ?? "精英"}战斗奖励`;
   campaign.playerHp = campaign.runCharacterState.currentHp;
   campaign.playerMaxHp = campaign.runCharacterState.maxHp;
   const offer = campaign.runCharacterState.rewardOffers?.[sourceId];
@@ -783,6 +784,8 @@ export function claimCampaignTreasure(campaign, treasureId, recipientId) {
   const effect = claimTreasure(campaign.runCharacterState, offer.sourceId, treasureId,
     campaign.partyStates[recipientId], recipientId);
   if (!effect) return false;
+  effect.sourceLabel = "王之宝库奇遇";
+  effect.stageId = campaign.stageId;
   campaign.playerHp = campaign.runCharacterState.currentHp;
   campaign.playerMaxHp = campaign.runCharacterState.maxHp;
   if (campaign.status === "reward") {
@@ -811,6 +814,7 @@ export function claimCampaignSpecialReward(campaign, recipientId) {
     !record?.data.specialRewardId || record.data.specialRewardClaimed || !campaign.partyIds.includes(recipientId)) return false;
   const reward = grantAdventureSpecialReward(campaign.partyStates[recipientId], record.sourceId, record.data.specialRewardId);
   if (!reward) return false;
+  reward.stageId = campaign.stageId; reward.sourceLabel = `${record.name}奇遇奖励`;
   record.data.specialRewardClaimed = { recipientId, rewardId: reward.id };
   campaign.rewardPhase = "stat";
   return reward;
@@ -823,6 +827,7 @@ export function claimCampaignQuinque(campaign, recipientId, rewardId) {
     !campaign.partyIds.includes(recipientId)) return false;
   const reward = grantQuinque(campaign.partyStates[recipientId], record.sourceId, rewardId);
   if (!reward) return false;
+  reward.stageId = campaign.stageId; reward.sourceLabel = `${record.name}奇遇奖励`;
   record.data.quinqueClaimed = { recipientId, rewardId };
   campaign.rewardPhase = "stat";
   return reward;

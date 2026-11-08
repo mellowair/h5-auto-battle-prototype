@@ -104,7 +104,7 @@ export const EVENT_ENEMY_DATA = Object.freeze({
 // Their stage-two row-template stats are assigned in campaign.js.
 export const TRIAL_ENEMY_DATA = Object.freeze({
   heracles: { id: "heracles", name: "赫拉克勒斯", team: "enemy", type: "elite", role: "诸神试炼 · 力量", row: "front", position: "front",
-    hp: 3000, atk: 550, def: 200, spd: 100, asset: "assets/trial-enemies/赫拉克勒斯.png", visualId: "heracles", attackType: "melee",
+    hp: 3000, atk: 580, def: 200, spd: 100, asset: "assets/trial-enemies/赫拉克勒斯.png", visualId: "heracles", attackType: "melee",
     activeSkills: ["heracles-nine-heads"], trialPassive: "heracles", trialPassiveSkill: { name: "不死试炼", description: "首次倒地后进入不死模式，抵挡接下来的 12 次攻击。" }, rosterOrder: 2,
     skillAnimationMap: { "heracles-nine-heads": "nineHeads" },
     animations: { idle: { type: "frames", frames: { idle: "assets/trial-enemies/赫拉克勒斯.png" } },
@@ -115,7 +115,7 @@ export const TRIAL_ENEMY_DATA = Object.freeze({
       phase2MeleeAttack: { type: "frames", frames: { punch: "assets/trial-enemies/赫拉克勒斯二阶段攻击.png" }, impactFrames: ["punch"] },
       nineHeads: { type: "frames", frames: { charge: "assets/trial-enemies/赫拉克勒斯蓄力.png", strike: "assets/trial-enemies/赫拉克勒斯技能.png" }, durationsMs: [500, 450] } } },
   odin: { id: "odin", name: "奥丁", team: "enemy", type: "elite", role: "诸神试炼 · 智慧", row: "back", position: "back",
-    hp: 2500, atk: 500, def: 100, spd: 100, asset: "assets/trial-enemies/奥丁.png", visualId: "odin", attackType: "magic", attackAnimation: "magicAttack",
+    hp: 2500, atk: 530, def: 100, spd: 100, asset: "assets/trial-enemies/奥丁.png", visualId: "odin", attackType: "magic", attackAnimation: "magicAttack",
     activeSkills: ["odin-gungnir"], extraPassiveSkillIds: ["odin-ravens"], trialPassive: "odin", trialPassiveSkill: { name: "奥丁的庇护", description: "每 5 回合循环减伤：第 1 至 5 回合分别减免 50%、40%、30%、20%、0%。" }, rosterOrder: 2,
     projectileAsset: "assets/trial-enemies/奥丁施法素材.png",
     skillAnimationMap: { "odin-gungnir": "gungnir" },
@@ -508,7 +508,7 @@ export const STAGE_TWO_BOSS_DATA = Object.freeze({
 // Stage-three presentation is independent of combat stats and route scaling.
 export const STAGE_THREE_BOSS_DATA = Object.freeze({
   id: "makima", name: "玛奇玛", type: "boss", team: "enemy", role: "支配恶魔",
-  row: "back", position: "back", hp: 3700, atk: 250, def: 150, spd: 160,
+  row: "back", position: "back", hp: 3700, atk: 250, def: 180, spd: 160,
   attackType: "ranged", asset: "assets/stage3-enemies/makima_hover_idle.png", visualId: "makima", stageThreeKind: "makima",
   attackAnimation: "hoverAttack",
   animations: {

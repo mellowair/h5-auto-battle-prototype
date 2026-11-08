@@ -1153,7 +1153,7 @@ function renderAllyStatusIcons() {
         description: `${unit.name} 至第 ${unit.silencedThroughRound} 回合结束前无法释放主动技能，仍可普通攻击。` });
     if (unit.gravityStacks > 0) statuses.push({ id: `gravity-${unit.id}`, name: `失去引力 ×${unit.gravityStacks}`,
       image: "assets/stage3-elites/falling/gravity-circle.png", tone: "debuff",
-      description: `${unit.name}：失去引力 ${unit.gravityStacks}/5 层；实际回血累计 ${unit.gravityHealProgress ?? 0}/500 HP，每满 500 HP 消除 1 层；达到 5 层立即被处决。` });
+      description: `${unit.name}：失去引力 ${unit.gravityStacks}/5 层；每次实际恢复 HP 消除 1 层；达到 5 层立即被处决。` });
     if (unit.burnStacks > 0) statuses.push({ id: `burn-${unit.id}`, name: "烧伤", image: "assets/status-burn.svg", tone: "danger",
       description: `${unit.name}：${unit.burnStacks} 层烧伤，每层在完整战斗回合结束时结算持续伤害。` });
     if (unit.bleedStacks > 0) statuses.push({ id: `bleed-${unit.id}`, name: "流血", image: "assets/status-bleed.svg", tone: "danger",
@@ -1190,7 +1190,19 @@ function renderAllyStatusIcons() {
     const totalHp = fluidEffects.reduce((sum, effect) => sum + (effect.maxHp ?? 0), 0);
     allyStatuses.push({ id: `${GIANT_SPINAL_FLUID.id}-${id}`, name: GIANT_SPINAL_FLUID.name,
       image: GIANT_SPINAL_FLUID.image, tone: "buff",
-      description: `${partyPresentation(id)?.name ?? id}：已获得 ${fluidEffects.length} 次，累计 DEF +${totalDef}、最大 HP +${totalHp}；领取时恢复本次增加的 HP。` });
+      description: `${partyPresentation(id)?.name ?? id}：已获得 ${fluidEffects.length} 次，累计 DEF +${totalDef}、最大 HP +${totalHp}；${fluidEffects.map((effect, index) => `第 ${effect.acquisitionCount ?? index + 1} 次：第 ${effect.stageId ?? "未知"} 关，来源 ${effect.sourceLabel ?? effect.sourceId ?? "未知"}，DEF +${effect.def ?? 0}、最大 HP +${effect.maxHp ?? 0}`).join("；")}` });
+  }
+  for (const id of campaign?.partyIds ?? []) {
+    const run = campaign.partyStates?.[id];
+    const effects = run?.permanentEffects?.filter((effect) => TREASURE_DATA[effect.id] || ["gun_devil_fragment", "drip_coffee", "six_ear_true_form", "quinque_guard", "quinque_crit", "anteiku_weapon"].includes(effect.id)) ?? [];
+    const groups = Object.values(effects.reduce((map, effect) => { (map[effect.id] ??= []).push(effect); return map; }, {}));
+    for (const items of groups) {
+      const item = items[0];
+      const gain = items.reduce((sum, entry) => { for (const key of ["atk", "def", "maxHp"]) sum[key] = (sum[key] ?? 0) + (entry[key] ?? 0); return sum; }, {});
+      const gains = Object.entries(gain).filter(([, value]) => value).map(([key, value]) => `${key.toUpperCase()} ${value > 0 ? "+" : ""}${value}`).join("、");
+      const history = items.map((entry, index) => `第 ${entry.acquisitionCount ?? index + 1} 次：第 ${entry.stageId ?? "未知"} 关，来源 ${entry.sourceLabel ?? entry.sourceId ?? "未知"}，${Object.entries(entry).filter(([key, value]) => ["atk", "def", "maxHp"].includes(key) && value).map(([key, value]) => `${key.toUpperCase()} ${value > 0 ? "+" : ""}${value}`).join("、") || entry.description || "特殊效果"}`).join("；");
+      allyStatuses.push({ id: `treasure-${id}-${item.id}`, name: `${item.name} ×${items.length}`, image: item.image ?? TREASURE_DATA[item.id]?.image ?? "", tone: "buff", description: `${partyPresentation(id)?.name ?? id}：${gains ? `累计 ${gains}。` : "特殊效果保留原说明。"}${history}` });
+    }
   }
   if (battleStatusState.jinchuriki) {
     const passive = battleStatusState.jinchuriki;
@@ -1225,9 +1237,6 @@ function renderAllyStatusIcons() {
   if (toji?.tojiFatigued) enemyStatuses.push({ id: "toji-fatigue", name: "出拳太快有点累了",
     image: "assets/status-cannot-act.png", tone: "debuff",
     description: "出拳达到 3 次后，行动一次、休息一次。" });
-  if (toji?.tojiExhausted) enemyStatuses.push({ id: "toji-exhausted", name: "额外承伤",
-    image: "assets/stage2-enemies/toji/idle.png", tone: "debuff",
-    description: "出拳达到 4 次后，本场受到的最终伤害变为 1.5 倍，包括真实伤害。" });
   for (const bomb of battleStatusState.bombs ?? []) {
     allyStatuses.push({ id: bomb.id, name: "杀手皇后炸弹", image: "assets/stage2-enemies/kira/idle.png", tone: "danger",
       description: `${bomb.targetName}身上已附着炸弹；剩余 ${Math.max(0, bomb.dueRound - battleStatusState.currentRound)} 个完整回合（第 ${bomb.dueRound} 回合引爆）。` });
@@ -1388,11 +1397,18 @@ function openCharacterDetail(characterId) {
         ? "暴击按最终计算伤害恢复 40% HP，暴击率 +10 个百分点，暴击伤害 +20 个百分点。"
         : passive?.description ?? "";
   const ownedTreasures = run?.permanentEffects?.filter((effect) => TREASURE_DATA[effect.id] ||
-    ["giant_spinal_fluid", "gun_devil_fragment", "drip_coffee", "six_ear_true_form", "quinque_guard", "quinque_crit", "anteiku_weapon"].includes(effect.id)) ?? [];
-  const treasureMarkup = ownedTreasures.length
-    ? '<section class="detail-skill"><h3>本局宝物</h3>' + ownedTreasures.map((effect) =>
-      '<div class="detail-skill-row"><div class="detail-skill-icon">' + (effect.image
-        ? '<img src="' + effect.image + '" alt="">' : '宝') + '</div><div class="detail-skill-copy"><b>' + effect.name + '</b><p>' + (effect.description ?? TREASURE_DATA[effect.id]?.description) + '</p></div></div>').join("") + '</section>'
+    ["gun_devil_fragment", "drip_coffee", "six_ear_true_form", "quinque_guard", "quinque_crit", "anteiku_weapon"].includes(effect.id)) ?? [];
+  const treasureGroups = Object.values(ownedTreasures.reduce((groups, effect) => {
+    (groups[effect.id] ??= []).push(effect); return groups;
+  }, {}));
+  const treasureMarkup = treasureGroups.length
+    ? '<section class="detail-skill"><h3>本局宝物</h3>' + treasureGroups.map((items) => {
+      const effect = items[0];
+      const totals = items.reduce((sum, item) => { for (const key of ["atk", "def", "maxHp"]) sum[key] = (sum[key] ?? 0) + (item[key] ?? 0); return sum; }, {});
+      const totalText = Object.entries(totals).filter(([, value]) => value).map(([key, value]) => key.toUpperCase() + ' ' + (value > 0 ? '+' : '') + value).join(' · ');
+      const history = items.map((item, index) => '<p>第 ' + (item.acquisitionCount ?? index + 1) + ' 次 · 第 ' + (item.stageId ?? '—') + ' 关 · 来源 ' + (item.sourceId ?? '记录缺失') + ' · ' + (item.description ?? '') + '</p>').join('');
+      return '<div class="detail-skill-row"><div class="detail-skill-icon"><img src="' + (effect.image ?? TREASURE_DATA[effect.id]?.image ?? '') + '" alt=""></div><div class="detail-skill-copy"><b>' + effect.name + ' ×' + items.length + '</b><p>' + (TREASURE_DATA[effect.id]?.description ?? effect.description ?? '') + '</p><p>累计属性：' + (totalText || '无固定属性收益') + '</p>' + history + '</div></div>';
+    }).join("") + '</section>'
     : '';
   $("#character-detail").innerHTML =
     '<div class="detail-profile"><div class="detail-portrait"><img src="' + character.asset +
@@ -1731,14 +1747,6 @@ function playEvent(event, finish) {
     if (toji) toji.tojiFatigued = true;
     renderAllyStatusIcons();
     addLog(`<b>${toji?.name ?? "伏黑甚尔"}</b> 连续出拳 3 次，进入疲劳状态：行动一次、休息一次。`, "log-skill");
-    return finish();
-  }
-  if (event.type === "toji-exhausted") {
-    battleStatusState.tojiExhausted = "active";
-    const toji = viewState.characters.find((unit) => unit.id === event.attackerId);
-    if (toji) toji.tojiExhausted = true;
-    renderAllyStatusIcons();
-    addLog(`<b>${toji?.name ?? "伏黑甚尔"}</b> 连续出拳 4 次，本场受到的最终伤害变为 1.5 倍。`, "log-skill");
     return finish();
   }
   if (event.type === "toji-rest-ready") {

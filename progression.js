@@ -152,7 +152,7 @@ export function claimTreasure(runState, sourceId, treasureId, recipientState, re
   if (gains.critRateBonus) recipientState.critRate = Math.min(COMBAT_RULES.maxCritChance, recipientState.critRate + gains.critRateBonus);
   if (treasure.id === "angel_breath" && !(recipientState.divinePunishment?.battlesLeft > 0)) recipientState.currentHp = recipientState.maxHp;
   recipientState.permanentEffects.push({ id: treasure.id, name: treasure.name,
-    description: specialPreview?.description ?? repeatedTreasureDescription(treasure, multiplier, gains), sourceId, ...gains });
+    description: specialPreview?.description ?? repeatedTreasureDescription(treasure, multiplier, gains), sourceId, sourceLabel: "王之宝库奇遇", stageId: record.data.stageId ?? 1, acquisitionCount: recipientState.permanentEffects.filter((effect) => effect.id === treasureId).length + 1, ...gains });
   offer.claimed = true;
   offer.treasureId = treasureId;
   offer.recipientId = recipientId;
@@ -665,7 +665,7 @@ export function resolveAdventureEvent(runState, sourceId, choiceId = null, rando
           change = { hpLoss: loss, currentHp: recipientState.currentHp, maxHp: recipientState.maxHp };
         }
       } else {
-        const amount = [30, 40, 50][data.round - 1];
+        const amount = 20;
         const stat = gamble.type === "atk" ? (gamble.success ? "atk" : "def") : (gamble.success ? "def" : "atk");
         const delta = gamble.success ? amount : -amount;
         const before = recipientState[stat];
@@ -943,7 +943,7 @@ export function grantGiantSpinalFluid(member, sourceId, stageId = 1) {
   ensureRunState(member);
   const key = makeActionKey("giant-spinal-fluid", sourceId);
   if (!recordAction(member, key)) return false;
-  const effect = { ...previewGrowingDrop(member, GIANT_SPINAL_FLUID.id, stageId), sourceId };
+  const effect = { ...previewGrowingDrop(member, GIANT_SPINAL_FLUID.id, stageId), sourceId, sourceLabel: "巨人脊髓液奖励" };
   const hpBefore = member.currentHp;
   member.atk += effect.atk;
   member.def += effect.def;
@@ -969,7 +969,7 @@ export function grantEliteSukunaFinger(member, sourceId, stageId = 1) {
 export function grantGunDevilFragment(member, sourceId, stageId = 1) {
   ensureRunState(member);
   if (!recordAction(member, makeActionKey("elite-treasure", sourceId))) return false;
-  const effect = { ...previewGrowingDrop(member, GUN_DEVIL_FRAGMENT.id, stageId), sourceId };
+  const effect = { ...previewGrowingDrop(member, GUN_DEVIL_FRAGMENT.id, stageId), sourceId, sourceLabel: "恶魔精英战斗奖励" };
   const hpBefore = member.currentHp;
   member.maxHp += effect.maxHp;
   member.currentHp = Math.min(member.maxHp, hpBefore + effect.maxHp);
@@ -1006,8 +1006,8 @@ export function grantAdventureSpecialReward(member, sourceId, rewardId) {
   if (!["drip_coffee", "six_ear_true_form"].includes(rewardId) ||
     !recordAction(member, makeActionKey(`special:${rewardId}`, sourceId))) return false;
   const reward = rewardId === "drip_coffee"
-    ? { id: rewardId, name: "挂耳咖啡", description: "篝火恢复额外增加最大 HP 的 15%。" }
-    : { id: rewardId, name: "六耳真身", description: "本局普通攻击和主动技能攻击无法被敌人闪避。" };
+    ? { id: rewardId, name: "挂耳咖啡", image: "assets/events/drip_coffee.png", description: "篝火恢复额外增加最大 HP 的 15%。" }
+    : { id: rewardId, name: "六耳真身", image: "assets/events/six_ear_true_form.png", description: "本局普通攻击和主动技能攻击无法被敌人闪避。" };
   member.permanentEffects.push({ ...reward, sourceId });
   return reward;
 }

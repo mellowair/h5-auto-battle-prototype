@@ -7,7 +7,7 @@ export const SKILL_DATA = {
   "falling-weightlessness": { id: "falling-weightlessness", name: "失重", type: "passive", passive: true,
     description: "第 3、6、9……回合结束时，使所有存活玩家角色坠落；基础伤害为各自入场面板 SPD × 4 + 250，再按 DEF 和现有防护规则结算。", levels: { 1: {} } },
   "falling-main-course": { id: "falling-main-course", name: "主菜", type: "passive", passive: true,
-    description: "每次失重后存活者获得 1 层失去引力；实际回血累计每满 500 HP 减少 1 层。任一角色达到 5 层时立即被处决。", levels: { 1: {} } },
+    description: "每次失重后存活者获得 1 层失去引力；每次实际获得治疗减少 1 层。任一角色达到 5 层时立即被处决。", levels: { 1: {} } },
   "stage3-resurrection": { id: "stage3-resurrection", name: "双人复活", type: "passive", passive: true,
     description: "倒地时另一人若存活，等待四回合后以 40% 最大 HP 复活；等待期间存活者攻击力翻倍；两人同时倒地则战斗结束。", levels: { 1: {} } },
   "makima-weapons": { id: "makima-weapons", name: "武器人", type: "passive", passive: true,
@@ -141,8 +141,8 @@ export const SKILL_DATA = {
     levels: { 1: { chance: 0.40, effectType: "rewind" } },
   },
   "toji-heavenly-restriction": {
-    id: "toji-heavenly-restriction", name: "天予咒缚", type: "passive", description: "速度高于目标时连击，最多连续出拳 5 次；出拳达到 3 次后，每行动一次便休息一次；达到 4 次后，本场受到的最终伤害变为 1.5 倍。",
-    maxLevel: 1, levels: { 1: { maxHits: 5, fatigueAtHit: 3, vulnerableAtHit: 4, exhaustedDamageMultiplier: 1.5 } },
+    id: "toji-heavenly-restriction", name: "天予咒缚", type: "passive", description: "速度高于目标时连击，最多连续出拳 5 次；累计出拳达到 3 次后，进入疲劳状态，每次正常行动后休息一次。",
+    maxLevel: 1, levels: { 1: { maxHits: 5, fatigueAtHit: 3 } },
   },
   "killer-queen": {
     id: "killer-queen", name: "杀手皇后", type: "passive", description: "每次造成有效伤害都附加一枚炸弹；经过三个后续完整回合后独立引爆，对所有存活对手造成伤害并无视 70% DEF，爆炸伤害不计入其他炸弹。",
@@ -380,13 +380,13 @@ export const ADVENTURE_EVENT_DATA = {
     image: "assets/events/event_kings_treasury.png", effectText: "决定如何面对王之宝库。",
     containsBattle: false, providesReward: true, requiresChoice: true,
   },
-  gamble: { id: "gamble", name: "一次豪赌", type: "gamble", description: "小赌怡情，大赌伤身（三局两胜者，当赏！）", image: "assets/events/event_gamble.png", effectText: "先选择一名队员，再决定是否参与每一轮赌博。", containsBattle: false, providesReward: true, requiresChoice: true },
-  gamble_2: { id: "gamble_2", name: "一次豪赌（2）", type: "gamble", description: "小赌怡情，大赌伤身（三局两胜者，当赏！）", image: "assets/events/event_gamble.png", effectText: "先选择一名队员，再决定是否参与每一轮赌博。", containsBattle: false, providesReward: true, requiresChoice: true },
+  gamble: { id: "gamble", name: "一次豪赌", type: "gamble", description: "小赌怡情，大赌伤身（三局两胜者，当赏！）", image: "assets/events/gamble-coin.svg", effectText: "先选择一名队员，再决定是否参与每一轮赌博。", containsBattle: false, providesReward: true, requiresChoice: true },
+  gamble_2: { id: "gamble_2", name: "一次豪赌（2）", type: "gamble", description: "小赌怡情，大赌伤身（三局两胜者，当赏！）", image: "assets/events/gamble-coin.svg", effectText: "先选择一名队员，再决定是否参与每一轮赌博。", containsBattle: false, providesReward: true, requiresChoice: true },
 };
 
 export const GIANT_SPINAL_FLUID = Object.freeze({
   id: "giant_spinal_fluid", name: "巨人脊髓液", image: "assets/events/giant_spinal_fluid.png",
-  description: "本局 DEF +20，最大 HP +100，并立即恢复 100 HP（不超过最大 HP）。重复获得时本次属性收益逐次提高。", atk: 0, def: 20, maxHp: 100,
+  description: "本局 DEF +20，最大 HP +150，并立即恢复等量 HP（不超过最大 HP）。重复获得时本次属性收益逐次提高。", atk: 0, def: 20, maxHp: 150,
 });
 
 export const GUN_DEVIL_FRAGMENT = Object.freeze({

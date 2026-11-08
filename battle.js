@@ -23,7 +23,7 @@ export function initializeBattle(config = CHARACTER_DATA, options = {}) {
       reactiveAttackHits: 0, attackActionHits: 0,
       ...(character.phaseSkills ? { borosPhase: 1, borosEnteredRound: 0, borosLastGrowthRound: 0, meteorCasts: 0 } : {}),
       ...(character.id === "eren" ? { freeWillDefenseStacks: 0 } : {}),
-      ...(character.elitePassiveId === "toji-heavenly-restriction" ? { fasterActions: 0, tojiFatigued: false, tojiExhausted: false, tojiRestPending: false, tojiResting: false } : {}),
+      ...(character.elitePassiveId === "toji-heavenly-restriction" ? { fasterActions: 0, tojiFatigued: false, tojiRestPending: false, tojiResting: false } : {}),
       ...(["shin", "noi"].includes(character.id) ? { bereavementActive: false, bereavementAttackBonus: 0 } : {}),
       ...(character.elitePassiveId === "killer-queen" ? { hpSnapshots: [], bitesDustNextAvailableRound: 1 } : {}),
       ...(character.id === "armored-titan" ? { armorReductionStartRound: null, armorReductionUntilRound: null } : {}),
@@ -48,7 +48,7 @@ export function initializeBattle(config = CHARACTER_DATA, options = {}) {
     random: Math.random,
   };
   const fallingDevil = characters.find((unit) => unit.id === "falling-devil" && unit.team === "enemy");
-  if (fallingDevil) for (const unit of characters.filter((entry) => entry.team === "ally" && !entry.summonerId)) {
+  if (fallingDevil) for (const unit of characters.filter((entry) => entry.team === "ally")) {
     unit.entryPanelSpd = unit.spd;
     unit.gravityStacks = 0;
     unit.gravityHealProgress = 0;
@@ -61,9 +61,9 @@ export function initializeBattle(config = CHARACTER_DATA, options = {}) {
         hp = next;
         if (restored > 0 && fallingDevil.alive && unit.gravityStacks > 0) {
           const total = unit.gravityHealProgress + restored;
-          const layersRemoved = Math.min(unit.gravityStacks, Math.floor(total / 500));
+          const layersRemoved = Math.min(unit.gravityStacks, restored > 0 ? 1 : 0);
           unit.gravityStacks -= layersRemoved;
-          unit.gravityHealProgress = unit.gravityStacks > 0 ? total - layersRemoved * 500 : 0;
+          unit.gravityHealProgress = 0;
           state.gravityHealEvents.push({ type: "gravity-heal", round: state.round,
             targetId: unit.id, restored, layersRemoved, stacks: unit.gravityStacks,
             healingProgress: unit.gravityHealProgress });
@@ -120,10 +120,7 @@ export function calculateDamage(attacker, target, multiplier = 1) {
   return Math.max(1, Math.floor(base * multiplier));
 }
 
-function applyTojiExhaustion(target, damage) {
-  return target.tojiExhausted && damage > 0
-    ? Math.floor(damage * SKILL_DATA["toji-heavenly-restriction"].levels[1].exhaustedDamageMultiplier) : damage;
-}
+function applyTojiExhaustion(_target, damage) { return damage; }
 
 function applyNormalDamageReduction(target, damage) {
   if (damage <= 0) return 0;
@@ -300,7 +297,7 @@ export function resolveFallingRoundEnd(state) {
   if (!devil || state.round < 3 || state.round % 3 !== 0) return [];
   const hits = [];
   const executions = [];
-  for (const target of state.characters.filter((unit) => unit.originalTeam === "ally" && !unit.summonerId && unit.alive && unit.currentHp > 0)) {
+  for (const target of state.characters.filter((unit) => unit.originalTeam === "ally" && unit.alive && unit.currentHp > 0)) {
     const baseDamage = target.entryPanelSpd * 4 + 250;
     const afterDefense = calculateDamage({ atk: baseDamage }, { def: combatDefense(target, state.round) });
     let reduced = afterDefense;
@@ -512,9 +509,17 @@ export function summonAtRoundStart(state) {
     const summoned = {
       ...unit, id: `${summoner.id}-summon-${state.round}`, name: unit.name,
       maxHp: unit.maxHp ?? unit.hp, currentHp: unit.maxHp ?? unit.hp,
-      alive: true, team: summoner.team, row: "front", position: "front",
+      alive: true, team: summoner.team, originalTeam: summoner.team, row: "front", position: "front",
       skill: unit.skill ? { ...unit.skill } : null,
     };
+    if (state.characters.some((entry) => entry.id === "falling-devil" && entry.alive) && summoned.team === "ally") {
+      summoned.entryPanelSpd = summoned.spd; summoned.spd = 1; summoned.gravityStacks = 0; summoned.gravityHealProgress = 0;
+      let hp = summoned.currentHp;
+      Object.defineProperty(summoned, "currentHp", { enumerable: true, configurable: true, get() { return hp; }, set(next) {
+        const restored = Math.max(0, Math.min(summoned.maxHp, next) - Math.min(summoned.maxHp, hp)); hp = next;
+        if (restored > 0 && summoned.gravityStacks > 0) { summoned.gravityStacks -= 1; state.gravityHealEvents.push({ type: "gravity-heal", round: state.round, targetId: summoned.id, restored, layersRemoved: 1, stacks: summoned.gravityStacks, healingProgress: 0 }); }
+      } });
+    }
     summoner.lastSummonedRound = state.round;
     state.characters.push(summoned);
     summonedEvents.push({ type: "summon", round: state.round, summonerId: summoner.id,
@@ -1099,6 +1104,14 @@ function createTangSummon(state, summoner, skill, random) {
     summoned.currentHp = summoned.maxHp;
   }
   summoned.healingBlocked = Boolean(summoner.healingBlocked);
+  if (state.characters.some((unit) => unit.id === "falling-devil" && unit.alive) && summoned.team === "ally") {
+    summoned.entryPanelSpd = summoned.spd; summoned.spd = 1; summoned.gravityStacks = 0; summoned.gravityHealProgress = 0;
+    let hp = summoned.currentHp;
+    Object.defineProperty(summoned, "currentHp", { enumerable: true, configurable: true, get() { return hp; }, set(next) {
+      const restored = Math.max(0, Math.min(summoned.maxHp, next) - Math.min(summoned.maxHp, hp)); hp = next;
+      if (restored > 0 && summoned.gravityStacks > 0) { summoned.gravityStacks -= 1; state.gravityHealEvents.push({ type: "gravity-heal", round: state.round, targetId: summoned.id, restored, layersRemoved: 1, stacks: summoned.gravityStacks, healingProgress: 0 }); }
+    } });
+  }
   if (summoner.odinMimirStat) {
     const stat = summoner.odinMimirStat;
     summoned.odinMimirStat = stat;
@@ -1292,7 +1305,7 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
   applyTrialBattleStart(state, events, random);
   const fallingDevil = state.characters.find((unit) => unit.id === "falling-devil" && unit.alive);
   if (fallingDevil) events.push({ type: "gravity-domain", round: 0, attackerId: fallingDevil.id,
-    targets: state.characters.filter((unit) => unit.originalTeam === "ally" && !unit.summonerId)
+    targets: state.characters.filter((unit) => unit.originalTeam === "ally")
       .map((unit) => ({ targetId: unit.id, entryPanelSpd: unit.entryPanelSpd, battleSpd: 1 })) });
   let outcome = null;
   while (!outcome) {
@@ -1314,7 +1327,7 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
           .filter((effect) => state.round <= effect.roundsRemaining)
           .reduce((total, effect) => total + effect.amount, 0));
       }
-      if (fallingDevil?.alive && character.originalTeam === "ally" && !character.summonerId) character.spd = 1;
+      if (fallingDevil?.alive && character.originalTeam === "ally") character.spd = 1;
     }
     for (const character of state.characters) {
       if (character.elitePassiveId === "mahito-domain" && character.elitePassiveActive && character.alive && character.elitePassiveLastRound < state.round) {
@@ -1553,11 +1566,6 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
           events.push({ type: "toji-fatigue", attackerId: attacker.id, round: state.round,
             name: "出拳太快有点累了" });
         }
-        if (attacker.elitePassiveId === "toji-heavenly-restriction" && index + 1 === tojiRule.vulnerableAtHit && !attacker.tojiExhausted) {
-          attacker.tojiExhausted = true;
-          events.push({ type: "toji-exhausted", attackerId: attacker.id, round: state.round,
-            name: "额外承伤", damageTakenMultiplier: tojiRule.exhaustedDamageMultiplier });
-        }
         const jasonHit = event.type === "attack" ? resolveJasonBonus(state, attacker, struck, event) : null;
         if (jasonHit) events.push(jasonHit);
         const treasureHit = event.type === "attack" ? resolveNichirinBonus(state, attacker, struck, event) : null;
@@ -1654,7 +1662,7 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
     outcome = isBattleOver(state);
     if (outcome) break;
     if (state.round === 5 && state.characters.some((unit) => unit.normalPassiveId === "gollum" && unit.alive)) {
-      const targets = state.characters.filter((unit) => unit.team === "ally" && !unit.summonerId);
+      const targets = state.characters.filter((unit) => unit.team === "ally");
       for (const unit of targets) {
         unit.atk = Math.max(0, unit.atk - 5);
         unit.def = Math.max(0, unit.def - 5);

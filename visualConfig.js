@@ -12,7 +12,7 @@ export const CHARACTER_VISUALS = Object.freeze({
     animationFrameScales: { skill1: { cast: 1.45 } } },
   "tang-shaseng": { scale: 1.35, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98,
     animationFrameScales: { skill1: { cast: 1.35 } }, frameFootShifts: { skill1: { cast: 10 } } },
-  "tang-wukong": { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98 },
+  "tang-wukong": { scale: 1.35, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98, animationFrameScales: { skill1: { cast: 1.35 } } },
   naruto: { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98 },
   "naruto-evolved": { scale: 1.35, offsetX: 0, offsetY: -8, frameWidth: 84, frameHeight: 98,
     animationFrameScales: {
