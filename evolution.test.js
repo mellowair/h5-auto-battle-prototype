@@ -89,13 +89,13 @@ test("Eren's paths immune counter and emergency heal are separate battle state",
   assert.equal(first.trialDamage.pathsImmune, true);
   assert.equal(eren.currentHp, 500);
   const second = executeAttack(state, foe, eren, () => .99, { skill: null });
-  assert.equal(second.trialDamage.emergencyHeal, 400);
-  assert.equal(eren.currentHp, 500);
+  assert.equal(second.trialDamage.emergencyHeal, 500);
+  assert.equal(eren.currentHp, 600);
   assert.equal(eren.pathsImmuneRemaining, 0);
   assert.equal(eren.pathsEmergencyUsed, true);
 });
 
-test("hardening caps DEF at four casts; warhammer snapshots own DEF before spending it", () => {
+test("hardening caps DEF at four casts; warhammer retains own DEF", () => {
   const state = initializeBattle([testUnit("eren", "ally", { def: 300 }), testUnit("foe", "enemy", { def: 300 })]);
   state.round = 1;
   const [eren, foe] = state.characters;
@@ -104,7 +104,7 @@ test("hardening caps DEF at four casts; warhammer snapshots own DEF before spend
   assert.equal(eren.defenseBuff, 100);
   const hit = executeAttack(state, eren, foe, () => .99, { skill: effect("eren-warhammer", 3) });
   assert.equal(hit.damage > 0, true);
-  assert.equal(eren.def, 270);
+  assert.equal(eren.def, 300);
   assert.equal(hit.skillAttackPower, 500);
 });
 
@@ -182,21 +182,21 @@ test("Naruto's chakra clone protects a critically injured teammate, while Tang s
   assert.ok(hit.trialDamage.sharedDamage.amount > 0);
 });
 
-test("chakra clone protection is guaranteed at or below 20% pre-hit HP and consumes one clone per attack", () => {
+test("chakra clone protection starts below 50% pre-hit HP and consumes one clone per attack", () => {
   const state = initializeBattle([
     testUnit("naruto", "ally", { hp: 2000, maxHp: 2000, currentHp: 2000,
       extraPassiveSkillIds: ["naruto-chakra-clones"] }),
-    testUnit("eren", "ally", { hp: 1000, maxHp: 1000, currentHp: 210 }),
+    testUnit("eren", "ally", { hp: 1000, maxHp: 1000, currentHp: 500 }),
     testUnit("foe", "enemy", { atk: 80 })]);
   state.round = 1;
   const [naruto, teammate, foe] = state.characters;
   let hit = executeAttack(state, foe, teammate, () => .99, { skill: null });
   assert.equal(hit.trialDamage.cloneSpent, false);
   assert.equal(naruto.chakraClones, 2);
-  teammate.currentHp = 200;
+  teammate.currentHp = 499;
   hit = executeAttack(state, foe, teammate, () => .99, { skill: null });
   assert.equal(hit.trialDamage.cloneSpent, true);
-  assert.equal(hit.damage, 40);
+  assert.equal(hit.damage, 56);
   assert.equal(naruto.chakraClones, 1);
   hit = executeAttack(state, foe, teammate, () => .99, { skill: null });
   assert.equal(hit.trialDamage.cloneSpent, true);
@@ -205,15 +205,17 @@ test("chakra clone protection is guaranteed at or below 20% pre-hit HP and consu
   assert.equal(hit.trialDamage.cloneSpent, false);
 });
 
-test("giant Rasengan spends 100 chakra and retains the remainder", () => {
+test("giant Rasengan bursts on every third cast without chakra", () => {
   const giant = { ...effect("naruto-giant-rasengan", 4), chance: 1 };
   const result = simulateBattle([
     testUnit("naruto", "ally", { hp: 5000, maxHp: 5000, currentHp: 5000, atk: 100, spd: 1000,
       extraPassiveSkillIds: ["naruto-chakra-clones"], skills: [giant] }),
     testUnit("foe", "enemy", { hp: 10000, maxHp: 10000, currentHp: 10000, atk: 1, def: 100 })
   ], () => .5);
-  assert.ok(result.events.some((event) => event.chakraBurst));
-  assert.ok(result.finalCharacters.find((unit) => unit.id === "naruto").chakra >= 0);
+  const casts = result.events.filter((event) => event.type === "attack" && event.skillId === "naruto-giant-rasengan");
+  assert.ok(casts.length >= 3);
+  assert.deepEqual(casts.slice(0, 3).map((event) => Boolean(event.chakraBurstVisual)), [false, false, true]);
+  assert.equal(result.finalCharacters.find((unit) => unit.id === "naruto").chakra, undefined);
 });
 
 test("new descriptions and enemy squad use level buttons and portrait cards", () => {
@@ -225,16 +227,16 @@ test("new descriptions and enemy squad use level buttons and portrait cards", ()
   assert.doesNotMatch(app, /lines\[1\]\.textContent = `ATK/);
 });
 
-test("Attack Titan adds current-HP damage after landed normal attacks", () => {
+test("Attack Titan coordinate adds damage from missing HP after landed normal attacks", () => {
   const result = simulateBattle([
-    testUnit("eren", "ally", { hp: 1000, maxHp: 1000, currentHp: 1000, atk: 100,
+    testUnit("eren", "ally", { hp: 1000, maxHp: 1000, currentHp: 500, atk: 100,
       spd: 100, evolutionPhase: 2, passiveSkillId: "eren-paths" }),
     testUnit("foe", "enemy", { hp: 5000, maxHp: 5000, currentHp: 5000, atk: 2000, spd: 1 })
   ], () => .99);
   const primary = result.events.find((event) => event.type === "attack" && event.attackerId === "eren");
   const extra = result.events.find((event) => event.type === "attack-titan-hp-damage");
   assert.ok(primary.actualDamage > 0);
-  assert.deepEqual([extra.hpSnapshot, extra.power, extra.actualDamage], [1000, 100, 100]);
+  assert.deepEqual([extra.hpSnapshot, extra.power, extra.actualDamage], [500, 200, 200]);
   assert.equal(result.events.indexOf(extra), result.events.indexOf(primary) + 1);
 });
 

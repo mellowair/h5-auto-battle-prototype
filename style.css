@@ -27,6 +27,28 @@ button { font: inherit; }
 .music-controls select, .music-controls button { max-width: 115px; padding: 3px 5px; color: #36445b; background: #fffdf5; border: 1px solid #aebdb7; border-radius: 4px; font: inherit; }
 .music-controls button { cursor: pointer; }
 .music-controls button:disabled, .music-controls select:disabled { opacity: .65; cursor: default; }
+.essence-hud { margin-left: auto; padding: 4px 7px; color: #ffe9a4; background: #35435b; border: 2px solid #b99459; border-radius: 4px; white-space: nowrap; image-rendering: pixelated; }
+.essence-hud[hidden] { display: none; }
+.shop-screen { min-height: 540px; padding: 18px; color: #f8e9c4; background: linear-gradient(#142437cc, #142437e8), repeating-linear-gradient(0deg, #68523a 0 18px, #574333 18px 36px); border: 4px solid #9d7950; box-shadow: inset 0 0 0 6px #293747; }
+.shop-screen .flow-copy { color: #f8e9c4; }
+.shop-balance { display: inline-block; padding: 6px 12px; background: #34435a; border: 2px solid #c8a461; border-radius: 4px; font-weight: bold; }
+.shop-slots { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; margin: 14px 0; }
+.shop-slot { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; padding: 8px 4px; color: #304052; background: #f2e8cf; border: 3px solid #ba945d; border-radius: 5px; text-align: center; }
+.shop-slot img { width: 58px; height: 58px; object-fit: contain; image-rendering: pixelated; }
+.shop-slot .shop-view { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%; min-height: 96px; border: 0; color: inherit; background: transparent; cursor: pointer; font: inherit; font-weight: 800; }
+.shop-slot .shop-view span { overflow-wrap: anywhere; }
+.shop-slot small { min-height: 30px; font-size: 9px; line-height: 1.3; }
+.shop-slot .control-btn { width: 100%; min-width: 0; padding: 5px 2px; font-size: 10px; }
+.shop-feedback { min-height: 1.5em; color: #ffe9a4; }
+.shop-leave { display: block; margin: 8px auto 0; }
+.shop-detail-dialog { width: min(430px, calc(100vw - 28px)); max-height: 85dvh; padding: 0; color: #334456; background: #f7edd7; border: 4px solid #a47b4b; border-radius: 6px; }
+.shop-detail-dialog::backdrop { background: #0b172dbb; }
+.shop-detail-inner { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px; text-align: center; }
+.shop-detail-inner .detail-close { align-self: flex-end; }
+.shop-detail-image { width: 96px; height: 96px; object-fit: contain; image-rendering: pixelated; }
+.shop-detail-inner p { margin: 3px; }
+.shop-detail-inner select { max-width: 100%; padding: 6px; }
+@media (max-width: 580px) { .shop-slots { grid-template-columns: repeat(2, minmax(0, 1fr)); } .shop-slot { min-height: 190px; } .shop-screen { padding: 10px; } }
 .topbar { display: flex; align-items: center; gap: 10px; min-height: 46px; }
 .brand-mark { width: 37px; height: 37px; display: grid; place-items: center; background: #f6a33f; border: 2px solid var(--navy); box-shadow: 2px 2px 0 var(--navy); color: #fff9dc; font-weight: 900; font-size: 20px; transform: rotate(-3deg); }
 .battle-screen.stage-two .arena, .route-screen.stage-two .route-landscape, .route-map-dialog.stage-two .route-map-scroll { background-image: linear-gradient(rgba(9,14,29,.16), rgba(9,14,29,.28)), url("assets/stage2-golden-tree.png"); background-position: center 56%; }
@@ -421,6 +443,11 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .reserve-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .reserve-heading > span { color: #9aa69f; font: 500 8px Consolas, monospace; }
 .squad-tabs { display:flex; gap:6px; margin-bottom:7px; }
+.squad-treasures { display:flex; align-items:center; gap:7px; min-width:0; margin-top:7px; font-size:9px; color:#596a60; }
+.squad-treasures[hidden] { display:none; }
+.squad-treasures > span { flex:none; font-weight:800; }
+.squad-treasures .ally-status-icons { flex:1; margin-top:0; }
+.squad-treasures:has(.ally-status-icons[hidden]) { display:none; }
 .squad-tab { border:1px solid #b8c7b2; border-radius:4px; background:#f8f7ed; color:#596a60; padding:4px 12px; font-size:10px; cursor:pointer; }
 .squad-tab.is-active { background:#e1efdd; border-color:#8aa882; color:#294635; font-weight:800; }
 .squad-tab:disabled { opacity:.5; cursor:default; }

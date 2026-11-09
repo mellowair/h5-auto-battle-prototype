@@ -1,5 +1,6 @@
 import { ADVENTURE_EVENTS, CAMPAIGN_BATTLES, CHARACTER_DATA, DEIDARA_ANIMATIONS, ELITE_ENEMY_DATA, EVENT_ENEMY_DATA, NORMAL_ENEMY_APPEARANCES, STAGE_TWO_BOSS_DATA, STAGE_TWO_NORMAL_ENEMY_TIERS, STAGE_THREE_BOSS_DATA, STAGE_THREE_MINIONS, STAGE_THREE_NORMAL_ENEMY_TIERS, STARTING_CHARACTERS, TRIAL_ENEMY_DATA } from "./characters.js";
 import { evolvedBattlePresentation } from "./evolvedVisuals.js";
+import { buyShopItem, essenceRewardForBattle, generateShopInventory, previewShopItem } from "./shop.js";
 import { SKILL_DATA, TREASURE_DATA } from "./skills.js";
 import { createSeededRandom, generateRouteMap, ROUTE_MAP_FINAL_STEP } from "./routeMap.js";
 import {
@@ -71,7 +72,7 @@ function legalChildren(campaign) {
   const byId = new Map(campaign.routeMap.nodes.map((node) => [node.id, node]));
   const children = current.nextNodeIds.map((id) => byId.get(id)).filter(Boolean);
   return campaign.consecutiveWithoutBattle >= 2
-    ? children.filter((node) => ["battle", "elite", "demon"].includes(node.type))
+    ? children.filter((node) => ["battle", "elite", "demon", "shop"].includes(node.type))
     : children;
 }
 
@@ -240,6 +241,7 @@ export function createCampaign(random = Math.random, options = {}) {
     currentBattle: null, pendingEvent: null, resolvedEvents: [], eventResolved: false, combatLaunched: false,
     startingSkillSelected: false, activeEventType: null, eventBattleSourceId: null,
     rewardBattleId: null, rewardPhase: null, rewardBattleType: null, stageTransition: null, stageTwoReward: null,
+    essence: 0, essenceHistory: [], lastEssenceReward: null, activeShop: null, shopHistory: [], shopMedicines: [],
     chapter3Entered: false, chapter3FirstEncounterAssigned: false, trialOffered: false,
     trialAccepted: false, trialDeclined: false, trialCompleted: false, evolutionPending: false,
     trialFailurePenaltyApplied: false, trial: null, trialBattle: null, evolutionRewards: null,
@@ -329,6 +331,8 @@ export function prepareBattle(campaign) {
       state.nextBattleSkillGuarantee = null;
     }
     const temporaryModifiers = getTemporaryCombatModifiers(state);
+    const shopModifiers = (campaign.shopMedicines ?? []).filter((item) => item.recipientId === id && item.battlesLeft > 0)
+      .reduce((sum, item) => ({ atk: Math.max(sum.atk, item.modifiers.atk ?? 0), def: Math.max(sum.def, item.modifiers.def ?? 0) }), { atk: 0, def: 0 });
     const treasureModifiers = getTreasureCombatModifiers(state);
     const roundLimitedSpdEffects = getTemporaryEffects(state)
       .filter((effect) => effect.stat === "spd" && effect.roundsRemaining > 0)
@@ -341,8 +345,8 @@ export function prepareBattle(campaign) {
       hp: state.maxHp, maxHp: state.maxHp, currentHp: state.currentHp,
       ...(id === "tang" ? { tangGrowth: Object.fromEntries(["maxHp", "atk", "def", "spd"].map((stat) =>
         [stat, Math.max(0, state[stat] - template.baseStats[stat])])) } : {}),
-      atk: Math.floor(state.atk * (id === campaign.playerId ? campaign.nextAttackMultiplier : 1)),
-      def: Math.max(0, state.def + temporaryModifiers.def), spd: Math.max(0, state.spd + temporaryModifiers.spd),
+      atk: Math.floor(state.atk * (id === campaign.playerId ? campaign.nextAttackMultiplier : 1)) + shopModifiers.atk,
+      def: Math.max(0, state.def + temporaryModifiers.def + shopModifiers.def), spd: Math.max(0, state.spd + temporaryModifiers.spd),
       roundLimitedSpdEffects, spdWithoutRoundEffects: Math.max(0, state.spd + temporaryModifiers.spd - roundLimitedSpdTotal),
       damageTakenMultiplier: temporaryModifiers.damageTakenMultiplier, damageDealtMultiplier: temporaryModifiers.damageDealtMultiplier,
       damageReductionBonus: treasureModifiers.damageReduction, dodgeRateBonus: treasureModifiers.dodgeRateBonus,
@@ -505,6 +509,8 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
   if (!campaign || campaign.status !== "combat" || !campaign.combatLaunched) return false;
   campaign.combatLaunched = false;
   campaign.lastBattleRecovery = [];
+  campaign.lastEssenceReward = null;
+  campaign.shopMedicines = (campaign.shopMedicines ?? []).filter((item) => --item.battlesLeft > 0);
   // Jason changes the run's HP ceiling, not just this battle copy. Apply the
   // immutable precomputed events once, before clamping each member's HP.
   for (const event of battleEvents) {
@@ -561,7 +567,9 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
     campaign.playerMaxHp = campaign.runCharacterState.maxHp;
   }
   if (campaign.trialBattle) {
+    const completedTrialBattle = campaign.currentBattle;
     const result = settleTrialBattle(campaign, outcome);
+    if (outcome === "victory" && result) awardBattleEssence(campaign, completedTrialBattle);
     if (outcome === "victory" && result?.status !== "trial_next_battle" &&
         (result?.trialOutcome === "active" || result?.trialOutcome === "completed")) {
       // One completed trial challenge restores 25% of each member's current
@@ -603,6 +611,7 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
   campaign.playerHp = campaign.runCharacterState.currentHp;
   campaign.completedBattles += 1;
   campaign.consecutiveWithoutBattle = 0;
+  awardBattleEssence(campaign);
   if (campaign.devBattleOnly) {
     campaign.settlementNext = "victory";
     campaign.status = "settlement";
@@ -644,6 +653,15 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
     campaign.stageTwoReward = { battleId: campaign.rewardBattleId, choices, assignments: [], phase: "stat" };
   }
   return { status: "reward", next: "reward", battleType: campaign.rewardBattleType };
+}
+
+function awardBattleEssence(campaign, battle = campaign.currentBattle) {
+  const reward = essenceRewardForBattle(battle);
+  campaign.essence = (campaign.essence ?? 0) + reward.amount;
+  campaign.lastEssenceReward = reward;
+  campaign.essenceHistory ??= [];
+  campaign.essenceHistory.push({ battleId: battle?.id, stageId: campaign.stageId, ...reward });
+  return reward;
 }
 
 export function completeSettlement(campaign) {
@@ -987,6 +1005,13 @@ export function chooseRoute(campaign, nodeId) {
     }
     if (node.type === "elite") return enterBattle(campaign, node, "elite");
     if (node.type === "demon") return enterBattle(campaign, node, "boss");
+    if (node.type === "shop") {
+      node.resolution = "shop";
+      campaign.activeShop = { nodeId: node.id, stageId: campaign.stageId,
+        slots: generateShopInventory(`${campaign.routeMap.seed}:${node.id}`, campaign.stageId), purchases: [] };
+      campaign.status = "shop";
+      return { type: "shop", shop: campaign.activeShop };
+    }
 
     if (node.type === "campfire") {
       node.resolution = "campfire";
@@ -1098,6 +1123,13 @@ export function resolveCampaignEvent(campaign, choiceId = null, skillId = null) 
   campaign.playerHp = campaign.runCharacterState.currentHp;
   campaign.playerMaxHp = campaign.runCharacterState.maxHp;
   const eventRecord = campaign.runCharacterState.eventResults[campaign.activeNode.id];
+  if (eventRecord?.status === "completed" && ["found_money", "devil_bargain"].includes(eventRecord.eventId)) {
+    const amount = result.result?.essenceGain ?? 0;
+    campaign.essence = (campaign.essence ?? 0) + amount;
+    campaign.essenceHistory ??= [];
+    campaign.essenceHistory.push({ eventId: eventRecord.eventId, sourceId: eventRecord.sourceId,
+      stageId: campaign.stageId, amount, reason: eventRecord.eventId });
+  }
   if (campaign.activeEventType === "adventure" && ["pending", "pending_battle", "awaiting_treasure"].includes(eventRecord?.status)) return result;
   if (campaign.stageId >= 2 && campaign.activeEventType === "adventure" && eventRecord?.status === "completed") {
     const appliedTo = [];
@@ -1190,6 +1222,24 @@ export function completeLocation(campaign) {
   completeActiveNode(campaign);
   return campaign.status;
 }
+
+export function getShopRouteOptions(campaign) {
+  if (campaign?.status !== "shop" || campaign.activeNode?.id !== campaign.activeShop?.nodeId) return [];
+  const byId = new Map(campaign.routeMap.nodes.map((node) => [node.id, node]));
+  const next = campaign.activeNode.nextNodeIds.map((id) => byId.get(id)).filter(Boolean);
+  return campaign.consecutiveWithoutBattle >= 2 ? next.filter((node) => ["battle", "elite", "demon", "shop"].includes(node.type)) : next;
+}
+
+export function leaveShop(campaign) {
+  if (campaign?.status !== "shop" || campaign.activeNode?.id !== campaign.activeShop?.nodeId) return false;
+  campaign.activeShop.essenceAfter = campaign.essence;
+  campaign.shopHistory ??= [];
+  campaign.shopHistory.push(campaign.activeShop);
+  campaign.activeShop = null;
+  return completeActiveNode(campaign);
+}
+
+export { buyShopItem, previewShopItem };
 
 function stageOffer(campaign, state, key) {
   const offerId = `stage-transition:${key}`;

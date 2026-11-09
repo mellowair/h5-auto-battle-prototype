@@ -1,15 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CHARACTER_DATA, NORMAL_ENEMY_APPEARANCES, STARTING_CHARACTERS } from "./characters.js";
+import { CHARACTER_DATA, ELITE_ENEMY_DATA, NORMAL_ENEMY_APPEARANCES, STARTING_CHARACTERS } from "./characters.js";
 import { SKILL_DATA } from "./skills.js";
-import { beginJourney, chooseRoute, chooseStartingSkill, claimCampaignEliteDrop, claimCampaignReward, completeLocation, completeSettlement, createCampaign, finishBattle, getCampaignRewardOffer, getRouteEnemyGrowth, getRouteMap, getRouteOptions, prepareBattle, resolveCampaignEvent, resolveRouteEvent, selectStartingCharacter, startCampaign, startCampaignEventBattle } from "./campaign.js";
+import { beginJourney, chooseRoute, chooseStartingSkill, claimCampaignEliteDrop, claimCampaignReward, completeLocation, completeSettlement, createCampaign, finishBattle, getCampaignRewardOffer, getRouteEnemyGrowth, getRouteMap, getRouteOptions, leaveShop, prepareBattle, resolveCampaignEvent, resolveRouteEvent, selectStartingCharacter, startCampaign, startCampaignEventBattle } from "./campaign.js";
 import { createAdventureEventResult, getAvailableAdventureEventIds, resolveAdventureEvent, upgradeActiveSkill } from "./progression.js";
 
 function safeAdventureChoice(event) {
   return ({ sea_beyond: "sea_pass", sea_beyond_2: "sea_home", old_scroll_2: "scroll_not_yet",
     coffee_shop: "coffee_leave", anteiku_2: "anteiku_leave", big_rock: "rock_bypass",
     giant_rock_2: "rock_avoid_again", death_note: "death_note_pass", fate_gate: "fate_accept",
-    kings_treasury: "treasury_leave" })[event.eventId] ?? event.data.skillChoices?.[0] ?? "scroll_leave";
+    kings_treasury: "treasury_leave", found_money: "money_leave", devil_bargain: "devil_leave" })[event.eventId] ?? event.data.skillChoices?.[0] ?? "scroll_leave";
 }
 function resolveSafeAdventure(campaign) {
   if (campaign.pendingEvent?.type === "gamble") {
@@ -31,8 +31,8 @@ test("Eren human-form first-pass stats and skill configurations are explicit", (
   assert.equal(eren.passiveSkillId, "eren-2000-years");
   assert.deepEqual(Object.values(SKILL_DATA["eren-free-will"].levels).map(({ chance, defenseBonus }) => [chance, defenseBonus]), [[0.5, 10], [0.55, 15], [0.6, 20], [0.7, 25]]);
   assert.deepEqual(Object.values(SKILL_DATA["eren-tatakae"].levels).map(({ chance, multiplier, attackFormula, tauntNextRound }) => [chance, multiplier, attackFormula, tauntNextRound]), [
-    [0.3, 1.3, "atk_plus_current_def", true], [0.35, 1.4, "atk_plus_current_def", true],
-    [0.4, 1.55, "atk_plus_current_def", true], [0.5, 1.7, "atk_plus_current_def", true],
+    [0.3, 1.7, "atk_plus_scaled_def", true], [0.35, 1.9, "atk_plus_scaled_def", true],
+    [0.4, 2.1, "atk_plus_scaled_def", true], [0.5, 2.3, "atk_plus_scaled_def", true],
   ]);
   assert.equal(SKILL_DATA["eren-2000-years"].levels[1].damageImmune, true);
 });
@@ -153,9 +153,9 @@ function pathToNode(campaign, targetId) {
     seen.add(stateKey);
     const node = map.nodes.find((entry) => entry.id === id);
     const children = (node?.nextNodeIds ?? []).map((nextId) => map.nodes.find((entry) => entry.id === nextId)).filter(Boolean);
-    const legal = streak >= 2 ? children.filter((child) => ["battle", "elite", "demon"].includes(child.type)) : children;
+    const legal = streak >= 2 ? children.filter((child) => ["battle", "elite", "demon", "shop"].includes(child.type)) : children;
     for (const child of legal) {
-      const nextStreak = ["battle", "elite", "demon"].includes(child.type) ? 0 : Math.min(2, streak + 1);
+      const nextStreak = child.type === "shop" ? streak : ["battle", "elite", "demon"].includes(child.type) ? 0 : Math.min(2, streak + 1);
       queue.push([child.id, nextStreak, [...path, child.id]]);
     }
   }
@@ -190,6 +190,7 @@ function travelTo(campaign, targetId, targetEventId = null) {
       }
       completeLocation(campaign);
     } else if (campaign.status === "combat") winCurrentBattle(campaign);
+    else if (campaign.status === "shop") leaveShop(campaign);
     else assert.fail("unexpected status after choosing " + node.type + ": " + campaign.status);
   }
   return null;
@@ -355,7 +356,7 @@ test("different-length branches enter one shared room at their actual encounter 
     assert.equal(campaign.history.filter((entry) => entry.id === "join-1").length, 1);
     visits.push(step);
   }
-  assert.deepEqual(visits.sort(), [3, 4]);
+  assert.deepEqual(visits.sort(), [4, 4]);
 });
 
 test("short and long complete routes use their visited-room count for the Boss", () => {
@@ -384,6 +385,7 @@ test("short and long complete routes use their visited-room count for the Boss",
         return;
       }
       if (campaign.status === "combat") winCurrentBattle(campaign);
+      else if (campaign.status === "shop") assert.equal(leaveShop(campaign), true);
       else {
         const event = campaign.pendingEvent;
         assert.ok(campaign.activeEventType === "campfire" ? resolveCampaignEvent(campaign, "rest") : resolveSafeAdventure(campaign));
@@ -392,7 +394,7 @@ test("short and long complete routes use their visited-room count for the Boss",
     });
     assert.equal(campaign.history.length, path.length);
   }
-  assert.deepEqual([paths[0].length, paths.at(-1).length], [11, 15]);
+  assert.deepEqual([paths[0].length, paths.at(-1).length], [13, 15]);
 });
 
 test("step one and two contain only normal battle or question nodes", () => {
@@ -447,7 +449,7 @@ test("an exhausted adventure pool turns reachable question rooms into battles", 
   campaign.candidateIds = ["naruto", "eren"];
   selectStartingCharacter(campaign, "naruto");
   const state = campaign.runCharacterState;
-  for (const eventId of ["death_note", "fate_gate", "giant_encirclement", "kings_treasury", "gamble", "gamble_2"])
+  for (const eventId of ["death_note", "fate_gate", "giant_encirclement", "kings_treasury", "gamble", "gamble_2", "found_money", "devil_bargain"])
     state.eventResults[`seen:${eventId}`] = { eventId, status: "completed" };
   for (const key of ["scroll", "sea", "anteiku", "rock"])
     state.eventSeries[key] = { permanentExcluded: true };
@@ -567,29 +569,18 @@ test("route growth is applied once to normal and elite battle copies", () => {
     }
   }
 
-  const humanEliteExpected = new Map([[3, [1100, 70, 50, 60]], [6, [1265, 77, 52, 60]], [9, [1375, 80, 55, 60]]]);
-  const bombEliteExpected = new Map([[3, [900, 150, 40, 100]], [6, [1035, 165, 42, 100]], [9, [1125, 172, 44, 100]]]);
-  for (const [step, expected] of humanEliteExpected) {
-    const { campaign: eliteCampaign, node: eliteNode } = campaignForEncounterStep(step, "elite", () => 0);
+  for (const step of [3, 7, 10]) for (const randomValue of [0, 0.99]) {
+    const { campaign: eliteCampaign, node: eliteNode } = campaignForEncounterStep(step, "elite", () => randomValue);
     const eliteSelected = travelTo(eliteCampaign, eliteNode.id);
     const elitePrepared = prepareBattle(eliteCampaign);
     assert.equal(eliteSelected.battle.type, "elite");
-    assert.equal(eliteSelected.battle.eliteId, "mahito");
     const elite = elitePrepared.roster.find((character) => character.team === "enemy");
-    assert.equal(elite.id, "mahito");
-    assert.deepEqual([elite.maxHp, elite.atk, elite.def, elite.spd], expected, `Mahito at step ${step}`);
+    const base = ELITE_ENEMY_DATA.find((entry) => entry.id === elite.id);
+    const growth = getRouteEnemyGrowth("elite", step);
+    assert.deepEqual([elite.maxHp, elite.atk, elite.def, elite.spd],
+      [Math.floor(base.hp * growth.hp), Math.floor(base.atk * growth.atk), Math.floor(base.def * growth.def), base.spd],
+      `${elite.name} at step ${step}`);
     assert.equal(prepareBattle(eliteCampaign), null, "an elite encounter is fixed and its route growth is not compounded");
-  }
-  for (const [step, expected] of bombEliteExpected) {
-    const { campaign: eliteCampaign, node: eliteNode } = campaignForEncounterStep(step, "elite", () => 0.99);
-    const eliteSelected = travelTo(eliteCampaign, eliteNode.id);
-    const elitePrepared = prepareBattle(eliteCampaign);
-    assert.equal(eliteSelected.battle.eliteId, "bomb-demon");
-    const elite = elitePrepared.roster.find((character) => character.team === "enemy");
-    assert.equal(elite.skills[0].id, "bomb-demon-boom");
-    assert.equal(elite.skills[0].chance, 0.3);
-    assert.equal(elite.skills[0].multiplier, 1.8);
-    assert.deepEqual([elite.maxHp, elite.atk, elite.def, elite.spd], expected, `Bomb Demon at step ${step}`);
   }
 });
 
@@ -609,12 +600,12 @@ test("Fate Gate waits through a noncombat node and guarantees one stable learned
   assert.deepEqual(campaign.runCharacterState.nextBattleSkillGuarantee, { sourceId: "test-fate", skillIds: ["shadow-clone-rush", "rasengan"] });
 
   let battleNode = getRouteOptions(campaign).find((node) => ["battle", "elite"].includes(node.type));
-  if (!battleNode) {
-    const campfire = getRouteOptions(campaign).find((node) => node.type === "campfire");
-    assert.ok(campfire);
-    chooseRoute(campaign, campfire.id);
-    assert.ok(resolveCampaignEvent(campaign, "rest"));
-    completeLocation(campaign);
+  while (!battleNode) {
+    const stop = getRouteOptions(campaign)[0];
+    assert.ok(stop);
+    chooseRoute(campaign, stop.id);
+    if (campaign.status === "shop") leaveShop(campaign);
+    else { assert.ok(resolveCampaignEvent(campaign, "rest")); completeLocation(campaign); }
     battleNode = getRouteOptions(campaign).find((node) => ["battle", "elite"].includes(node.type));
   }
   assert.ok(battleNode);

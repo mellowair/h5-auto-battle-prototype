@@ -256,7 +256,7 @@ test("level-four Tatakae shields every living teammate and level-four Free Will 
     freeState.round = round;
     const event = executeAttack(freeState, freeState.characters[0], freeState.characters[1], () => .99, { skill: freeWill });
     assert.equal(Boolean(event.extraTrueDamage), round === 3 || round === 6);
-    if (round === 3) assert.equal(event.extraTrueDamage.requested, 40 + 75);
+    if (round === 3) assert.equal(event.extraTrueDamage.requested, (40 + 75) * 2);
     if (round === 8) assert.equal(event.freeWillDefenseStacks, 4);
   }
 });

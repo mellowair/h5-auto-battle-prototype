@@ -89,8 +89,8 @@ test("Toji fatigue does not amplify normal or true damage", () => {
   toji.tojiFatigued = true;
   eren.freeWillTriggers = 2;
   const hit = executeAttack(battle, eren, toji, () => .99, { skill: freeWill });
-  assert.equal(hit.damage, 45);
-  assert.equal(hit.extraTrueDamage.requested, 125);
-  assert.equal(hit.extraTrueDamage.actualDamage, 125);
+  assert.equal(hit.damage, 102);
+  assert.equal(hit.extraTrueDamage.requested, 250);
+  assert.equal(hit.extraTrueDamage.actualDamage, 250);
   assert.equal(toji.def, 120);
 });

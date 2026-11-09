@@ -6,7 +6,7 @@ import {
   beginJourney, chooseRoute, chooseStartingSkill, claimCampaignEliteDrop, claimCampaignReward,
   completeLocation, completeSettlement, createCampaign, finishBattle,
   getActiveCampfireOptions, getCampaignRewardOffer, getRouteOptions,
-  prepareBattle, resolveCampaignEvent, selectStartingCharacter,
+  prepareBattle, resolveCampaignEvent, selectStartingCharacter, leaveShop,
   startCampaign, startCampaignEventBattle,
 } from "./campaign.js";
 
@@ -85,6 +85,8 @@ function resolveEvent(campaign, stats) {
       return completeLocation(campaign);
     }
     else if (event.eventId === "kings_treasury") choice = "treasury_leave";
+    else if (event.eventId === "found_money") choice = "money_take";
+    else if (event.eventId === "devil_bargain") choice = "devil_leave";
     else if (event.eventId === "sea_beyond_2") choice = "sea_home";
     else if (event.eventId === "old_scroll_2") choice = "scroll_not_yet";
     else if (event.eventId === "coffee_shop") choice = "coffee_leave";
@@ -126,6 +128,7 @@ function runOneCampaign(seed) {
       if (!chooseRoute(campaign, route.id)) throw new Error("Could not choose simulated route");
       continue;
     }
+    if (campaign.status === "shop") { leaveShop(campaign); continue; }
     if (campaign.status === "event") {
       resolveEvent(campaign, stats);
       continue;

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { EVENT_ENEMY_DATA, NORMAL_ENEMY_APPEARANCES, STARTING_CHARACTERS } from "./characters.js";
 import { getActionOrder, initializeBattle, isBattleOver, simulateBattle, summonAtRoundStart } from "./battle.js";
-import { beginJourney, chooseRoute, claimCampaignEliteDrop, claimCampaignReward, completeLocation, createCampaign, finishBattle, getCampaignRewardOffer, getRouteEnemyGrowth, getRouteMap, getRouteOptions, prepareBattle, resolveCampaignEvent, selectStartingCharacter, startCampaign, startCampaignEventBattle } from "./campaign.js";
+import { beginJourney, chooseRoute, claimCampaignEliteDrop, claimCampaignReward, completeLocation, createCampaign, finishBattle, getCampaignRewardOffer, getRouteEnemyGrowth, getRouteMap, getRouteOptions, leaveShop, prepareBattle, resolveCampaignEvent, selectStartingCharacter, startCampaign, startCampaignEventBattle } from "./campaign.js";
 import { chooseAdventureEventId, createAdventureEventResult, getAvailableAdventureEventIds, resolveAdventureEvent } from "./progression.js";
 import { ADVENTURE_EVENT_DATA, GIANT_SPINAL_FLUID } from "./skills.js";
 import { getCharacterVisual } from "./visualConfig.js";
@@ -99,6 +99,8 @@ test("a real late-route question opens the giant encounter and carries its choic
       const claimed = claimCampaignReward(campaign, offer.statChoices.slice(0, 2));
       if (claimed.phase === "bonus") assert.ok(claimCampaignReward(campaign, "skill_upgrade", null, offer.upgradeableSkills[0]));
       if (claimed.phase === "elite_drop") assert.equal(claimCampaignEliteDrop(campaign, campaign.playerId).status, "route");
+    } else if (campaign.status === "shop") {
+      assert.equal(leaveShop(campaign), true);
     } else {
       const eventId = campaign.pendingEvent?.eventId;
       if (campaign.pendingEvent?.type === "gamble") {
@@ -110,7 +112,7 @@ test("a real late-route question opens the giant encounter and carries its choic
       const choice = node.type === "campfire" ? "rest" : ({ kings_treasury: "treasury_leave", sea_beyond: "sea_pass",
         sea_beyond_2: "sea_home", old_scroll_2: "scroll_not_yet", coffee_shop: "coffee_leave",
         anteiku_2: "anteiku_leave", big_rock: "rock_bypass", giant_rock_2: "rock_avoid_again",
-        death_note: "death_note_pass", fate_gate: "fate_accept" })[eventId]
+        death_note: "death_note_pass", fate_gate: "fate_accept", found_money: "money_leave", devil_bargain: "devil_leave" })[eventId]
         ?? campaign.pendingEvent?.data?.skillChoices?.[0] ?? "scroll_leave";
       assert.ok(resolveCampaignEvent(campaign, choice));
       assert.equal(completeLocation(campaign), "route");

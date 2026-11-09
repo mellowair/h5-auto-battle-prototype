@@ -31,8 +31,8 @@ function assertPlayableWithoutRouteDeadEnds(map) {
     const children = node.nextNodeIds.map((childId) => byId.get(childId));
     assert.ok(children.length > 0, `${node.id} has no successor at streak ${streak}`);
     for (const child of children) {
-      if (streak >= 2) assert.ok(["battle", "elite", "demon"].includes(child.type), `${child.id} would create a third consecutive noncombat node`);
-      const nextStreak = ["battle", "elite", "demon"].includes(child.type) ? 0 : Math.min(2, streak + 1);
+      if (streak >= 2) assert.ok(["battle", "elite", "demon", "shop"].includes(child.type), `${child.id} would create a third consecutive noncombat node`);
+      const nextStreak = child.type === "shop" ? streak : ["battle", "elite", "demon"].includes(child.type) ? 0 : Math.min(2, streak + 1);
       explore(child.id, nextStreak, sawElite || child.type === "elite", sawCampfire || child.type === "campfire");
     }
   };
@@ -99,7 +99,8 @@ test("route maps have meaningful different-length paths and real cross-row joins
     assert.equal(reachableNodes(map).size, map.nodes.length);
     assertPlayableWithoutRouteDeadEnds(map);
     assert.equal(stats.routeCount, 8);
-    assert.deepEqual([stats.shortest, stats.averageLength, stats.longest], [11, 13, 15]);
+    assert.deepEqual([stats.shortest, stats.averageLength, stats.longest], [13, 14, 15]);
+    assert.equal(stats.shops.length, 2);
     assert.equal(stats.crossings, 0);
     assert.equal(stats.throughNodes, 0);
     assert.equal(stats.consecutiveCampfires, 0);
@@ -152,7 +153,7 @@ test("all incoming edges reject consecutive campfires, including skipped rows an
 
 test("the route progress estimate counts future rooms instead of visual rows", () => {
   const map = generateRouteMap("different-length-progress");
-  assert.equal(shortestRemainingRouteLength(map), 11);
+  assert.equal(shortestRemainingRouteLength(map), 13);
   assert.equal(shortestRemainingRouteLength(map, map.bossNodeId), 0);
   assert.equal(shortestRemainingRouteLength(map, "boss-approach-campfire"), 2);
 });
@@ -199,7 +200,7 @@ test("route map UI renders the pre-generated graph with a distinct elite icon", 
   assert.match(app, /route-sign-overlay/);
   assert.match(app, /orderRouteOptionsByPosition\(routeMap, getRouteOptions\(campaign\)\)/);
   assert.match(app, /route-map-avatar/);
-  assert.match(app, /const selectable = campaign\.status === "route" && getRouteOptions\(campaign\)\.some\(\(option\) => option\.id === node\.id\)/);
+  assert.match(app, /const selectable = \(campaign\.status === "route" \? getRouteOptions\(campaign\) : getShopRouteOptions\(campaign\)\)\.some\(\(option\) => option\.id === node\.id\)/);
   assert.match(app, /const element = document\.createElement\("button"\)/);
   assert.match(app, /element\.setAttribute\("aria-disabled", "true"\)/);
   assert.match(app, /button\.addEventListener\("click", \(\) => selectRouteNode\(node\.id\)\)/);

@@ -5,7 +5,7 @@ const copy = (value) => value == null ? value : JSON.parse(JSON.stringify(value)
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 const rngIndex = (length, random) => Math.min(length - 1, Math.floor(Math.max(0, Math.min(0.999999999999, finite(random(), 0))) * length));
 const has = (list, value) => Array.isArray(list) && list.includes(value);
-const SINGLE_ENCOUNTER_EVENTS = new Set(["death_note", "fate_gate", "giant_encirclement", "kings_treasury", "gamble", "gamble_2"]);
+const SINGLE_ENCOUNTER_EVENTS = new Set(["death_note", "fate_gate", "giant_encirclement", "kings_treasury", "gamble", "gamble_2", "found_money", "devil_bargain"]);
 
 function ensureRunState(state) {
   if (!state || typeof state !== "object") throw new TypeError("runCharacterState is required");
@@ -101,7 +101,7 @@ export function getTreasureCombatModifiers(runState) {
 }
 
 function treasureAttributeMultiplier(member, treasureId) {
-  return member.permanentEffects.some((effect) => effect.id === treasureId) ? 1.5 : 1;
+  return member.permanentEffects.some((effect) => effect.id === treasureId) ? 1.2 : 1;
 }
 
 function scaledTreasureAttribute(value, multiplier) {
@@ -632,7 +632,19 @@ export function resolveAdventureEvent(runState, sourceId, choiceId = null, rando
   let keepPending = false;
   const series = runState.eventSeries;
   const stageId = record.data.stageId ?? 1;
-  if (record.type === "gamble") {
+  if (record.eventId === "found_money") {
+    if (!["money_take", "money_leave"].includes(choiceId)) return false;
+    result = { essenceGain: choiceId === "money_take" ? 5 : 0, skipped: choiceId === "money_leave" };
+    record.data.choiceId = choiceId;
+  } else if (record.eventId === "devil_bargain") {
+    if (!["devil_trade", "devil_leave"].includes(choiceId)) return false;
+    const requestedHpLoss = choiceId === "devil_trade" ? Math.floor(runState.maxHp * .5) : 0;
+    const hpLoss = Math.min(requestedHpLoss, Math.max(0, runState.currentHp - 1));
+    runState.currentHp -= hpLoss;
+    result = { essenceGain: choiceId === "devil_trade" ? 5 : 1, hpLoss,
+      requestedHpLoss, currentHp: runState.currentHp, maxHp: runState.maxHp };
+    record.data.choiceId = choiceId;
+  } else if (record.type === "gamble") {
     const data = record.data;
     if (data.phase === "recipient") {
       if (choiceId !== `gamble_recipient|${recipientState.characterId}`) return false;
@@ -1014,12 +1026,10 @@ export function previewGrowingDrop(member, dropId, stageId = 1) {
   if (!base) return null;
   if (!Number.isInteger(stageId) || stageId < 1) throw new RangeError(`Invalid treasure stage: ${stageId}`);
   const acquisitionCount = member.permanentEffects.filter((effect) => effect.id === dropId).length + 1;
-  const stageMultiplier = 1 + .5 * (stageId - 1);
-  // The finger's existing repeat rule grants one extra 50% ATK from the second copy onward;
-  // its max-HP cost is unchanged. The other two items grow by 50% per copy.
-  const repeatMultiplier = dropId === TREASURE_DATA.sukuna_finger.id
-    ? acquisitionCount > 1 ? .5 : 0 : .5 * (acquisitionCount - 1);
-  const gain = (value) => Math.floor(value * (stageMultiplier + repeatMultiplier));
+  // Each stage and repeat adds exactly one fifth of the base value.
+  // Integer arithmetic avoids truncating 359.999... to 359.
+  const multiplierFifths = 5 + (stageId - 1) + (acquisitionCount - 1);
+  const gain = (value) => Math.floor(value * multiplierFifths / 5);
   const maxHp = base.maxHp > 0 ? gain(base.maxHp) : base.maxHp;
   const atk = base.atk > 0 ? gain(base.atk) : base.atk ?? 0;
   const def = base.def > 0 ? gain(base.def) : base.def ?? 0;

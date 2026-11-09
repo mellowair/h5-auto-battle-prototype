@@ -1,5 +1,5 @@
 import { ANIMATION_TIMING, CHARACTER_DATA, COMBAT_RULES, STAGE_TWO_NORMAL_PASSIVES, STAGE_THREE_NORMAL_PASSIVES, STARTING_CHARACTERS } from "./characters.js";
-import { advanceEventEpilogue, advanceStageTransition, beginJourney, beginStageTwo, beginStageThree, chooseEvolutionUpgrade, chooseRoute, chooseTrialNode, chooseStartingSkill, claimCampaignEliteDrop, claimCampaignReward, claimCampaignSpecialReward, claimCampaignQuinque, claimCampaignTreasure, claimStageTwoEliteSkill, claimStageTwoEliteSkip, claimStageTwoGiantRecipient, claimStageTwoStatReward, completeLocation, completeSettlement, createCampaign, enterTrialMap, finishBattle, finishTrialResult, getActiveCampfireOptions, getCampaignRewardOffer, getCampaignTreasureOffer, getRouteMap, getRouteOptions, getStageTransitionChoices, getStageTwoCampfireOptions, prepareBattle, resolveCampaignEvent, resolveStageTwoCampfire, resolveTrialOffer, resolveTrialWill, selectStartingCharacter, startCampaign, startCampaignEventBattle, STAGE_TWO_STAT_UPGRADES } from "./campaign.js";
+import { advanceEventEpilogue, advanceStageTransition, beginJourney, beginStageTwo, beginStageThree, buyShopItem, chooseEvolutionUpgrade, chooseRoute, chooseTrialNode, chooseStartingSkill, claimCampaignEliteDrop, claimCampaignReward, claimCampaignSpecialReward, claimCampaignQuinque, claimCampaignTreasure, claimStageTwoEliteSkill, claimStageTwoEliteSkip, claimStageTwoGiantRecipient, claimStageTwoStatReward, completeLocation, completeSettlement, createCampaign, enterTrialMap, finishBattle, finishTrialResult, getActiveCampfireOptions, getCampaignRewardOffer, getCampaignTreasureOffer, getRouteMap, getRouteOptions, getShopRouteOptions, getStageTransitionChoices, getStageTwoCampfireOptions, leaveShop, prepareBattle, previewShopItem, resolveCampaignEvent, resolveStageTwoCampfire, resolveTrialOffer, resolveTrialWill, selectStartingCharacter, startCampaign, startCampaignEventBattle, STAGE_TWO_STAT_UPGRADES } from "./campaign.js";
 import { getCritChance, getDodgeChance, getSkillDodgeChance, initializeBattle, simulateBattle } from "./battle.js";
 import { canDeclineNewSkill, getSeaBeyondOfferDetails, getSkillAtLevel, getSkillTrainingChoices, getTemporaryCombatModifiers, getTemporaryEffectDisplayRows, getTreasureCombatModifiers, getUnlearnedActiveSkills, previewGrowingDrop } from "./progression.js";
 import { ATTRIBUTE_UPGRADES, ELITE_BONUS_REWARDS, GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT, SKILL_DATA, TREASURE_DATA } from "./skills.js";
@@ -240,14 +240,14 @@ function displaySkillEffect(skill, context = {}) {
   const chance = Number.isFinite(skill?.chance) ? `触发率 ${Math.round(skill.chance * 100)}%` : "自动生效";
   if (skill?.id === "kaneki-predator") return `${chance} · (ATK + SPD) × ${skill.multiplier ?? 1} · 目标 HP 严格低于 ${Math.round(skill.guaranteedCritBelowHpRatio * 100)}% 时命中必定暴击`;
   if (["kaneki-1000-7", "kaneki-2000-14"].includes(skill?.id)) return `每受到 ${skill.hitsPerTrigger} 次有效伤害：本场 ATK +${skill.attackBonus ?? 0}；每攻击 ${skill.attacksPerTrigger} 次暴击伤害 +${Math.round(skill.critDamagePerAttack * 100)}%${skill.counterDamageEvery ? `；每累计受击 ${skill.counterDamageEvery} 次追加反击` : ""}`;
-  if (skill?.id === "eren-free-will") return `${chance} · 普通攻击 · DEF +${skill.defenseBonus ?? 0}（本场最多 ${skill.maxDefenseStacks} 层） · 每触发 ${skill.healEveryTriggers} 次恢复最大 HP 的 ${Math.round(skill.healMaxHpFraction * 100)}%${skill.extraTrueDamageEvery ? ` · 每第 ${skill.extraTrueDamageEvery} 次释放追加真实伤害` : ""}`;
-  if (skill?.id === "eren-tatakae") return `${chance} · 攻击力按 ATK + 当前 DEF 计算 · ${skill.multiplier ?? 1}×伤害 · 下回合嘲讽敌方单体攻击${skill.teamShield ? ` · 每名存活队友护盾刷新至最多 ${skill.teamShield} 点（不叠加）` : ""}`;
+  if (skill?.id === "eren-free-will") return `${chance} · 以 ATK + DEF 普通攻击 · DEF +${skill.defenseBonus ?? 0}（本场最多 ${skill.maxDefenseStacks} 层） · 每触发 ${skill.healEveryTriggers} 次恢复最大 HP 的 ${Math.round(skill.healMaxHpFraction * 100)}%${skill.extraTrueDamageEvery ? ` · 每第 ${skill.extraTrueDamageEvery} 次释放追加 DEF×${skill.extraTrueDamageDefRatio} 真实伤害` : ""}`;
+  if (skill?.id === "eren-tatakae") return `${chance} · 攻击力按 ATK + 当前 DEF×${skill.defenseScale} 计算 · ${skill.multiplier ?? 1}×伤害 · 下回合嘲讽敌方单体攻击${skill.teamShield ? ` · 每名存活队友护盾刷新至最多 ${skill.teamShield} 点（不叠加）` : ""}`;
   if (skill?.id === "eren-2000-years") return "Lv.1 每场免疫首次受击；Lv.2 每场免疫前两次受击，并一次性增加最大 HP 400。";
   if (skill?.id === "journey-west") {
     const [horse, bajie, shaseng, wukong] = TANG_SUMMON_WEIGHTS[skill.level ?? 1];
     return `必定尝试召唤 · 白龙马 ${horse}% / 八戒 ${bajie}% / 沙僧 ${shaseng}% / 孙悟空 ${wukong}% · 召唤物技能触发率 ${Math.round((skill.summonSkillChance ?? (skill.level ?? 1) * 0.07) * 100)}%`;
   }
-  if (skill?.id === "tang-flesh") return "有存活召唤物时受到伤害减少 20%；Lv.2 召唤物按实际造成伤害的 20% 治疗唐僧。";
+  if (skill?.id === "tang-flesh") return "替召唤物承担 10% 伤害（按唐僧 DEF 结算）；有存活召唤物时受到伤害减少 20%；Lv.2 召唤物按实际造成伤害的 20% 治疗唐僧。";
   if (skill?.id === "horse-hoof") return `${chance} · 以 ATK + SPD 造成 1 倍伤害`;
   if (skill?.id === "bajie-rake") return `${chance} · 以 ATK + 当前 HP 的 20% 造成 1 倍伤害`;
   if (skill?.id === "shaseng-staff") return `${chance} · 以 ATK + 当前 DEF 造成 1.5 倍伤害，攻击敌方全体`;
@@ -339,12 +339,13 @@ function renderSkillDetailView(skillIndex = 0, level = null) {
     .split(/(?:[；。，]\s*)?Lv\.\d+/)[0].replace(/[；。，\s]+$/, "");
   add("技能描述", introduction || "随等级提升获得不同效果");
   const details = [];
-  if (effect.attackFormula) details.push(`伤害来源 ${({ atk_plus_spd: "ATK + SPD", atk_plus_current_def: "ATK + 当前 DEF" })[effect.attackFormula] ?? effect.attackFormula}`);
+  if (effect.attackFormula) details.push(`伤害来源 ${({ atk_plus_spd: "ATK + SPD", atk_plus_current_def: "ATK + 当前 DEF", atk_plus_scaled_def: `ATK + 当前 DEF×${effect.defenseScale}` })[effect.attackFormula] ?? effect.attackFormula}`);
   if (Number.isFinite(effect.multiplier)) details.push(`伤害 ${effect.multiplier}×`);
   if (Number.isFinite(effect.guaranteedCritBelowHpRatio)) details.push(`目标 HP 低于 ${Math.round(effect.guaranteedCritBelowHpRatio * 100)}% 时必暴击`);
   if (effect.killMaxHpBonus) details.push(`击杀后本局最大 HP +${effect.killMaxHpBonus}`);
   if (effect.defenseBonus) details.push(`DEF +${effect.defenseBonus}${effect.maxDefenseStacks ? `，最多 ${effect.maxDefenseStacks} 层` : ""}`);
   if (effect.healEveryTriggers) details.push(`每 ${effect.healEveryTriggers} 次释放恢复 ${Math.round(effect.healMaxHpFraction * 100)}% 最大 HP`);
+  if (effect.healEveryCasts) details.push(`每 ${effect.healEveryCasts} 次释放恢复 ${Math.round(effect.healMaxHpRatio * 100)}% 最大 HP`);
   if (effect.splashRatio) details.push(["shadow-clone-rush", "naruto-multi-clone"].includes(skill?.id)
     ? `其他目标受到 ${Math.round(effect.splashRatio * 100)}% 附加伤害；仅一名敌人时该目标再受一次附加伤害`
     : `其余目标受到 ${Math.round(effect.splashRatio * 100)}% 附加伤害`);
@@ -372,11 +373,10 @@ function renderSkillDetailView(skillIndex = 0, level = null) {
   if (effect.extraTrueDamageEvery) details.push(`每第 ${effect.extraTrueDamageEvery} 次释放追加真实伤害`);
   if (effect.defenseReduction) details.push(`命中后目标 DEF -${effect.defenseReduction}`);
   if (effect.ignoreDefenseFromOwnDef) details.push(`无视自身 DEF 的 ${Math.round(effect.ignoreDefenseFromOwnDef * 100)}%`);
-  if (effect.defenseCost) details.push(`施法后自身 DEF -${effect.defenseCost}`);
   if (effect.reflectMultiplier) details.push(`反伤 当前 DEF ×${effect.reflectMultiplier}，持续 2 回合`);
   if (effect.taunt) details.push("接下来两回合嘲讽敌人");
   if (effect.cloneGain) details.push(`每次成功释放获得 ${effect.cloneGain} 个影分身`);
-  if (effect.chakraLevelGain) details.push(`每次释放查克拉 +${effect.chakraLevelGain} + SPD/10，满 100 强化`);
+  if (effect.burstEveryCasts) details.push(`每第 ${effect.burstEveryCasts} 次释放强化为超大玉螺旋丸`);
   if (effect.meditationRounds) details.push(`每打坐 ${effect.meditationRounds} 回合：敌方 ATK -${effect.enemyAttackStep}${effect.allyAttackStep ? `，己方 ATK +${effect.allyAttackStep}` : ""}，上限 ${effect.attackCap}${effect.teamShield ? "，提供全队护盾" : ""}`);
   if (effect.maxHpBonus) details.push(`最大 HP +${effect.maxHpBonus}`);
   if (effect.summonHpBonus) details.push(`召唤物 HP +${effect.summonHpBonus}`);
@@ -399,6 +399,7 @@ function displayUpgrade(upgradeId) {
 function describeEventResult(result) {
   result = result?.result ?? result;
   if (!result) return "事件已完成。";
+  if (Number.isFinite(result.essenceGain)) return `${result.hpLoss ? `主角当前 HP -${result.hpLoss}，剩余 ${result.currentHp}/${result.maxHp}；` : ""}${result.essenceGain ? `精华 +${result.essenceGain}，当前精华 ×${campaign.essence}。` : "你选择离开。"}`;
   if (result.gambleFinished) return `已完成 ${result.rounds.length} 轮，成功 ${result.successCount} 次。${result.treasures?.length ? `额外获得：${result.treasures.map((item) => `${item.name}（${item.description}）`).join("、")}。` : "没有额外宝物。"}`;
   if (result.escape === "success") return `逃跑成功！本局速度 -10，当前 SPD ${result.currentSpd}。`;
   if (result.escape === "failed") return "逃跑失败！戴娜挡住了去路。确认后开始战斗。";
@@ -1137,10 +1138,13 @@ function renderAllyStatusIcons() {
   const allyDetail = $("#ally-status-detail");
   const enemyContainer = $("#enemy-status-icons");
   const enemyDetail = $("#enemy-status-detail");
-  if (!allyContainer || !allyDetail || !enemyContainer || !enemyDetail) return;
+  const treasureContainer = $("#squad-treasure-icons");
+  const treasureDetail = $("#squad-treasure-detail");
+  if (!allyContainer || !allyDetail || !enemyContainer || !enemyDetail || !treasureContainer || !treasureDetail) return;
 
   const allyStatuses = [];
   const enemyStatuses = [];
+  const treasureStatuses = [];
   for (const unit of viewState?.characters ?? []) {
     syncCannotActVisual(unit);
     if (!unit.alive) continue;
@@ -1196,26 +1200,20 @@ function renderAllyStatusIcons() {
       description: `${effect.statName} ${effect.amountText} · ${effect.durationText}`,
     });
   }
-  for (const id of campaign?.partyIds ?? []) {
-    const fluidEffects = campaign.partyStates?.[id]?.permanentEffects?.filter((effect) => effect.id === GIANT_SPINAL_FLUID.id) ?? [];
-    if (!fluidEffects.length) continue;
-    const totalDef = fluidEffects.reduce((sum, effect) => sum + (effect.def ?? 0), 0);
-    const totalHp = fluidEffects.reduce((sum, effect) => sum + (effect.maxHp ?? 0), 0);
-    allyStatuses.push({ id: `${GIANT_SPINAL_FLUID.id}-${id}`, name: GIANT_SPINAL_FLUID.name,
-      image: GIANT_SPINAL_FLUID.image, tone: "buff",
-      description: `${partyPresentation(id)?.name ?? id}：已获得 ${fluidEffects.length} 次，累计 DEF +${totalDef}、最大 HP +${totalHp}；${fluidEffects.map((effect, index) => `第 ${effect.acquisitionCount ?? index + 1} 次：第 ${effect.stageId ?? "未知"} 关，来源 ${effect.sourceLabel ?? effect.sourceId ?? "未知"}，DEF +${effect.def ?? 0}、最大 HP +${effect.maxHp ?? 0}`).join("；")}` });
-  }
-  for (const id of campaign?.partyIds ?? []) {
-    const run = campaign.partyStates?.[id];
-    const effects = run?.permanentEffects?.filter((effect) => TREASURE_DATA[effect.id] || ["gun_devil_fragment", "drip_coffee", "six_ear_true_form", "quinque_guard", "quinque_crit", "anteiku_weapon"].includes(effect.id)) ?? [];
-    const groups = Object.values(effects.reduce((map, effect) => { (map[effect.id] ??= []).push(effect); return map; }, {}));
-    for (const items of groups) {
-      const item = items[0];
-      const gain = items.reduce((sum, entry) => { for (const key of ["atk", "def", "maxHp"]) sum[key] = (sum[key] ?? 0) + (entry[key] ?? 0); return sum; }, {});
-      const gains = Object.entries(gain).filter(([, value]) => value).map(([key, value]) => `${key.toUpperCase()} ${value > 0 ? "+" : ""}${value}`).join("、");
-      const history = items.map((entry, index) => `第 ${entry.acquisitionCount ?? index + 1} 次：第 ${entry.stageId ?? "未知"} 关，来源 ${entry.sourceLabel ?? entry.sourceId ?? "未知"}，${Object.entries(entry).filter(([key, value]) => ["atk", "def", "maxHp"].includes(key) && value).map(([key, value]) => `${key.toUpperCase()} ${value > 0 ? "+" : ""}${value}`).join("、") || entry.description || "特殊效果"}`).join("；");
-      allyStatuses.push({ id: `treasure-${id}-${item.id}`, name: `${item.name} ×${items.length}`, image: item.image ?? TREASURE_DATA[item.id]?.image ?? "", tone: "buff", description: `${partyPresentation(id)?.name ?? id}：${gains ? `累计 ${gains}。` : "特殊效果保留原说明。"}${history}` });
-    }
+  const ownedTreasures = (campaign?.partyIds ?? []).flatMap((ownerId) =>
+    (campaign.partyStates?.[ownerId]?.permanentEffects ?? [])
+      .filter((effect) => TREASURE_DATA[effect.id] || [GIANT_SPINAL_FLUID.id, "gun_devil_fragment", "drip_coffee", "six_ear_true_form", "quinque_guard", "quinque_crit", "anteiku_weapon"].includes(effect.id))
+      .map((effect) => ({ effect, ownerId })));
+  const treasureGroups = Object.values(ownedTreasures.reduce((map, entry) => {
+    (map[entry.effect.id] ??= []).push(entry);
+    return map;
+  }, {}));
+  for (const entries of treasureGroups) {
+    const item = entries[0].effect;
+    const gain = entries.reduce((sum, { effect }) => { for (const key of ["atk", "def", "maxHp"]) sum[key] = (sum[key] ?? 0) + (effect[key] ?? 0); return sum; }, {});
+    const gains = Object.entries(gain).filter(([, value]) => value).map(([key, value]) => `${key.toUpperCase()} ${value > 0 ? "+" : ""}${value}`).join("、");
+    const history = entries.map(({ effect, ownerId }, index) => `${partyPresentation(ownerId)?.name ?? ownerId}第 ${effect.acquisitionCount ?? index + 1} 次：第 ${effect.stageId ?? "未知"} 关，来源 ${effect.sourceLabel ?? effect.sourceId ?? "未知"}，${Object.entries(effect).filter(([key, value]) => ["atk", "def", "maxHp"].includes(key) && value).map(([key, value]) => `${key.toUpperCase()} ${value > 0 ? "+" : ""}${value}`).join("、") || effect.description || "特殊效果"}`).join("；");
+    treasureStatuses.push({ id: `treasure-${item.id}`, name: `${item.name} ×${entries.length}`, image: item.image ?? TREASURE_DATA[item.id]?.image ?? (item.id === GIANT_SPINAL_FLUID.id ? GIANT_SPINAL_FLUID.image : ""), tone: "buff", description: `${gains ? `累计 ${gains}。` : "特殊效果保留原说明。"}${history}` });
   }
   if (battleStatusState.jinchuriki) {
     const passive = battleStatusState.jinchuriki;
@@ -1285,10 +1283,12 @@ function renderAllyStatusIcons() {
 
   renderButtons(allyContainer, allyStatuses);
   renderButtons(enemyContainer, enemyStatuses);
-  const selected = [...allyStatuses, ...enemyStatuses].find((status) => status.id === selectedStatusId);
+  renderButtons(treasureContainer, treasureStatuses);
+  const selected = [...allyStatuses, ...enemyStatuses, ...treasureStatuses].find((status) => status.id === selectedStatusId);
   if (!selected) selectedStatusId = null;
   renderDetail(allyDetail, selected && allyStatuses.includes(selected) ? selected : null);
   renderDetail(enemyDetail, selected && enemyStatuses.includes(selected) ? selected : null);
+  renderDetail(treasureDetail, selected && treasureStatuses.includes(selected) && squadSide === "ally" ? selected : null);
 }
 function openTangSummonDetail(unit) {
   detailCharacterId = unit.id;
@@ -1473,6 +1473,9 @@ function setScreen(id) {
   document.querySelectorAll(".flow-screen").forEach((screen) => {
     screen.hidden = screen.id !== id;
   });
+  const essenceHud = $("#essence-hud");
+  essenceHud.hidden = !campaign?.playerId || id === "battle-screen";
+  $("#essence-count").textContent = String(campaign?.essence ?? 0);
   updateBossProgress();
   renderTrialProgress();
   window.scrollTo(0, 0);
@@ -1767,7 +1770,7 @@ function playEvent(event, finish) {
       updateHealth(ally);
       addLog(`<b>蝎子莱莱</b> 受伤后使 ${ally.name} 恢复 ${heal.amount} HP。`, "log-skill");
     }
-    addLog(`<b>进击巨人</b> 当前 HP ${event.hpSnapshot}，追加 10% HP 攻击（${event.power} 基础伤害），实际失去 ${event.actualDamage} HP。`, "log-skill");
+    addLog(`<b>进击巨人</b> 坐标：已损失 HP 40% 追加攻击（${event.power} 基础伤害），实际造成 ${event.actualDamage} 伤害。`, "log-skill");
     return finish();
   }
   if (event.type === "gravity-main-course-damage") {
@@ -1883,7 +1886,7 @@ function playEvent(event, finish) {
         if (frames.length) startFrameCycle(fighter, target, "death", frames, ANIMATION_TIMING.attack.deathMs / frames.length, false);
       }
     }
-    addLog(`<b>摄魂怪</b> 反弹 ${event.actualDamage} 点伤害。`, "log-enemy");
+    addLog(`<b>${event.skillName ?? "摄魂怪"}</b> 反弹 ${event.actualDamage} 点伤害。`, "log-skill");
     return finish();
   }
   if (event.type === "normal-passive-stun") {
@@ -2462,6 +2465,7 @@ function playEvent(event, finish) {
     const speedBeforeSettlement = campaign.runCharacterState?.spd ?? 0;
     const transition = finishBattle(campaign, pendingResult.outcome, player.currentHp, pendingResult.events, pendingResult.finalCharacters);
     if (!transition) return finish();
+    if (campaign.lastEssenceReward?.amount) addLog(`精华 +${campaign.lastEssenceReward.amount} · 当前 ×${campaign.essence}`, "log-win");
     for (const recovery of campaign.lastBattleRecovery ?? []) {
       const unit = viewState.characters.find((character) => character.id === recovery.characterId && character.team === "ally");
       if (unit) {
@@ -2538,8 +2542,8 @@ function playEvent(event, finish) {
       return;
     }
     if (event.effectType === "hardening") {
-      if (actor) { actor.defenseBuff = (actor.defenseBuff ?? 0) + event.defenseBonus; updateHealth(actor); }
-      addLog(`<b>${actor?.name ?? "艾伦"}</b> 硬质化：DEF +${event.defenseBonus}（${event.defenseStacks}/4 层），接下来两回合反伤。`, "log-skill");
+      if (actor) { actor.defenseBuff = (actor.defenseBuff ?? 0) + event.defenseBonus; actor.currentHp = event.targetHp; updateHealth(actor); }
+      addLog(`<b>${actor?.name ?? "艾伦"}</b> 硬质化：DEF +${event.defenseBonus}（${event.defenseStacks}/4 层），接下来两回合反伤${event.healedAmount ? `；恢复 ${event.healedAmount} HP` : ""}。`, "log-skill");
       if (actor?.evolutionPhase === 2) {
         const fighter = document.querySelector(`[data-character="${actor.id}"]`);
         if (fighter) showFighterFrame(fighter, actor, "hardening", "cast");
@@ -3233,13 +3237,12 @@ function playEvent(event, finish) {
     if (event.shieldsGranted?.length) addLog(event.shieldsGranted[0].cap != null
       ? `<b>${attacker.name}</b> 将存活队友护盾刷新至最多 ${event.shieldsGranted[0].cap} 点。`
       : `<b>${attacker.name}</b> 九尾羁绊为队友提供护盾。`, "log-skill");
-    if (event.warhammerDefenseCost) { attacker.def = Math.max(0, attacker.def - event.warhammerDefenseCost); updateHealth(attacker); }
     if (event.oneEyeKingAttackBonus) { attacker.atk += event.oneEyeKingAttackBonus; addLog(`<b>${attacker.name}</b> 独眼之王击杀：本局 ATK +${event.oneEyeKingAttackBonus}。`, "log-skill"); }
     if (event.trialDamage?.sharedDamage) {
       const shared = event.trialDamage.sharedDamage;
       const partner = viewState.characters.find((unit) => unit.id === shared.targetId);
-      if (partner) { partner.currentHp = shared.currentHp; partner.alive = shared.currentHp > 0; updateHealth(partner); }
-      addLog(`<b>慈悲为怀</b>：${partner?.name ?? "队友"} 分担 ${shared.amount} 点伤害。`, "log-skill");
+      if (partner) { partner.currentHp = shared.currentHp; partner.shieldHp = shared.shieldHp; partner.alive = shared.currentHp > 0; updateHealth(partner); }
+      addLog(shared.kind === "summon-protection" ? `<b>唐僧</b>替召唤物承担 ${shared.amount} 点伤害。` : `<b>慈悲为怀</b>：${partner?.name ?? "队友"} 分担 ${shared.amount} 点伤害。`, "log-skill");
     }
     if (event.trialDamage?.emergencyHeal) addLog(`<b>${target.name}</b> 道路触发：恢复 ${event.trialDamage.emergencyHeal} HP。`, "log-skill");
     for (const heal of event.evolutionHeals ?? []) {
@@ -3911,7 +3914,83 @@ function renderRoute() {
   if (campaign.stageId === 1 && routeMap.currentNodeId === routeMap.startNodeId) openRouteMap();
 }
 
+let selectedShopSlot = null;
+function shopCategoryLabel(id) {
+  return ({ common: "普通宝物", growing: "可累积宝物", rare: "稀有宝物", medicine: "临时药物", book: "技能书" })[id] ?? id;
+}
+function renderShop() {
+  if (campaign?.status !== "shop" || !campaign.activeShop) return;
+  $("#shop-essence").textContent = String(campaign.essence ?? 0);
+  $("#essence-count").textContent = String(campaign.essence ?? 0);
+  const slots = $("#shop-slots");
+  slots.replaceChildren();
+  for (const slot of campaign.activeShop.slots) {
+    const card = document.createElement("article");
+    card.className = "shop-slot";
+    const view = document.createElement("button");
+    view.type = "button"; view.className = "shop-view";
+    const image = document.createElement("img");
+    image.src = slot.image ?? "assets/shop/skill-book.svg";
+    image.alt = slot.name;
+    const name = document.createElement("span"); name.textContent = slot.name;
+    view.append(image, name);
+    view.addEventListener("click", () => openShopDetail(slot.index));
+    card.addEventListener("click", (event) => { if (!event.target.closest("button")) openShopDetail(slot.index); });
+    const effect = document.createElement("small"); effect.textContent = slot.description;
+    if (slot.placeholderArt) {
+      const artNote = document.createElement("small"); artNote.textContent = "临时图标";
+      card.append(artNote);
+    }
+    const price = document.createElement("b"); price.textContent = `◆ ${slot.price}`;
+    const buy = document.createElement("button"); buy.type = "button"; buy.className = "control-btn";
+    buy.textContent = slot.purchased ? "已购买" : !slot.available ? "待配置" : campaign.essence < slot.price ? "精华不足" : "购买";
+    buy.disabled = slot.purchased || !slot.available || campaign.essence < slot.price;
+    buy.addEventListener("click", () => purchaseShopSlot(slot.index));
+    card.append(view, effect, price, buy); slots.append(card);
+  }
+  setScreen("shop-screen");
+}
+function openShopDetail(index) {
+  const slot = campaign?.activeShop?.slots[index];
+  if (!slot) return;
+  selectedShopSlot = index;
+  const preview = previewShopItem(campaign, slot);
+  $("#shop-detail-title").textContent = slot.name;
+  $("#shop-detail-image").src = slot.image ?? "assets/shop/skill-book.svg";
+  $("#shop-detail-image").alt = slot.name;
+  $("#shop-detail-category").textContent = shopCategoryLabel(slot.categoryId);
+  $("#shop-detail-description").textContent = preview?.fullDescription ?? slot.description;
+  $("#shop-detail-price").textContent = `◆ ${slot.price} 精华 · 已有 ${preview?.ownedCount ?? 0} 件`;
+  const recipients = $("#shop-detail-recipients"); recipients.replaceChildren();
+  const selector = document.createElement("select"); selector.id = "shop-recipient";
+  for (const id of campaign.partyIds) {
+    const option = document.createElement("option"); option.value = id;
+    option.textContent = partyPresentation(id)?.name ?? id; selector.append(option);
+  }
+  selector.addEventListener("change", () => {
+    const updated = previewShopItem(campaign, slot, selector.value);
+    $("#shop-detail-description").textContent = updated?.fullDescription ?? slot.description;
+    $("#shop-detail-price").textContent = `◆ ${slot.price} 精华 · 已有 ${updated?.ownedCount ?? 0} 件`;
+  });
+  recipients.append(selector);
+  const buy = $("#shop-detail-buy");
+  buy.disabled = !slot.available || slot.purchased || campaign.essence < slot.price;
+  buy.textContent = slot.purchased ? "已购买" : !slot.available ? "待配置" : campaign.essence < slot.price ? "精华不足" : "购买";
+  $("#shop-detail-dialog").showModal();
+}
+function purchaseShopSlot(index) {
+  const recipientId = $("#shop-recipient")?.value ?? campaign?.playerId;
+  const result = buyShopItem(campaign, index, recipientId);
+  $("#shop-feedback").textContent = result ? `购买成功：${campaign.activeShop.slots[index].name}，精华 -${campaign.activeShop.slots[index].price}。` : "购买未完成，请查看余额或角色是否已学会该技能。";
+  if (result) { $("#shop-detail-dialog").close(); renderShop(); }
+  return result;
+}
+
 function selectRouteNode(nodeId) {
+  if (campaign?.status === "shop") {
+    if (!getShopRouteOptions(campaign).some((node) => node.id === nodeId)) return false;
+    if (!leaveShop(campaign)) return false;
+  }
   const routeNode = campaign?.routeMap?.nodes.find((node) => node.id === nodeId);
   const eventResults = campaign?.runCharacterState?.eventResults;
   const hadEventResult = Boolean(eventResults && Object.hasOwn(eventResults, nodeId));
@@ -3941,7 +4020,8 @@ function selectRouteNode(nodeId) {
   const wasMapOpen = dialog.open;
   if (dialog.open) dialog.close();
   try {
-    if (selected.type === "event") renderCampaignEvent();
+    if (selected.type === "shop") renderShop();
+    else if (selected.type === "event") renderCampaignEvent();
     else if (selected.type === "stage2_pending_end") renderStageTwoPendingEnd();
     else if (!beginBattle()) throw new Error("battle setup did not start");
   } catch (error) {
@@ -3985,7 +4065,7 @@ function showRouteSelectionFeedback(message) {
 }
 
 function openRouteMap() {
-  if (!campaign || campaign.status !== "route") return;
+  if (!campaign || !["route", "shop"].includes(campaign.status)) return;
   renderRouteMap();
   const dialog = $("#route-map-dialog");
   dialog.classList.toggle("stage-two", campaign.stageId >= 2);
@@ -3994,7 +4074,7 @@ function openRouteMap() {
 }
 
 function routeTypeLabel(type) {
-  return ({ battle: "普通战斗", elite: "精英战", question: "未知事件", campfire: "篝火", demon: campaign?.stageId === 3 ? "玛奇玛 Boss 战" : campaign?.stageId === 2 ? "波罗斯 Boss 战" : "迪达拉 Boss 战" })[type] ?? "前方地点";
+  return ({ battle: "普通战斗", elite: "精英战", question: "未知事件", campfire: "篝火", shop: "商店", demon: campaign?.stageId === 3 ? "玛奇玛 Boss 战" : campaign?.stageId === 2 ? "波罗斯 Boss 战" : "迪达拉 Boss 战" })[type] ?? "前方地点";
 }
 
 function renderRouteMap() {
@@ -4028,12 +4108,12 @@ function renderRouteMap() {
     }
   }
   const hero = partyPresentation(campaign.playerId);
-  const labels = { start: "起点", battle: "普通战斗", elite: "精英战", question: "未知事件", campfire: "篝火", demon: campaign.stageId === 3 ? "玛奇玛 Boss" : campaign.stageId === 2 ? "波罗斯 Boss" : "迪达拉 Boss" };
+  const labels = { start: "起点", battle: "普通战斗", elite: "精英战", question: "未知事件", campfire: "篝火", shop: "商店", demon: campaign.stageId === 3 ? "玛奇玛 Boss" : campaign.stageId === 2 ? "波罗斯 Boss" : "迪达拉 Boss" };
   for (const node of routeMap.nodes) {
     const position = nodePosition(node);
-    const selectable = campaign.status === "route" && getRouteOptions(campaign).some((option) => option.id === node.id);
+    const selectable = (campaign.status === "route" ? getRouteOptions(campaign) : getShopRouteOptions(campaign)).some((option) => option.id === node.id);
     const element = document.createElement("button");
-    const isCurrent = node.id === routeMap.currentNodeId;
+    const isCurrent = node.id === (campaign.status === "shop" ? campaign.activeShop?.nodeId : routeMap.currentNodeId);
     element.className = `route-map-node route-map-${node.type} route-map-${node.status}${isCurrent ? " route-map-current" : ""}${selectable ? " route-map-selectable" : ""}`;
     element.style.left = `${position.x / 10}%`;
     element.style.top = `${position.y / mapHeight * 100}%`;
@@ -4374,6 +4454,8 @@ function renderSquad() {
   }
   const enemies = inCombat ? viewState.characters.filter((unit) => unit.team === "enemy") : [];
   const summons = inCombat ? viewState.characters.filter((unit) => unit.team === "ally" && unit.tangSummonKind) : [];
+  panel.querySelector(".squad-treasures").hidden = squadSide === "enemy";
+  panel.querySelector("#squad-treasure-detail").hidden = squadSide === "enemy" || !selectedStatusId?.startsWith("treasure-");
   panel.querySelector(".reserve-heading span").textContent = squadSide === "enemy" ? `${enemies.length} 名敌人`
     : summons.length ? `${campaign.partyIds.length} 名队员 · ${summons.length} 名召唤物` : `${campaign.partyIds.length} / 4`;
   const slots = panel.querySelector(".squad-slots");
@@ -4920,7 +5002,13 @@ function renderAdventureEvent() {
   }
 
   const choices = [];
-  if (record.type === "gamble") {
+  if (record.eventId === "found_money") {
+    choices.push(decisionChoice("money_take", "天上掉馅饼", ""));
+    choices.push(decisionChoice("money_leave", "不是我的不能拿", ""));
+  } else if (record.eventId === "devil_bargain") {
+    choices.push(decisionChoice("devil_trade", "接受交易", "主角当前 HP 减少相当于最大 HP 的 50%，最低保留 1 HP；获得 5 点精华。"));
+    choices.push(decisionChoice("devil_leave", "拒绝交易并离开", "获得 1 点精华，不扣除 HP。"));
+  } else if (record.type === "gamble") {
     if (record.data.phase === "recipient") for (const id of campaign.partyIds) {
       choices.push(decisionChoice(`gamble_recipient|${id}`, partyPresentation(id)?.name ?? id, ""));
     }
@@ -5002,7 +5090,7 @@ function renderAdventureEvent() {
   else choices.push(decisionChoice("__confirm__", "继续前进", record.effectText));
   // Event choices reveal outcomes only after selection; phase-two skill lists
   // are shown after the initial decision and still expose only names.
-  for (const choice of choices) choice.description = "";
+  if (record.eventId !== "devil_bargain") for (const choice of choices) choice.description = "";
   const eventDescription = record.type === "gamble"
     ? record.data.phase === "recipient" ? `${record.description}\n请选择本次赌博的角色。`
       : `${record.data.round === 3 ? "贪心不足蛇吞象" : record.description}\n第 ${record.data.round} 轮 · ${partyPresentation(record.data.recipientId)?.name ?? "角色"}`
@@ -5199,6 +5287,10 @@ function initializeGame() {
     const saved = JSON.parse(localStorage.getItem(RUN_SAVE_KEY) || "null");
     if (saved?.campaign?.playerId && saved.version === 1) {
       campaign = saved.campaign;
+      campaign.essence ??= 0;
+      campaign.essenceHistory ??= [];
+      campaign.shopHistory ??= [];
+      campaign.shopMedicines ??= [];
       campaign.random = Math.random;
       campaign.partyStates ??= {};
       campaign.partyStates[campaign.playerId] = campaign.runCharacterState;
@@ -5227,6 +5319,7 @@ function initializeGame() {
         beginBattle();
       } else if (campaign.status === "stage_transition") renderStageTransition();
       else if (campaign.status === "route") renderRoute();
+      else if (campaign.status === "shop") renderShop();
       else if (campaign.status === "trial_intro") renderTrialIntro();
       else if (campaign.status === "trial_route") renderTrialMap();
       else if (campaign.status === "trial_event") renderTrialWill();
@@ -5305,6 +5398,7 @@ const toggleStatusIcon = (event) => {
 };
 $("#ally-status-icons").addEventListener("click", toggleStatusIcon);
 $("#enemy-status-icons").addEventListener("click", toggleStatusIcon);
+$("#squad-treasure-icons").addEventListener("click", toggleStatusIcon);
 $("#character-dialog-close").addEventListener("click", () => {
   if (typeof characterDialog.close === "function") characterDialog.close();
   else characterDialog.removeAttribute("open");
@@ -5324,6 +5418,10 @@ characterDialog.addEventListener("click", (event) => {
 });
 restartRunButton.addEventListener("click", restartToCharacterSelection);
 $("#route-map-open").addEventListener("click", openRouteMap);
+$("#shop-map-open").addEventListener("click", openRouteMap);
+$("#shop-leave").addEventListener("click", () => { if (leaveShop(campaign)) renderRoute(); });
+$("#shop-detail-close").addEventListener("click", () => $("#shop-detail-dialog").close());
+$("#shop-detail-buy").addEventListener("click", () => { if (selectedShopSlot != null) purchaseShopSlot(selectedShopSlot); });
 $("#route-map-close").addEventListener("click", () => $("#route-map-dialog").close());
 logToggle.addEventListener("click", toggleBattleLog);
 log.addEventListener("click", () => {

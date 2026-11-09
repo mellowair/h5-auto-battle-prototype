@@ -2,13 +2,37 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ELITE_ENEMY_DATA, EVENT_ENEMY_DATA, STAGE_THREE_BOSS_DATA, STAGE_THREE_MINIONS, STARTING_CHARACTERS } from "./characters.js";
 import { executeAttack, getCritChance, initializeBattle, isBattleOver, resolveStageThreeDeaths, simulateBattle, stageThreeRoundStart } from "./battle.js";
-import { getStageThreeNormalEnemyStats } from "./campaign.js";
+import { getStageThreeNormalEnemyStats, prepareBattle } from "./campaign.js";
+import { createStageThreeTestCampaign } from "./dev/stage3-config.js";
 import { applyAdventurePartyOutcome, createAdventureEventResult, createRunCharacterState, getAvailableAdventureEventIds, grantQuinque, resolveAdventureEvent } from "./progression.js";
 import { SKILL_DATA } from "./skills.js";
 
 const hero = (id = "hero") => ({ id, name: id, team: "ally", row: "front", hp: 2000, atk: 200, def: 100,
   spd: 100, rosterOrder: id === "hero" ? 0 : 1 });
 const elite = (id) => ({ ...ELITE_ENEMY_DATA.find((unit) => unit.id === id), rosterOrder: id === "shin" ? 2 : 3 });
+
+test("all four Makima followers gain 500 HP and 30 DEF in both summon waves", () => {
+  const expected = {
+    "makima-bomb": [1900, 160], "flamethrower-devil": [2300, 160],
+    "katana-devil": [2700, 180], quanxi: [2500, 130],
+  };
+  for (const [id, stats] of Object.entries(expected))
+    assert.deepEqual([STAGE_THREE_MINIONS[id].hp, STAGE_THREE_MINIONS[id].def], stats);
+  const campaign = createStageThreeTestCampaign({ heroId: "naruto", partnerId: "eren", opponent: "makima" });
+  const prepared = prepareBattle(campaign);
+  for (const id of ["makima-bomb", "flamethrower-devil"]) {
+    const unit = prepared.roster.find((entry) => entry.id === id);
+    assert.deepEqual([unit.maxHp, unit.currentHp, unit.def], [expected[id][0], expected[id][0], expected[id][1]]);
+  }
+  const state = initializeBattle(prepared.roster, prepared.combatOptions);
+  const boss = state.characters.find((unit) => unit.id === "makima");
+  boss.currentHp = Math.floor(boss.maxHp / 2) - 1;
+  const summons = resolveStageThreeDeaths(state, []).filter((event) => event.type === "summon");
+  assert.deepEqual(summons.map((event) => event.character.id), ["katana-devil", "quanxi"]);
+  for (const { character } of summons)
+    assert.deepEqual([character.maxHp, character.currentHp, character.def],
+      [expected[character.id][0], expected[character.id][0], expected[character.id][1]]);
+});
 
 test("third-stage ordinary stats use local 1/7/13 tiers without route growth", () => {
   assert.deepEqual(getStageThreeNormalEnemyStats("guard", 1), { hp: 2400, atk: 250, def: 140, spd: 75 });

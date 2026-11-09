@@ -13,6 +13,7 @@
         <label for="music-track">音乐</label>
         <select id="music-track" aria-label="选择背景音乐" disabled><option>暂无音乐</option></select>
         <button id="music-toggle" type="button" disabled>暂无音乐</button>
+        <span id="essence-hud" class="essence-hud" aria-live="polite" hidden><span aria-hidden="true">◆</span> 精华 ×<b id="essence-count">0</b></span>
       </aside>
       <section id="intro-screen" class="flow-screen intro-screen intro-city" aria-label="开场演出">
         <div class="city-sky">
@@ -120,6 +121,8 @@
             <div class="squad-slot empty-slot"><b>＋</b><span>预留</span></div>
             <div class="squad-slot empty-slot"><b>＋</b><span>预留</span></div>
           </div>
+          <div class="squad-treasures"><span>宝物</span><div id="squad-treasure-icons" class="ally-status-icons" aria-label="已获得宝物" hidden></div></div>
+          <div id="squad-treasure-detail" class="ally-status-detail" aria-live="polite" hidden></div>
         </div>
       </section>
 
@@ -149,6 +152,15 @@
           <div class="route-ground" aria-hidden="true"></div>
         </div>
         <div class="route-footer"><span>队伍生命</span><b id="route-health">1200 / 1200</b><button id="route-partner-link" class="route-partner-link" type="button" hidden>查看伙伴</button></div>
+      </section>
+
+      <section id="shop-screen" class="flow-screen shop-screen" aria-label="商店" hidden>
+        <header class="flow-header"><div><p class="eyebrow">ROUTE SHOP</p><h1>旅途商店</h1></div><button id="shop-map-open" class="control-btn map-open-btn" type="button">查看地图</button></header>
+        <p class="flow-copy">点击商品查看详情；购买后可继续浏览，每个栏位只能购买一次。</p>
+        <p class="shop-balance">◆ 当前精华 ×<b id="shop-essence">0</b></p>
+        <div id="shop-slots" class="shop-slots" aria-label="五件商店商品"></div>
+        <p id="shop-feedback" class="shop-feedback" role="status" aria-live="polite"></p>
+        <button id="shop-leave" class="control-btn primary shop-leave" type="button">离开商店</button>
       </section>
 
       <section id="event-screen" class="flow-screen event-screen" aria-label="奇遇" hidden>
@@ -195,8 +207,16 @@
       <span><img src="assets/route-signs/map-elite.svg" alt="">精英战</span>
       <span><img src="assets/route-signs/map-question.svg" alt="">未知事件</span>
       <span><img src="assets/route-signs/map-campfire.svg" alt="">篝火</span>
+      <span><img src="assets/route-signs/map-shop.svg" alt="">商店</span>
       <span><img src="assets/route-signs/demon.png" alt="">Boss</span>
     </div>
+  </div>
+</dialog>
+<dialog id="shop-detail-dialog" class="shop-detail-dialog" aria-labelledby="shop-detail-title">
+  <div class="shop-detail-inner"><button id="shop-detail-close" class="detail-close" type="button" aria-label="关闭商品详情">×</button>
+    <img id="shop-detail-image" class="shop-detail-image" alt=""><h2 id="shop-detail-title"></h2>
+    <p id="shop-detail-category"></p><p id="shop-detail-description"></p><p id="shop-detail-price"></p>
+    <div id="shop-detail-recipients"></div><button id="shop-detail-buy" class="control-btn primary" type="button">购买</button>
   </div>
 </dialog>
 <dialog id="character-dialog" class="character-dialog" aria-labelledby="character-dialog-title">

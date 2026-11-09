@@ -270,13 +270,13 @@ test("Gun Devil and spinal fluid drops grow linearly per recipient and restore t
     const before = [gun.maxHp, gun.currentHp];
     const effect = grantGunDevilFragment(gun, `bomb-${index}`);
     assert.equal(effect.acquisitionCount, index);
-    assert.equal(effect.maxHp, 200 + (index - 1) * 100);
+    assert.equal(effect.maxHp, 200 + (index - 1) * 40);
     assert.equal(effect.restoredHp, effect.maxHp);
     assert.deepEqual([gun.maxHp, gun.currentHp], [before[0] + effect.maxHp, before[1] + effect.maxHp]);
     assert.match(effect.description, new RegExp(`最大 HP \\+${effect.maxHp}`));
   }
   assert.equal(grantGunDevilFragment(gun, "bomb-5"), false);
-  assert.deepEqual([gun.maxHp, gun.currentHp], [3600, 2500]);
+  assert.deepEqual([gun.maxHp, gun.currentHp], [3000, 1900]);
 
   const giant = makeNaruto();
   giant.currentHp = 500;
@@ -284,9 +284,9 @@ test("Gun Devil and spinal fluid drops grow linearly per recipient and restore t
     const effect = grantGiantSpinalFluid(giant, `titan-${index}`);
     assert.equal(effect.acquisitionCount, index);
     assert.deepEqual([effect.def, effect.maxHp, effect.restoredHp],
-      [20 + (index - 1) * 10, 150 + (index - 1) * 75, 150 + (index - 1) * 75]);
+      [20 + (index - 1) * 4, 150 + (index - 1) * 30, 150 + (index - 1) * 30]);
   }
-  assert.deepEqual([giant.def, giant.maxHp, giant.currentHp], [160, 2275, 1175]);
+  assert.deepEqual([giant.def, giant.maxHp, giant.currentHp], [142, 2140, 1040]);
   assert.equal(grantGiantSpinalFluid(giant, "titan-3"), false);
   assert.equal(grantGunDevilFragment(giant, "bomb-other").acquisitionCount, 1,
     "the two item acquisition counts are independent");
@@ -298,8 +298,8 @@ test("Gun Devil and spinal fluid drops grow linearly per recipient and restore t
   resolveAdventureEvent(finger, "treasury-repeat", "treasury_steal", () => .1);
   finger.eventResults["treasury-repeat"].data.treasureOffer.choices = ["sukuna_finger", "magic_conch"];
   assert.ok(claimTreasure(finger, "treasury-repeat", "sukuna_finger", finger, finger.characterId));
-  assert.deepEqual([finger.atk, finger.maxHp, finger.currentHp], [265, 1300, 500]);
-  assert.equal(finger.permanentEffects.at(-1).atk, 45);
+  assert.deepEqual([finger.atk, finger.maxHp, finger.currentHp], [256, 1300, 500]);
+  assert.equal(finger.permanentEffects.at(-1).atk, 36);
   assert.equal(claimTreasure(finger, "treasury-repeat", "sukuna_finger", finger, finger.characterId), false);
 
   const conch = makeNaruto();
@@ -308,7 +308,7 @@ test("Gun Devil and spinal fluid drops grow linearly per recipient and restore t
   resolveAdventureEvent(conch, "treasury-conch", "treasury_steal", () => .1);
   conch.eventResults["treasury-conch"].data.treasureOffer.choices = ["magic_conch", "odm_gear"];
   assert.ok(claimTreasure(conch, "treasury-conch", "magic_conch", conch, conch.characterId));
-  assert.equal(getTreasureCombatModifiers(conch).damageReduction, .125);
+  assert.equal(getTreasureCombatModifiers(conch).damageReduction, .11);
 });
 
 test("first-stage giant encounter grants the same growing spinal fluid effect once", () => {
@@ -323,28 +323,28 @@ test("first-stage giant encounter grants the same growing spinal fluid effect on
   assert.equal(run.permanentEffects.at(-1).acquisitionCount, 1);
   assert.equal(completeAdventureBattle(run, "giant-first", "victory", () => 0), false);
   const repeat = grantGiantSpinalFluid(run, "giant-elite");
-  assert.deepEqual([repeat.acquisitionCount, repeat.maxHp, repeat.def, repeat.restoredHp], [2, 225, 30, 225]);
-  assert.deepEqual([run.currentHp, run.maxHp, run.def], [875, 1975, 120]);
+  assert.deepEqual([repeat.acquisitionCount, repeat.maxHp, repeat.def, repeat.restoredHp], [2, 180, 24, 180]);
+  assert.deepEqual([run.currentHp, run.maxHp, run.def], [830, 1930, 114]);
 });
 
 test("special drop stage growth and repeat growth both use first-stage base values", () => {
   const gun = makeNaruto();
   gun.currentHp = 500;
   assert.deepEqual([grantGunDevilFragment(gun, "gun-1", 1).maxHp,
-    previewGrowingDrop(gun, "gun_devil_fragment", 2).maxHp], [200, 400]);
+    previewGrowingDrop(gun, "gun_devil_fragment", 2).maxHp], [200, 280]);
   const second = grantGunDevilFragment(gun, "gun-2", 2);
-  assert.deepEqual([second.maxHp, second.restoredHp, gun.maxHp, gun.currentHp], [400, 400, 2200, 1100]);
-  assert.equal(grantGunDevilFragment(gun, "gun-3", 3).maxHp, 600);
-  for (const [stage, expected] of [[1, 200], [2, 300], [3, 400]]) {
+  assert.deepEqual([second.maxHp, second.restoredHp, gun.maxHp, gun.currentHp], [280, 280, 2080, 980]);
+  assert.equal(grantGunDevilFragment(gun, "gun-3", 3).maxHp, 360);
+  for (const [stage, expected] of [[1, 200], [2, 240], [3, 280]]) {
     const fresh = makeNaruto();
     assert.equal(grantGunDevilFragment(fresh, `fresh-${stage}`, stage).maxHp, expected);
   }
   const giant = makeNaruto();
   const first = grantGiantSpinalFluid(giant, "fluid-1", 1);
   const crossStage = grantGiantSpinalFluid(giant, "fluid-2", 2);
-  assert.deepEqual([first.maxHp, first.def, crossStage.maxHp, crossStage.def], [150, 20, 300, 40]);
-  assert.deepEqual([grantGiantSpinalFluid(giant, "fluid-3", 3).maxHp, giant.def], [450, 190]);
-  for (const [stage, expectedHp, expectedDef] of [[1, 150, 20], [2, 225, 30], [3, 300, 40]]) {
+  assert.deepEqual([first.maxHp, first.def, crossStage.maxHp, crossStage.def], [150, 20, 210, 28]);
+  assert.deepEqual([grantGiantSpinalFluid(giant, "fluid-3", 3).maxHp, giant.def], [270, 154]);
+  for (const [stage, expectedHp, expectedDef] of [[1, 150, 20], [2, 180, 24], [3, 210, 28]]) {
     const fresh = makeNaruto();
     const effect = grantGiantSpinalFluid(fresh, `fresh-fluid-${stage}`, stage);
     assert.deepEqual([effect.maxHp, effect.def], [expectedHp, expectedDef]);
@@ -352,14 +352,14 @@ test("special drop stage growth and repeat growth both use first-stage base valu
   const finger = makeNaruto();
   const fingerFirst = grantEliteSukunaFinger(finger, "mahito-1", 1);
   const fingerSecond = grantEliteSukunaFinger(finger, "mahito-2", 2);
-  assert.deepEqual([fingerFirst.atk, fingerSecond.atk, fingerFirst.maxHp, fingerSecond.maxHp], [30, 60, -150, -150]);
-  assert.equal(grantEliteSukunaFinger(makeNaruto(), "mahito-3", 3).atk, 60);
+  assert.deepEqual([fingerFirst.atk, fingerSecond.atk, fingerFirst.maxHp, fingerSecond.maxHp], [30, 42, -150, -150]);
+  assert.equal(grantEliteSukunaFinger(makeNaruto(), "mahito-3", 3).atk, 42);
   const treasury = makeNaruto();
   createAdventureEventResult(treasury, "stage-two-treasury", "kings_treasury", () => 0, [treasury], 2);
   resolveAdventureEvent(treasury, "stage-two-treasury", "treasury_steal", () => .1);
   treasury.eventResults["stage-two-treasury"].data.treasureOffer.choices = ["sukuna_finger", "magic_conch"];
   assert.ok(claimTreasure(treasury, "stage-two-treasury", "sukuna_finger", treasury, treasury.characterId));
-  assert.deepEqual([treasury.atk, treasury.maxHp], [235, 1450]);
+  assert.deepEqual([treasury.atk, treasury.maxHp], [226, 1450]);
 });
 
 test("campfire upgrades learned skills, then teaches an unlearned active skill at level one", () => {
@@ -444,16 +444,16 @@ test("elite reward can be declined after stats without changing skill levels", (
 
 test("adventure candidates are equally sampled and omit a fully learned scroll", () => {
   const run = makeNaruto();
-  assert.deepEqual(getAvailableAdventureEventIds(run), ["scroll", "sea_beyond", "death_note", "fate_gate", "fall_rock", "big_rock", "coffee_shop", "gamble"]);
-  assert.deepEqual(getAvailableAdventureEventIds(run).map((_, i) => chooseAdventureEventId(run, () => i / 8)), getAvailableAdventureEventIds(run));
-  assert.deepEqual(getAvailableAdventureEventIds(run, 8), ["scroll", "sea_beyond", "death_note", "fate_gate", "fall_rock", "big_rock", "coffee_shop", "giant_encirclement", "gamble"]);
+  assert.deepEqual(getAvailableAdventureEventIds(run), ["scroll", "sea_beyond", "death_note", "fate_gate", "fall_rock", "big_rock", "coffee_shop", "gamble", "found_money", "devil_bargain"]);
+  assert.deepEqual(getAvailableAdventureEventIds(run).map((_, i, ids) => chooseAdventureEventId(run, () => (i + .5) / ids.length)), getAvailableAdventureEventIds(run));
+  assert.deepEqual(getAvailableAdventureEventIds(run, 8), ["scroll", "sea_beyond", "death_note", "fate_gate", "fall_rock", "big_rock", "coffee_shop", "giant_encirclement", "gamble", "found_money", "devil_bargain"]);
   assert.ok(getAvailableAdventureEventIds(run, 12, [run], 2).includes("kings_treasury"));
   createAdventureEventResult(run, "sea-once", "sea_beyond", () => 0);
   assert.equal(getAvailableAdventureEventIds(run).includes("sea_beyond"), false, "once discovered, it leaves this run's event pool");
   assert.equal(createAdventureEventResult(run, "sea-second", "sea_beyond"), null, "a second node cannot instantiate it in the same run");
   learnActiveSkill(run, "rasengan", "learn-second");
-  assert.deepEqual(getAvailableAdventureEventIds(run), ["death_note", "fate_gate", "fall_rock", "big_rock", "coffee_shop", "gamble"]);
-  assert.deepEqual(getAvailableAdventureEventIds(run).map((_, i) => chooseAdventureEventId(run, () => i / 6)), getAvailableAdventureEventIds(run));
+  assert.deepEqual(getAvailableAdventureEventIds(run), ["death_note", "fate_gate", "fall_rock", "big_rock", "coffee_shop", "gamble", "found_money", "devil_bargain"]);
+  assert.deepEqual(getAvailableAdventureEventIds(run).map((_, i, ids) => chooseAdventureEventId(run, () => (i + .5) / ids.length)), getAvailableAdventureEventIds(run));
 });
 
 test("fall rock runs three one-time stages and then leaves this run's event pool", () => {
@@ -542,10 +542,10 @@ test("Anteiku coffee heals 15 percent and grants DEF plus 30 only for the next b
 });
 
 test("event images point to copied local resources and decision UI renders them", () => {
-  assert.equal(Object.keys(ADVENTURE_EVENT_DATA).length, 16);
+  assert.equal(Object.keys(ADVENTURE_EVENT_DATA).length, 18);
   const app=readFileSync(new URL("./app.js",import.meta.url),"utf8"), html=readFileSync(new URL("./index.html",import.meta.url),"utf8"), css=readFileSync(new URL("./style.css",import.meta.url),"utf8");
   assert.match(app,/eventImage\.src = image/); assert.match(html,/id="decision-event-image"/); assert.match(css,/\.decision-event-image\[hidden\]\s*\{\s*display:\s*none/);
-  for (const id of ["sea_beyond","death_note","fate_gate","giant_encirclement","kings_treasury","gamble","gamble_2"]) {
+  for (const id of ["sea_beyond","death_note","fate_gate","giant_encirclement","kings_treasury","gamble","gamble_2","found_money","devil_bargain"]) {
     const event = ADVENTURE_EVENT_DATA[id];
     assert.ok(event.image.startsWith("assets/events/"));
     const image = readFileSync(new URL("./" + event.image, import.meta.url));

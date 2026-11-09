@@ -3,7 +3,7 @@ import { upgradeActiveSkill } from "./progression.js";
 
 export const EVOLUTION_DATA = Object.freeze({
   eren: { name: "进击巨人", self: .10, aura: { atk: .10, maxHp: .20, spd: .10, def: .30 },
-    passive: "eren-paths", skills: ["eren-hardening", "eren-warhammer"] },
+    passive: "eren-paths", extraPassive: "eren-coordinate", skills: ["eren-hardening", "eren-warhammer"] },
   kaneki: { name: "白发金木", self: .10, aura: { atk: .30, maxHp: .10, spd: .10, def: .10 },
     passive: "kaneki-one-eye-king", skills: ["kaneki-glutton", "kaneki-2000-14"] },
   naruto: { name: "九尾鸣人", self: .15, aura: { atk: .20, maxHp: .10, spd: .20, def: .10 },
@@ -47,11 +47,12 @@ export function evolveTrialParty(campaign, evolvingCharacterId = campaign?.playe
     teammate.evolutionAuraSources.push({ sourceId: id, bonuses });
   }
   // A higher maximum HP follows the existing rule: current HP is unchanged.
+  if (id === "eren") state.maxHp += SKILL_DATA["eren-coordinate"].levels[1].maxHpBonus;
   state.currentHp = Math.min(state.currentHp, state.maxHp);
   const formerJourneyLevel = state.skillLevels["journey-west"] ?? 1;
   state.passiveSkillId = config.passive;
   state.passiveLevel = 1;
-  state.extraPassiveSkillIds = config.extraPassive ? [config.extraPassive] : [];
+  state.extraPassiveSkillIds = [...new Set([...(state.extraPassiveSkillIds ?? []), ...(config.extraPassive ? [config.extraPassive] : [])])];
   state.activeSkillPool = [...config.skills];
   state.learnedActiveSkills = [...config.skills];
   state.skillLevels = { ...state.skillLevels,

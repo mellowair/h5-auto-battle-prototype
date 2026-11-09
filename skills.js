@@ -2,6 +2,8 @@
 // Level-one Naruto values preserve current combat behavior. Other starter entries are first-pass placeholders.
 // Skill tuning can be replaced through this registry without scattering numbers into UI code.
 export const SKILL_DATA = {
+  "iron-bell": { id: "iron-bell", name: "金钟罩铁布衫", type: "passive", passive: true,
+    description: "自身防御高于伤害来源时，将本次实际受到伤害的 50% 反弹给伤害来源。", levels: { 1: {} } },
   "falling-gravity-domain": { id: "falling-gravity-domain", name: "重力领域", type: "passive", passive: true,
     description: "开战时将所有玩家角色的实际战斗 SPD 固定为 1；入场面板 SPD 仍用于失重伤害。", levels: { 1: {} } },
   "falling-weightlessness": { id: "falling-weightlessness", name: "失重", type: "passive", passive: true,
@@ -40,15 +42,18 @@ export const SKILL_DATA = {
     description: "造成 1.2 倍攻击伤害，命中后使目标沉默两回合。",
     levels: { 1: { chance: .4, multiplier: 1.2, effectType: "damage", attackType: "melee", silenceRounds: 2 } } },
   "eren-paths": { id: "eren-paths", name: "道路", type: "passive", passive: true, maxLevel: 1,
-    description: "每场首次受到伤害免疫；首次生命低于 20% 时恢复 40% 最大 HP；普攻和伤害技能命中时追加自身当前 HP 10% 为基础的正常防御伤害，不消耗 HP。", levels: { 1: { immuneHits: 1, emergencyHealRatio: .4, emergencyThreshold: .2 } } },
+    description: "每场首次受到伤害免疫；首次生命低于 20% 时恢复 50% 最大 HP。", levels: { 1: { immuneHits: 1, emergencyHealRatio: .5, emergencyThreshold: .2 } } },
+  "eren-coordinate": { id: "eren-coordinate", name: "坐标", type: "passive", passive: true, maxLevel: 1,
+    description: "最大 HP +1000；每次造成伤害时，追加自身已损失 HP 40% 为基础的普通伤害，不消耗 HP。",
+    levels: { 1: { maxHpBonus: 1000, missingHpDamageRatio: .4 } } },
   "eren-hardening": { id: "eren-hardening", name: "硬质化", type: "active", triggerType: "on_action", maxLevel: 4,
-    description: "增加本场防御，受到攻击时反伤；高等级可嘲讽。",
+    description: "增加本场防御，受到攻击时反伤；每第 3 次释放恢复最大 HP 的 10%；高等级可嘲讽。",
     levels: Object.fromEntries([[.5,10,.8,false],[.6,15,.8,false],[.6,20,1,false],[.7,25,1,true]].map(([chance,defenseBonus,reflectMultiplier,taunt], index) =>
-      [index + 1, { chance, defenseBonus, reflectMultiplier, maxDefenseStacks: 4, reflectTurns: 2, taunt, effectType: "hardening" }])) },
+      [index + 1, { chance, defenseBonus, reflectMultiplier, maxDefenseStacks: 4, reflectTurns: 2, taunt, healEveryCasts: 3, healMaxHpRatio: .1, effectType: "hardening" }])) },
   "eren-warhammer": { id: "eren-warhammer", name: "战锤之力", type: "active", triggerType: "on_action", maxLevel: 4,
-    description: "以攻击与防御合力攻击，按自身防御忽视目标防御，随后消耗自身防御。",
-    levels: Object.fromEntries([[.4,1.7,.4,40],[.5,1.8,.5,40],[.5,1.9,.6,30],[.6,1.9,.7,30]].map(([chance,multiplier,ignoreDefenseFromOwnDef,defenseCost], index) =>
-      [index + 1, { chance, multiplier, ignoreDefenseFromOwnDef, defenseCost, attackFormula: "atk_plus_current_def", effectType: "damage", attackType: "melee" }])) },
+    description: "以攻击与防御合力攻击，按自身防御忽视目标防御。",
+    levels: Object.fromEntries([[.4,1.7,.4],[.5,1.8,.5],[.5,1.9,.6],[.6,1.9,.7]].map(([chance,multiplier,ignoreDefenseFromOwnDef], index) =>
+      [index + 1, { chance, multiplier, ignoreDefenseFromOwnDef, attackFormula: "atk_plus_current_def", effectType: "damage", attackType: "melee" }])) },
   "kaneki-one-eye-king": { id: "kaneki-one-eye-king", name: "独眼之王", type: "passive", passive: true, maxLevel: 1,
     description: "暴击吸血 30%；每战首次低于 40% HP 时，暴击伤害 +40% 持续 5 回合，暴击率 +60 个百分点持续本场；暴伤窗口内击杀永久 ATK +10。",
     levels: { 1: { healFromCalculatedDamage: .3, emergencyThreshold: .4, critDamageBonus: .4, critRateBonus: .6, durationRounds: 5, killAttackBonus: 10 } } },
@@ -63,25 +68,25 @@ export const SKILL_DATA = {
       [index + 1, { hitsPerTrigger, attackBonus, attacksPerTrigger, critDamagePerAttack,
         counterDamageEvery: index === 3 ? 10 : 0 }])) },
   "naruto-nine-tails-bond": { id: "naruto-nine-tails-bond", name: "九尾的羁绊", type: "passive", passive: true, maxLevel: 1,
-    description: "低于半血时提升攻击并吸血；队友濒危时再强化攻击，并将伤害转为队友护盾。",
-    levels: { 1: { lowHpThreshold: .5, attackBonusRatio: .3, lifesteal: .2, teammateThreshold: .15, teammateAttackBonusRatio: .3, teammateShieldRatio: .1 } } },
+    description: "自身 HP 低于 60% 时 ATK +30%、吸血 25%；队友 HP 低于 50% 或阵亡时额外 ATK +20%，伤害的 20% 为存活队友叠加护盾。",
+    levels: { 1: { lowHpThreshold: .6, attackBonusRatio: .3, lifesteal: .25, teammateThreshold: .5, teammateAttackBonusRatio: .2, teammateShieldRatio: .2 } } },
   "naruto-chakra-clones": { id: "naruto-chakra-clones", name: "查克拉影分身", type: "passive", passive: true, maxLevel: 1,
-    description: "每场自带两个分身；队友在 HP 不高于最大 HP 的 20% 时受到攻击，必定消耗一个分身，将本次伤害减半。",
-    levels: { 1: { startingClones: 2, teammateHpThreshold: .2, reduction: .5 } } },
+    description: "每场自带两个分身；队友 HP 低于 50% 时每次受到伤害消耗一个分身，使该次伤害减少 30%。",
+    levels: { 1: { startingClones: 2, teammateHpThreshold: .5, reduction: .3 } } },
   "naruto-multi-clone": { id: "naruto-multi-clone", name: "多重影分身", type: "active", triggerType: "on_action", maxLevel: 4,
     description: "50%/60%/70%/70% 概率造成 1.5/1.8/2.1/2.5 倍 ATK 主目标伤害；其他敌人承受主目标伤害的 75%，仅剩一敌人时额外承受 50%；成功释放增加 1/1/1/2 个影分身。",
     levels: Object.fromEntries([[.5,1.5],[.6,1.8],[.7,2.1],[.7,2.5]].map(([chance,multiplier], index) =>
       [index + 1, { chance, multiplier, splashRatio: .75, singleTargetSplashRatio: .5, cloneGain: index === 3 ? 2 : 1, effectType: "damage", attackType: "melee" }])) },
   "naruto-giant-rasengan": { id: "naruto-giant-rasengan", name: "大玉螺旋丸", type: "active", triggerType: "on_action", maxLevel: 4,
-    description: "沿用螺旋丸等级伤害；每次施放积累查克拉，满 100 时追加超大玉螺旋丸。",
+    description: "沿用螺旋丸等级伤害；每第 3 次成功释放强化为超大玉螺旋丸。",
     levels: Object.fromEntries(Array.from({ length: 4 }, (_, index) => [index + 1, {
       ...[null, { chance: .4, multiplierFormula: { base: 1, stat: "spd", coefficient: .003 } },
         { chance: .44, multiplierFormula: { base: 1, stat: "spd", coefficient: .006 } },
         { chance: .48, multiplierFormula: { base: 1, stat: "spd", coefficient: .009 } },
         { chance: .52, multiplierFormula: { base: 1, stat: "spd", coefficient: .012 } }][index + 1],
-      chakraLevelGain: (index + 1) * 3, chakraThreshold: 100, effectType: "damage", attackType: "melee" }])) },
+      burstEveryCasts: 3, effectType: "damage", attackType: "melee" }])) },
   "tang-compassion": { id: "tang-compassion", name: "慈悲为怀", type: "passive", passive: true, maxLevel: 1,
-    description: "高血量为友方减伤；低血量从友方伤害中获治疗；濒危时由另一名玩家队友分摊伤害。",
+    description: "高血量为全体友方减伤；低血量从友方伤害中获治疗；替召唤物承担 10% 伤害；濒危时由另一名玩家队友或召唤物分摊伤害。",
     levels: { 1: { highHpThreshold: .8, damageReduction: .1, lowHpThreshold: .6, healFromAllyDamage: .2,
       criticalHpThreshold: .2, sharedDamageRatio: .4 } } },
   "tang-boundless-dharma": { id: "tang-boundless-dharma", name: "无量佛法", type: "active", triggerType: "on_meditation", maxLevel: 4,
@@ -90,7 +95,7 @@ export const SKILL_DATA = {
       [index + 1, { meditationRounds: 4, enemyAttackStep: 10, allyAttackStep, attackCap, teamShield, effectType: "meditation" }])) },
   "tang-flesh": {
     id: "tang-flesh", name: "唐僧肉", type: "passive", passive: true, maxLevel: 2,
-    description: "召唤物存活时唐僧受到伤害减少 20%；Lv.2 召唤物按实际造成伤害的 20% 治疗唐僧。",
+    description: "替召唤物承担 10% 伤害；召唤物存活时唐僧受到伤害减少 20%；Lv.2 召唤物按实际造成伤害的 20% 治疗唐僧。",
     levels: { 1: { reduction: 0.2 }, 2: { reduction: 0.2, summonHealRatio: 0.2 } },
   },
   "journey-west": {
@@ -239,23 +244,23 @@ export const SKILL_DATA = {
     levels: { 1: { oncePerBattle: true, damageImmune: true, immuneHits: 1 }, 2: { oncePerBattle: true, damageImmune: true, immuneHits: 2, maxHpBonus: 400 } },
   },
   "eren-free-will": {
-    id: "eren-free-will", name: "自由意志", type: "active", description: "触发时进行一次普通攻击，并获得持续本场战斗的 DEF 加成，最多叠加 4 次。每累计成功触发 3 次，恢复最大 HP 的 8%；Lv.4 每第 3 次释放追加当前 DEF×1 的真实伤害。",
+    id: "eren-free-will", name: "自由意志", type: "active", description: "以 ATK + DEF 造成伤害，并获得持续本场战斗的 DEF 加成，最多叠加 4 次。每累计成功触发 3 次，恢复最大 HP 的 8%；Lv.4 每第 3 次释放追加当前 DEF×2 的真实伤害。",
     triggerType: "on_action", targetRule: "front_priority_random", passive: false, unlockMethod: "character_choice", maxLevel: 4,
     levels: {
-      1: { chance: 0.50, multiplier: 1, effectType: "damage", normalAttack: true, defenseBonus: 10, stackDefenseBonus: true, maxDefenseStacks: 4, defenseDuration: "battle", healEveryTriggers: 3, healMaxHpFraction: 0.08 },
-      2: { chance: 0.55, multiplier: 1, effectType: "damage", normalAttack: true, defenseBonus: 15, stackDefenseBonus: true, maxDefenseStacks: 4, defenseDuration: "battle", healEveryTriggers: 3, healMaxHpFraction: 0.08 },
-      3: { chance: 0.60, multiplier: 1, effectType: "damage", normalAttack: true, defenseBonus: 20, stackDefenseBonus: true, maxDefenseStacks: 4, defenseDuration: "battle", healEveryTriggers: 3, healMaxHpFraction: 0.08 },
-      4: { chance: 0.70, multiplier: 1, effectType: "damage", normalAttack: true, defenseBonus: 25, stackDefenseBonus: true, maxDefenseStacks: 4, defenseDuration: "battle", healEveryTriggers: 3, healMaxHpFraction: 0.08, extraTrueDamageEvery: 3, extraTrueDamageDefRatio: 1 },
+      1: { chance: 0.50, multiplier: 1, attackFormula: "atk_plus_current_def", effectType: "damage", normalAttack: true, defenseBonus: 10, stackDefenseBonus: true, maxDefenseStacks: 4, defenseDuration: "battle", healEveryTriggers: 3, healMaxHpFraction: 0.08 },
+      2: { chance: 0.55, multiplier: 1, attackFormula: "atk_plus_current_def", effectType: "damage", normalAttack: true, defenseBonus: 15, stackDefenseBonus: true, maxDefenseStacks: 4, defenseDuration: "battle", healEveryTriggers: 3, healMaxHpFraction: 0.08 },
+      3: { chance: 0.60, multiplier: 1, attackFormula: "atk_plus_current_def", effectType: "damage", normalAttack: true, defenseBonus: 20, stackDefenseBonus: true, maxDefenseStacks: 4, defenseDuration: "battle", healEveryTriggers: 3, healMaxHpFraction: 0.08 },
+      4: { chance: 0.70, multiplier: 1, attackFormula: "atk_plus_current_def", effectType: "damage", normalAttack: true, defenseBonus: 25, stackDefenseBonus: true, maxDefenseStacks: 4, defenseDuration: "battle", healEveryTriggers: 3, healMaxHpFraction: 0.08, extraTrueDamageEvery: 3, extraTrueDamageDefRatio: 2 },
     },
   },
   "eren-tatakae": {
-    id: "eren-tatakae", name: "塔塔开", type: "active", description: "触发时以 ATK + 当前 DEF 作为攻击力并造成倍率伤害；下回合嘲讽敌方单体攻击。Lv.4 将每名存活队友的护盾刷新至最多 200 点，不叠加。",
+    id: "eren-tatakae", name: "塔塔开", type: "active", description: "以 ATK + 当前 DEF×1.5 为基础造成倍率伤害；下回合嘲讽敌方单体攻击。Lv.4 将每名存活队友的护盾刷新至最多 200 点，不叠加。",
     triggerType: "on_action", targetRule: "front_priority_random", passive: false, unlockMethod: "character_choice", maxLevel: 4,
     levels: {
-      1: { chance: 0.30, multiplier: 1.3, attackFormula: "atk_plus_current_def", effectType: "damage", tauntNextRound: true },
-      2: { chance: 0.35, multiplier: 1.4, attackFormula: "atk_plus_current_def", effectType: "damage", tauntNextRound: true },
-      3: { chance: 0.40, multiplier: 1.55, attackFormula: "atk_plus_current_def", effectType: "damage", tauntNextRound: true },
-      4: { chance: 0.50, multiplier: 1.7, attackFormula: "atk_plus_current_def", effectType: "damage", tauntNextRound: true, teamShield: 200 },
+      1: { chance: 0.30, multiplier: 1.7, attackFormula: "atk_plus_scaled_def", defenseScale: 1.5, effectType: "damage", tauntNextRound: true },
+      2: { chance: 0.35, multiplier: 1.9, attackFormula: "atk_plus_scaled_def", defenseScale: 1.5, effectType: "damage", tauntNextRound: true },
+      3: { chance: 0.40, multiplier: 2.1, attackFormula: "atk_plus_scaled_def", defenseScale: 1.5, effectType: "damage", tauntNextRound: true },
+      4: { chance: 0.50, multiplier: 2.3, attackFormula: "atk_plus_scaled_def", defenseScale: 1.5, effectType: "damage", tauntNextRound: true, teamShield: 200 },
     },
   },
   "shield-bash": {
@@ -382,23 +387,29 @@ export const ADVENTURE_EVENT_DATA = {
   },
   gamble: { id: "gamble", name: "一次豪赌", type: "gamble", description: "小赌怡情，大赌伤身（三局两胜者，当赏！）", image: "assets/events/event_gamble.png", effectText: "先选择一名队员，再决定是否参与每一轮赌博。", containsBattle: false, providesReward: true, requiresChoice: true },
   gamble_2: { id: "gamble_2", name: "一次豪赌（2）", type: "gamble", description: "小赌怡情，大赌伤身（三局两胜者，当赏！）", image: "assets/events/event_gamble.png", effectText: "先选择一名队员，再决定是否参与每一轮赌博。", containsBattle: false, providesReward: true, requiresChoice: true },
+  found_money: { id: "found_money", name: "拾金不昧", type: "essence_choice",
+    description: "路边忽然出现一袋遗失的钱财。", image: "assets/events/event_found_money.png",
+    effectText: "你会怎么做？", containsBattle: false, providesReward: true, requiresChoice: true },
+  devil_bargain: { id: "devil_bargain", name: "恶魔交易", type: "essence_choice",
+    description: "恶魔递来一纸契约，索取你的生命作为交换。", image: "assets/events/event_devil_bargain.png",
+    effectText: "选择前可以查看每项代价与收益。", containsBattle: false, providesReward: true, requiresChoice: true },
 };
 
 export const GIANT_SPINAL_FLUID = Object.freeze({
   id: "giant_spinal_fluid", name: "巨人脊髓液", image: "assets/events/giant_spinal_fluid.png",
-  description: "本局 DEF +20，最大 HP +150，并立即恢复等量 HP（不超过最大 HP）。重复获得时本次属性收益逐次提高。", atk: 0, def: 20, maxHp: 150,
+  description: "第一关基础 DEF +20、最大 HP +150，并立即恢复等量 HP。每跨一关及每重复获取一次，本次正属性收益各增加基础值的 20%。", atk: 0, def: 20, maxHp: 150,
 });
 
 export const GUN_DEVIL_FRAGMENT = Object.freeze({
   id: "gun_devil_fragment", name: "枪魔碎片", image: "assets/treasures/gun-devil-fragment.png",
-  description: "本局最大 HP +200，并立即恢复 200 HP（不超过最大 HP）。重复获得时本次属性收益逐次提高。", maxHp: 200,
+  description: "第一关基础最大 HP +200，并立即恢复等量 HP。每跨一关及每重复获取一次，本次收益各增加基础值的 20%。", maxHp: 200,
 });
 
 // King's Treasury rewards are data only; their effects are applied by the
 // existing run-character and battle-state rules.
 export const TREASURE_DATA = Object.freeze({
   magic_conch: { id: "magic_conch", tier: "small", name: "神奇海螺", image: "assets/treasures/magic-conch.png", description: "本局可减免的战斗伤害减免 +5 个百分点。", damageReduction: 0.05 },
-  sukuna_finger: { id: "sukuna_finger", tier: "small", name: "宿傩手指", image: "assets/treasures/sukuna-finger.png", description: "本局 ATK +30，最大 HP -150。", atk: 30, maxHp: -150 },
+  sukuna_finger: { id: "sukuna_finger", tier: "small", name: "宿傩手指", image: "assets/treasures/sukuna-finger.png", description: "第一关基础 ATK +30，最大 HP -150；每跨一关及每重复获取一次，ATK 收益各增加基础值的 20%，最大 HP 代价不变。", atk: 30, maxHp: -150 },
   odm_gear: { id: "odm_gear", tier: "small", name: "立体机动装置", image: "assets/treasures/odm-gear.png", description: "本局闪避率 +5 个百分点，暴击率 +5 个百分点。", dodgeRateBonus: 0.05, critRateBonus: 0.05 },
   angel_breath: { id: "angel_breath", tier: "royal", name: "大天使的气息", image: "assets/treasures/angel-breath.png", description: "立即回满 HP；此后每场战斗结束恢复最大 HP 的 20%。", battleEndHealRatio: 0.20 },
   stone_mask: { id: "stone_mask", tier: "royal", name: "石鬼面", image: "assets/treasures/stone-mask.png", description: "本局吸血 +40 个百分点，但无法通过篝火恢复 HP。", lifesteal: 0.40, blocksCampfireHeal: true },

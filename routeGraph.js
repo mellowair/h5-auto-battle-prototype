@@ -1,6 +1,7 @@
 // Logical routes and their visual rows are independent. The start is not an
 // encounter; each visited room, including the Boss, counts as one step.
 export const ROUTE_MAP_FINAL_STEP = 15; // Highest display row, not a fixed trip length.
+import { SHOP_RULES } from "./shopConfig.js";
 
 function hashSeed(seed) {
   let value = 2166136261;
@@ -102,6 +103,20 @@ function assignTypes(graph, random) {
   return { eliteStep: middle.join.layer, campfireStep: graph.campfire.layer };
 }
 
+function insertShops(graph) {
+  // Fill one missing row on each of two shorter lanes. The shared middle
+  // block separates them by at least five ordinary rooms on every route.
+  for (const block of [graph.blocks[0], graph.blocks[2]]) {
+    const lane = block.lanes.reduce((shortest, candidate) => candidate.length < shortest.length ? candidate : shortest);
+    const last = lane.at(-1);
+    const room = node(`shop-${block === graph.blocks[0] ? 1 : 2}`, last.layer + 1, last.x, "shop");
+    last.nextNodeIds = last.nextNodeIds.map((id) => id === block.join.id ? room.id : id);
+    edge(room, block.join);
+    graph.nodes.push(room);
+  }
+  graph.nodes.sort((a, b) => a.layer - b.layer || a.x - b.x);
+}
+
 function orientation(a, b, c) {
   return (b.x - a.x) * (c.layer - a.layer) - (b.layer - a.layer) * (c.x - a.x);
 }
@@ -133,17 +148,19 @@ export function analyzeRouteMap(map) {
       if (crosses(from, to, ...edges[other])) crossings += 1;
     for (const candidate of map.nodes) if (passesNode(from, to, candidate)) throughNodes += 1;
   });
-  const lengths = [], roomTotals = { battle: 0, elite: 0, question: 0, campfire: 0 };
+  const lengths = [], roomTotals = { battle: 0, elite: 0, question: 0, campfire: 0, shop: 0 };
   const beforeBoss = { battle: 0, elite: 0, question: 0, campfire: 0 };
   let invalidPaths = 0;
-  function walk(id, path, seenElite, seenCampfire, streak) {
+  function walk(id, path, seenElite, seenCampfire, streak, sinceShop = Infinity) {
     const current = byId.get(id);
     if (!current || path.includes(id)) { invalidPaths += 1; return; }
     const visited = [...path, id];
     const elite = seenElite || current.type === "elite";
     const campfire = seenCampfire || current.type === "campfire";
-    const nextStreak = ["start", "battle", "elite", "demon"].includes(current.type) ? 0 : streak + 1;
+    const nextStreak = current.type === "shop" ? streak : ["start", "battle", "elite", "demon"].includes(current.type) ? 0 : streak + 1;
     if (nextStreak > 2) invalidPaths += 1;
+    if (current.type === "shop" && sinceShop < SHOP_RULES.minimumNodesBetweenShops) invalidPaths += 1;
+    const nextShopGap = current.type === "shop" ? 0 : sinceShop + 1;
     if (id === map.bossNodeId) {
       lengths.push(visited.length - 1); // Start excluded, Boss included.
       if (!elite || !campfire) invalidPaths += 1;
@@ -159,7 +176,7 @@ export function analyzeRouteMap(map) {
       return;
     }
     if (!current.nextNodeIds.length) { invalidPaths += 1; return; }
-    current.nextNodeIds.forEach((child) => walk(child, visited, elite, campfire, nextStreak));
+    current.nextNodeIds.forEach((child) => walk(child, visited, elite, campfire, nextStreak, nextShopGap));
   }
   walk(map.startNodeId, [], false, false, 0);
   const reachable = new Set(), stack = [map.startNodeId];
@@ -196,6 +213,7 @@ export function analyzeRouteMap(map) {
     branchCounts: map.nodes.filter((entry) => entry.nextNodeIds.length > 1).map((entry) => entry.nextNodeIds.length),
     crossings, throughNodes, consecutiveCampfires, redundantChoices, invalidPaths,
     roomTotals, beforeBoss,
+    shops: map.nodes.filter((entry) => entry.type === "shop").map((entry) => ({ id: entry.id, layer: entry.layer, x: entry.x })),
   };
 }
 
@@ -213,7 +231,8 @@ export function validateRouteMap(map) {
   const stats = analyzeRouteMap(map);
   return stats.reachableNodes === map.nodes.length && stats.routeCount > 0 &&
     stats.invalidPaths === 0 && stats.consecutiveCampfires === 0 &&
-    stats.shortest >= 11 && stats.longest <= 15 && Math.abs(stats.averageLength - 13) <= 0.5 &&
+    stats.shortest >= 11 && stats.longest <= 15 && Math.abs(stats.averageLength - 14) <= 0.5 &&
+    stats.shops.length >= 1 && stats.shops.length <= SHOP_RULES.targetNodes &&
     stats.crossings === 0 && stats.throughNodes === 0 && stats.redundantChoices === 0;
 }
 
@@ -240,6 +259,7 @@ export function generateRouteMap(seed = 0, options = {}) {
   const random = createSeededRandom(seed);
   const graph = buildTopology(random);
   const guarantees = assignTypes(graph, random);
+  insertShops(graph);
   const map = { seed: String(seed), stageId: options.stageId ?? 1, startNodeId: "start-konoha", bossNodeId: "boss-deidara",
     currentNodeId: "start-konoha", ...guarantees,
     guaranteedEliteStep: guarantees.eliteStep, visitedEdges: [], nodes: graph.nodes };

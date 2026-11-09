@@ -9,12 +9,15 @@ export function reportRouteMaps(seedCount = 1000) {
     redundantChoices: 0, crossRowJoins: 0, crossings: 0, linesThroughNodes: 0,
     checkedEdges: 0, consecutiveCampfireEdges: 0, invalidPaths: 0,
     deadOrIsolatedNodes: 0, branchCounts: {},
-    roomsOnRoutes: { battle: 0, elite: 0, question: 0, campfire: 0 },
+    roomsOnRoutes: { battle: 0, elite: 0, question: 0, campfire: 0, shop: 0 },
     twoRoomsBeforeBoss: { battle: 0, elite: 0, question: 0, campfire: 0 },
+    shopsPerMap: {}, shopNodes: [],
   };
   for (let seed = 0; seed < seedCount; seed += 1) {
     const stats = analyzeRouteMap(generateRouteMap(seed));
     report.fullRoutes += stats.routeCount;
+    report.shopsPerMap[stats.shops.length] = (report.shopsPerMap[stats.shops.length] ?? 0) + 1;
+    if (seed === 0) report.shopNodes = stats.shops;
     report.totalRouteSteps += stats.averageLength * stats.routeCount;
     report.shortest = Math.min(report.shortest, stats.shortest);
     report.longest = Math.max(report.longest, stats.longest);

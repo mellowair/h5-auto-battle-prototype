@@ -267,7 +267,7 @@ test("Eren's Free Will levels grant a normal hit and cumulative battle-long DEF"
   const first = makeHit();
   const second = makeHit();
   assert.equal(first.attackKind, "normal", "Free Will retains normal-attack dodge handling");
-  assert.equal(first.damage, 110);
+  assert.equal(first.damage, 220);
   assert.equal(first.defenseBonusApplied, 10);
   assert.equal(second.defenseBonusApplied, 10);
   assert.equal(eren.defenseBuff, 20, "repeated triggers accumulate rather than overwrite");
@@ -333,8 +333,8 @@ test("round-limited rock slowdown changes action order for exactly three real ro
   assert.equal(result.finalCharacters.find((character) => character.id === "hero").spd, 50);
 });
 
-test("Eren's Tatakae uses ATK plus current DEF and taunts in the next round without doubling damage", () => {
-  const expected = [[1, 0.3, 1.3], [2, 0.35, 1.4], [3, 0.4, 1.55], [4, 0.5, 1.7]];
+test("Eren's Tatakae uses ATK plus 1.5 times current DEF and taunts in the next round", () => {
+  const expected = [[1, 0.3, 1.7], [2, 0.35, 1.9], [3, 0.4, 2.1], [4, 0.5, 2.3]];
   assert.deepEqual(expected.map(([level]) => [SKILL_DATA["eren-tatakae"].levels[level].chance, SKILL_DATA["eren-tatakae"].levels[level].multiplier]), expected.map(([, chance, multiplier]) => [chance, multiplier]));
   const run = createRunCharacterState(STARTING_CHARACTERS.find((entry) => entry.id === "eren"), "eren-tatakae");
   const skill = { ...getSkillAtLevel(run, "eren-tatakae"), chance: 1 };
@@ -342,9 +342,9 @@ test("Eren's Tatakae uses ATK plus current DEF and taunts in the next round with
   const enemy = { id: "enemy", team: "enemy", atk: 100, def: 0, spd: 20, currentHp: 1000, maxHp: 1000, alive: true, skills: [] };
   const state = { characters: [eren, enemy], round: 1 };
   const skillHit = executeAttack(state, eren, enemy, () => 0.99);
-  assert.equal(skillHit.skillAttackPower, 140);
-  assert.equal(skillHit.skillMultiplier, 1.3);
-  assert.equal(skillHit.damage, 182);
+  assert.equal(skillHit.skillAttackPower, 160);
+  assert.equal(skillHit.skillMultiplier, 1.7);
+  assert.equal(skillHit.damage, 272);
   assert.deepEqual(eren.tauntRounds, [2]);
   const nextHit = executeAttack(state, enemy, eren, () => 0.99);
   assert.equal(nextHit.damage, 71);
