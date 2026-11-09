@@ -60,7 +60,7 @@ test("Makima summons once below half, counts true deaths, controls only partner 
   const minion = state.characters.find((unit) => unit.id === "makima-bomb");
   minion.currentHp = 0; minion.alive = false;
   assert.equal(resolveStageThreeDeaths(state, []).filter((event) => event.type === "stage3-minion-death").length, 1);
-  assert.equal(boss.atk, 350);
+  assert.equal(boss.atk, 400);
   assert.equal(resolveStageThreeDeaths(state, []).length, 0);
   state.round = 4;
   const roundFour = stageThreeRoundStart(state, () => .99);
@@ -69,7 +69,7 @@ test("Makima summons once below half, counts true deaths, controls only partner 
   assert.equal(roundFour.filter((event) => event.type === "stage3-control").length, 0);
   const bang = roundFour.find((event) => event.skillId === "makima-bang");
   assert.equal(bang.round, 4);
-  assert.equal(bang.bangBaseDamage, 140);
+  assert.equal(bang.bangBaseDamage, 160);
   assert.ok(bang.actualDamage > 0);
   for (const id of ["flamethrower-devil", "katana-devil", "quanxi"]) {
     const unit = state.characters.find((entry) => entry.id === id);
@@ -78,8 +78,8 @@ test("Makima summons once below half, counts true deaths, controls only partner 
   const deaths = resolveStageThreeDeaths(state, []);
   assert.equal(deaths.filter((event) => event.type === "stage3-minion-death").length, 3);
   assert.equal(deaths.filter((event) => event.type === "stage3-lifesteal").length, 1);
-  assert.equal(boss.atk, 650);
-  assert.equal(boss.lifesteal, .1);
+  assert.equal(boss.atk, 850);
+  assert.equal(boss.lifesteal, .25);
 });
 
 test("Makima's dismissed minions do not grant attack, and control never selects a summoned ally", () => {
@@ -211,4 +211,62 @@ test("Anteiku final stays in stage three, applies one shared run penalty and gra
   assert.equal(applyAdventurePartyOutcome(partner, lead.eventResults["third-cafe"]), false);
   assert.equal(grantQuinque(partner, "arima-win", "quinque_crit")?.id, "quinque_crit");
   assert.equal(grantQuinque(partner, "arima-win", "quinque_guard"), false);
+});
+
+test("angel clears actual skill bonuses at rounds 3, 7, 11 while preserving permanent stats", () => {
+  const state = initializeBattle([{ ...hero("kaneki"), hp: 2500, maxHp: 2500, currentHp: 2500,
+    atk: 200, def: 100, critRateBonus: .05, dodgeRateBonus: .04,
+    lifesteal: .2, damageReductionBonus: .1, passiveSkillId: "kaneki-one-eye-king" },
+    STAGE_THREE_BOSS_DATA], { playerId: "kaneki" });
+  state.makima.controlledOnce = true;
+  state.makima.nextBangRound = 99;
+  const target = state.characters[0];
+  const grantSkillBonuses = () => {
+    target.atk += 50; target.battleAttackBonus += 50;
+    target.defenseBuff = 30; target.defenseBuffUntilRound = Infinity;
+    target.critRateBonus += .6; target.oneEyeKingCritRateBonus = .6;
+    target.oneEyeKingEmergencyUsed = true; target.oneEyeKingUntilRound = 15;
+    target.reactiveCritDamageBonus = .08; target.shieldHp = 100;
+  };
+  grantSkillBonuses();
+  for (const round of [2, 3, 6, 7, 11]) {
+    state.round = round;
+    const result = stageThreeRoundStart(state, () => .99);
+    const clear = result.find((event) => event.type === "stage3-buff-clear" && event.targetId === "kaneki");
+    if (round === 2 || round === 6) {
+      assert.equal(clear, undefined);
+      assert.equal(target.atk, 250);
+    } else {
+      assert.ok(clear);
+      assert.deepEqual([target.atk, target.def, target.maxHp, target.defenseBuff,
+        target.critRateBonus, target.reactiveCritDamageBonus, target.shieldHp],
+      [200, 100, 2500, 0, .05, 0, 0]);
+      assert.deepEqual([target.dodgeRateBonus, target.lifesteal, target.damageReductionBonus], [.04, .2, .1]);
+      assert.equal(target.oneEyeKingEmergencyUsed, true, "once-per-battle activation remains consumed");
+      assert.equal(clear.buffState.atk, 200);
+      if (round < 11) grantSkillBonuses();
+    }
+  }
+});
+
+test("angel also clears buffs from a controlled ally and a player summon", () => {
+  const controlled = { ...hero("partner"), atk: 250, battleAttackBonus: 50 };
+  const summon = { ...hero("summon"), summonerId: "partner", originalTeam: "ally", atk: 230,
+    battleAttackBonus: 30 };
+  const state = initializeBattle([hero(), controlled, summon, STAGE_THREE_BOSS_DATA], { playerId: "hero" });
+  state.makima.controlledOnce = true;
+  state.makima.controlledId = "partner";
+  state.makima.controlEndsAtRound = 9;
+  state.makima.nextBangRound = 99;
+  for (const unit of state.characters.filter((entry) => ["partner", "summon"].includes(entry.id))) {
+    unit.team = "enemy"; unit.controlledByMakima = true;
+    unit.battleAttackBonus = unit.id === "partner" ? 50 : 30;
+  }
+  state.round = 3;
+  const events = stageThreeRoundStart(state, () => .99);
+  assert.deepEqual(events.filter((event) => event.type === "stage3-buff-clear").map((event) => event.targetId),
+    ["hero", "partner", "summon"]);
+  assert.equal(state.characters.find((unit) => unit.id === "partner").atk, 200);
+  assert.equal(state.characters.find((unit) => unit.id === "summon").atk, 200);
+  assert.equal(state.characters.find((unit) => unit.id === "partner").team, "enemy");
 });

@@ -239,7 +239,7 @@ function confirmDecision() {
 function displaySkillEffect(skill, context = {}) {
   const chance = Number.isFinite(skill?.chance) ? `触发率 ${Math.round(skill.chance * 100)}%` : "自动生效";
   if (skill?.id === "kaneki-predator") return `${chance} · (ATK + SPD) × ${skill.multiplier ?? 1} · 目标 HP 严格低于 ${Math.round(skill.guaranteedCritBelowHpRatio * 100)}% 时命中必定暴击`;
-  if (skill?.id === "kaneki-1000-7") return `每受到 ${skill.hitsPerTrigger} 次有效伤害：本场暴击率 +${Math.round(skill.critRateBonus * 100)} 个百分点、ATK +${skill.attackBonus ?? 0}${skill.dodgeRateBonus ? `、闪避率 +${Math.round(skill.dodgeRateBonus * 100)} 个百分点` : ""}；可累加`;
+  if (["kaneki-1000-7", "kaneki-2000-14"].includes(skill?.id)) return `每受到 ${skill.hitsPerTrigger} 次有效伤害：本场 ATK +${skill.attackBonus ?? 0}；每攻击 ${skill.attacksPerTrigger} 次暴击伤害 +${Math.round(skill.critDamagePerAttack * 100)}%${skill.counterDamageEvery ? `；每累计受击 ${skill.counterDamageEvery} 次追加反击` : ""}`;
   if (skill?.id === "eren-free-will") return `${chance} · 普通攻击 · DEF +${skill.defenseBonus ?? 0}（本场最多 ${skill.maxDefenseStacks} 层） · 每触发 ${skill.healEveryTriggers} 次恢复最大 HP 的 ${Math.round(skill.healMaxHpFraction * 100)}%${skill.extraTrueDamageEvery ? ` · 每第 ${skill.extraTrueDamageEvery} 次释放追加真实伤害` : ""}`;
   if (skill?.id === "eren-tatakae") return `${chance} · 攻击力按 ATK + 当前 DEF 计算 · ${skill.multiplier ?? 1}×伤害 · 下回合嘲讽敌方单体攻击${skill.teamShield ? ` · 每名存活队友护盾刷新至最多 ${skill.teamShield} 点（不叠加）` : ""}`;
   if (skill?.id === "eren-2000-years") return "Lv.1 每场免疫首次受击；Lv.2 每场免疫前两次受击，并一次性增加最大 HP 400。";
@@ -253,6 +253,7 @@ function displaySkillEffect(skill, context = {}) {
   if (skill?.id === "shaseng-staff") return `${chance} · 以 ATK + 当前 DEF 造成 1.5 倍伤害，攻击敌方全体`;
   if (skill?.id === "wukong-fate") return `${chance} · 成功释放时交替发动：首次蓄力，下回合受到的伤害减少 ${Math.round(skill.damageResistance * 100)}%，唐僧 DEF +${skill.summonerDefenseBonus}（持续 ${skill.summonerDefenseDurationRounds} 回合）；再次瞬移到目标面前，造成 ${skill.trueDamage} 点真实伤害`;
   if (skill?.effectType === "buff") return `${chance} · 防御 +${skill.defenseBonus ?? 0}，持续 ${skill.durationTurns ?? 1} 回合`;
+  if (skill?.id === "naruto-multi-clone") return `${chance} · 主目标 ${skill.multiplier}× ATK · 其他敌人 75% / 单目标追加 50% · 分身 +${skill.cloneGain}`;
   if (skill?.id === "shadow-clone-rush") return `影分身 ${skill.cloneCount ?? skill.level ?? 1} 个 · 伤害倍率 ${skill.multiplier ?? 1}× · ${chance}`;
   if (skill?.id === "rasengan" || skill?.multiplierFormula) {
     const formula = skill.multiplierFormula;
@@ -272,8 +273,9 @@ function shortSkillEffect(skill) {
   if (skill?.id === "journey-west") return `${chance} · 召唤队友`;
   if (skill?.id === "wukong-fate") return `${chance} · 蓄力减伤 / 真实伤害`;
   if (skill?.id === "gilgamesh-enuma-elish") return `${chance} · 四次循环：单体／全体／回血／真实伤害`;
-  if (skill?.id === "kaneki-1000-7") return `受到 ${skill.hitsPerTrigger} 次伤害后强化自身`;
+  if (["kaneki-1000-7", "kaneki-2000-14"].includes(skill?.id)) return `受击 ${skill.hitsPerTrigger} 次 ATK +${skill.attackBonus}；攻击 ${skill.attacksPerTrigger} 次暴伤 +${Math.round(skill.critDamagePerAttack * 100)}%`;
   if (skill?.id === "eren-free-will") return `${chance} · 攻击并叠加防御`;
+  if (skill?.id === "naruto-multi-clone") return `${chance} · 主目标 ${skill.multiplier}×，群体 75%，单体追加 50%，分身 +${skill.cloneGain}`;
   if (skill?.id === "shadow-clone-rush") return `${chance} · ${skill.cloneCount} 个分身攻击`;
   if (skill?.id === "rasengan") return `${chance} · 伤害受 SPD 加成`;
   if (skill?.attackFormula === "atk_plus_spd") return `${chance} · 伤害来自 ATK + SPD`;
@@ -373,7 +375,7 @@ function renderSkillDetailView(skillIndex = 0, level = null) {
   if (effect.defenseCost) details.push(`施法后自身 DEF -${effect.defenseCost}`);
   if (effect.reflectMultiplier) details.push(`反伤 当前 DEF ×${effect.reflectMultiplier}，持续 2 回合`);
   if (effect.taunt) details.push("接下来两回合嘲讽敌人");
-  if (effect.cloneGain) details.push("每次释放获得 1 个影分身");
+  if (effect.cloneGain) details.push(`每次成功释放获得 ${effect.cloneGain} 个影分身`);
   if (effect.chakraLevelGain) details.push(`每次释放查克拉 +${effect.chakraLevelGain} + SPD/10，满 100 强化`);
   if (effect.meditationRounds) details.push(`每打坐 ${effect.meditationRounds} 回合：敌方 ATK -${effect.enemyAttackStep}${effect.allyAttackStep ? `，己方 ATK +${effect.allyAttackStep}` : ""}，上限 ${effect.attackCap}${effect.teamShield ? "，提供全队护盾" : ""}`);
   if (effect.maxHpBonus) details.push(`最大 HP +${effect.maxHpBonus}`);
@@ -1155,9 +1157,16 @@ function renderAllyStatusIcons() {
     if ((unit.silencedThroughRound ?? 0) >= battleStatusState.currentRound && unit.silencedThroughRound > 0)
       statuses.push({ id: `silence-${unit.id}`, name: `${unit.name} · 沉默`, image: "assets/status-cannot-act.png", tone: "debuff",
         description: `${unit.name} 至第 ${unit.silencedThroughRound} 回合结束前无法释放主动技能，仍可普通攻击。` });
+    if (unit.passiveSkillId === "kaneki-one-eye-king" && unit.oneEyeKingCritRateBonus > 0) {
+      statuses.push({ id: `one-eye-crit-rate-${unit.id}`, name: `${unit.name} · 独眼暴击率`,
+        image: unit.asset, tone: "buff", description: `${unit.name} 的独眼之王：本场战斗暴击率 +60 个百分点。` });
+      if (battleStatusState.currentRound <= unit.oneEyeKingUntilRound)
+        statuses.push({ id: `one-eye-crit-damage-${unit.id}`, name: `${unit.name} · 独眼暴伤`,
+          image: unit.asset, tone: "buff", description: `${unit.name} 的独眼之王：暴击伤害 +40%，持续至第 ${unit.oneEyeKingUntilRound} 回合结束；期间击杀永久 ATK +10。` });
+    }
     if (unit.gravityStacks > 0) statuses.push({ id: `gravity-${unit.id}`, name: `失去引力 ×${unit.gravityStacks}`,
       image: "assets/stage3-elites/falling/gravity-circle.png", tone: "debuff",
-      description: `${unit.name}：失去引力 ${unit.gravityStacks}/5 层；每次实际恢复 HP 消除 1 层；达到 5 层时，战斗 DEF 高于 260 改受 800 点真实伤害，否则立即被处决。` });
+      description: `${unit.name}：失去引力 ${unit.gravityStacks}/4 层；累计实际恢复 300 HP 消除 1 层（当前 ${unit.gravityHealProgress ?? 0}/300）；达到 4 层时，战斗 DEF 高于 260 改受 800 点真实伤害，否则立即被处决。` });
     if (unit.burnStacks > 0) statuses.push({ id: `burn-${unit.id}`, name: "烧伤", image: "assets/status-burn.svg", tone: "danger",
       description: `${unit.name}：${unit.burnStacks} 层烧伤，每层在完整战斗回合结束时结算持续伤害。` });
     if (unit.bleedStacks > 0) statuses.push({ id: `bleed-${unit.id}`, name: "流血", image: "assets/status-bleed.svg", tone: "danger",
@@ -1656,7 +1665,7 @@ function playEvent(event, finish) {
   if (event.type === "gravity-heal") {
     const target = viewState.characters.find((unit) => unit.id === event.targetId);
     if (target) { target.gravityStacks = event.stacks; target.gravityHealProgress = event.healingProgress; renderAllyStatusIcons(); }
-    addLog(`<b>${target?.name ?? "角色"}</b> 恢复 ${event.restored} HP${event.layersRemoved ? `，失去引力减少 ${event.layersRemoved} 层，剩余 ${event.stacks} 层` : `，累计 ${event.healingProgress}/500 HP` }。`, "log-skill");
+    addLog(`<b>${target?.name ?? "角色"}</b> 恢复 ${event.restored} HP${event.layersRemoved ? `，失去引力减少 ${event.layersRemoved} 层，剩余 ${event.stacks} 层` : ""}${event.stacks ? `；当前治疗进度 ${event.healingProgress}/300 HP` : ""}。`, "log-skill");
     return finish();
   }
   if (event.type === "gravity-fall") {
@@ -1690,6 +1699,20 @@ function playEvent(event, finish) {
           const fighter = document.querySelector(`[data-character="${hit.targetId}"]`);
           fighter?.classList.remove("gravity-lift"); fighter?.classList.add("gravity-hover");
         }
+        if (event.hits.length) {
+          devil.currentHp = event.devilHpAfter;
+          updateHealth(devil);
+          if (event.healedAmount > 0) {
+            const number = source.querySelector(".damage-number");
+            if (number) {
+              number.textContent = `+${event.healedAmount}`;
+              number.classList.add("is-heal"); number.classList.remove("pop");
+              void number.offsetWidth; number.classList.add("pop");
+            }
+            addLog(`<b>下落恶魔</b> 抬起对方后恢复已损失 HP 的 15%，实际恢复 ${event.healedAmount} HP。`, "log-enemy");
+          }
+          renderSquad();
+        }
         timer = window.setTimeout(() => {
           timer = null;
           for (const hit of event.hits) {
@@ -1710,7 +1733,7 @@ function playEvent(event, finish) {
                 void number.offsetWidth; number.classList.add("pop"); }
               if (hit.fellDead) fighter?.classList.add("is-dead");
               fighter?.classList.remove("gravity-drop");
-              addLog(`<b>${target.name}</b> 坠落：入场 SPD ${hit.entryPanelSpd}，基础 ${hit.baseDamage}，实际失去 ${hit.actualDamage} HP${hit.fellDead ? "，倒地" : `；失去引力 ${hit.stacks}/5 层`}。`, "log-enemy");
+              addLog(`<b>${target.name}</b> 坠落：入场 SPD ${hit.entryPanelSpd}，基础 ${hit.baseDamage}，实际失去 ${hit.actualDamage} HP${hit.fellDead ? "，倒地" : `；失去引力 ${hit.stacks}/4 层`}。`, "log-enemy");
             }
             circles.forEach((circle) => circle.remove());
             startIdleCycle(source, devil);
@@ -1721,6 +1744,31 @@ function playEvent(event, finish) {
       }, riseMs);
     }, playbackDelay(500, 240));
     return;
+  }
+  if (event.type === "attack-titan-hp-damage") {
+    const target = viewState.characters.find((unit) => unit.id === event.targetId);
+    const fighter = document.querySelector(`[data-character="${event.targetId}"]`);
+    if (target) {
+      target.currentHp = event.targetHp;
+      target.shieldHp = event.targetShield;
+      target.alive = !event.targetDied;
+      if (event.trialDamage?.heraclesHitsRemaining != null) {
+        target.heraclesTrialsActive = true;
+        target.heraclesHitsRemaining = event.trialDamage.heraclesHitsRemaining;
+      }
+      updateHealth(target);
+      if (event.targetDied) fighter?.classList.add("is-dead");
+      renderAllyStatusIcons(); renderSquad();
+    }
+    for (const heal of event.scorpionHeals ?? []) {
+      const ally = viewState.characters.find((unit) => unit.id === heal.targetId);
+      if (!ally) continue;
+      ally.currentHp = heal.currentHp;
+      updateHealth(ally);
+      addLog(`<b>蝎子莱莱</b> 受伤后使 ${ally.name} 恢复 ${heal.amount} HP。`, "log-skill");
+    }
+    addLog(`<b>进击巨人</b> 当前 HP ${event.hpSnapshot}，追加 10% HP 攻击（${event.power} 基础伤害），实际失去 ${event.actualDamage} HP。`, "log-skill");
+    return finish();
   }
   if (event.type === "gravity-main-course-damage") {
     const devil = viewState.characters.find((unit) => unit.id === event.attackerId);
@@ -1943,13 +1991,20 @@ function playEvent(event, finish) {
       const boss = viewState.characters.find((entry) => entry.id === event.attackerId);
       if (boss) { boss.atk = event.currentAtk; if (squadSide === "enemy") renderSquad(); }
     }
+    if (event.type === "stage3-buff-clear" && target) {
+      Object.assign(target, event.buffState);
+      updateHealth(target);
+      renderAllyStatusIcons();
+      renderSquad();
+    }
     const message = event.type === "stage3-revive-pending" ? `${target?.name ?? event.targetId}将在第 ${event.reviveAtRound} 回合复活。`
-      : event.type === "stage3-minion-death" ? `玛奇玛的眷属阵亡，ATK +100（当前 ${event.currentAtk}）。`
-      : event.type === "stage3-lifesteal" ? "四名眷属全部阵亡，玛奇玛获得 10% 吸血。"
+      : event.type === "stage3-minion-death" ? `玛奇玛的眷属阵亡，ATK +150（当前 ${event.currentAtk}）。`
+      : event.type === "stage3-lifesteal" ? "四名眷属全部阵亡，玛奇玛获得 25% 吸血。"
       : `天使恶魔抹除 ${target?.name ?? event.targetId} 的当前技能增益${event.cleared.length ? `：${event.cleared.join("、")}` : ""}。`;
     addLog(`<span class="round-label">R${event.round}</span> ${message}`, "log-skill");
     if (event.type === "stage3-lifesteal") {
       const makima = viewState.characters.find((unit) => unit.id === "makima");
+      if (makima) makima.lifesteal = (makima.lifesteal ?? 0) + event.lifesteal;
       const fighter = makima && document.querySelector('[data-character="makima"]');
       if (makima && fighter) {
         makima.makimaGrounded = true;
@@ -2497,7 +2552,7 @@ function playEvent(event, finish) {
   if (event.type === "evolution-clone-gain") {
     const actor = viewState.characters.find((unit) => unit.id === event.attackerId);
     if (actor) actor.chakraClones = event.count;
-    addLog(`<b>${actor?.name ?? "鸣人"}</b> 获得一个影分身，当前 ${event.count} 个。`, "log-skill");
+    addLog(`<b>${actor?.name ?? "鸣人"}</b> 获得 ${event.gained ?? 1} 个影分身，当前 ${event.count} 个。`, "log-skill");
     return finish();
   }
   if (event.type === "evolution-dharma") {
@@ -3018,10 +3073,16 @@ function playEvent(event, finish) {
       renderAllyStatusIcons();
       addLog(`<b>杀手皇后</b> 在 ${target.name} 身上附加炸弹 ${event.bombAttached.id}，第 ${event.bombAttached.dueRound} 回合引爆。`, "log-enemy");
     }
+    if (event.trialDamage?.oneEyeKingTriggered) {
+      target.oneEyeKingEmergencyUsed = true;
+      target.oneEyeKingUntilRound = event.trialDamage.oneEyeKingUntilRound;
+      target.oneEyeKingCritRateBonus = event.trialDamage.oneEyeKingCritRateBonus;
+      target.critRateBonus = (target.critRateBonus ?? 0) + target.oneEyeKingCritRateBonus;
+      renderAllyStatusIcons();
+      addLog(`<b>${target.name}</b> 独眼之王触发：暴击率 +60 个百分点持续本场，暴击伤害 +40% 持续 5 回合。`, "log-skill");
+    }
     if (event.damageSkillTriggered) {
       target.damageTakenHits = event.damageSkillTriggered.hits;
-      target.critRateBonus = event.damageSkillTriggered.critRateBonus;
-      target.dodgeRateBonus = event.damageSkillTriggered.dodgeRateBonus;
       target.atk = event.damageSkillTriggered.effectiveAtk;
     }
     if (isMelee) {
@@ -3237,7 +3298,7 @@ function playEvent(event, finish) {
       event.defenseReduced > 0 ? `<span class="skill-name">DEF -${event.defenseReduced}</span>` : "",
       event.defenseBonusApplied > 0 ? `<span class="skill-name">DEF +${event.defenseBonusApplied}</span>` : "",
       event.oneEyeTriggered ? `<span class="skill-name">独眼触发：${event.oneEyeHealedAmount > 0 ? `HP +${event.oneEyeHealedAmount}` : "生命值已满"}</span>` : event.healedAmount > 0 ? `<span class="skill-name">HP +${event.healedAmount}</span>` : "",
-      event.damageSkillTriggered ? `<span class="skill-name">${event.damageSkillTriggered.skillName} 生效：暴击率 +${Math.round(event.damageSkillTriggered.critRateGain * 100)} 个百分点、ATK +${event.damageSkillTriggered.attackGain ?? 0}${event.damageSkillTriggered.dodgeRateGain ? `、闪避率 +${Math.round(event.damageSkillTriggered.dodgeRateGain * 100)} 个百分点` : ""}</span>` : "",
+      event.damageSkillTriggered ? `<span class="skill-name">${event.damageSkillTriggered.skillName} 生效：ATK +${event.damageSkillTriggered.attackGain ?? 0}</span>` : "",
       event.tauntApplied ? '<span class="skill-name">下回合嘲讽敌方单体攻击</span>' : "",
       event.passiveTriggered?.damageImmune ? `<span class="skill-name">${event.passiveTriggered.skillId === "eren-2000-years" ? "2000年后的你免疫了这次攻击" : "被动免疫"}</span>` : "",
       event.jinchurikiExpired ? '<span class="skill-name">人柱力半血增益结束</span>' : "",
@@ -4617,7 +4678,12 @@ function gambleRoundText(result) {
   const outcome = change.skillId ? `「${change.skillName}」提升至 Lv.${change.level}`
     : Number.isFinite(change.hpLoss) ? `损失 ${change.hpLoss} HP，剩余 ${change.currentHp}/${change.maxHp} HP`
       : `${change.stat.toUpperCase()} ${change.amount >= 0 ? "+" : ""}${change.amount}，当前 ${change.value}`;
-  return `第 ${round} 轮 · ${label}：${success ? "正面，成功" : "反面，失败"}。${outcome}。`;
+  const revoked = change && result.settled.revoked?.length
+    ? `额外撤销：${result.settled.revoked.map((entry) => entry.skillId
+      ? `第 ${entry.round} 轮「${entry.skillName}」Lv.${entry.fromLevel} → Lv.${entry.toLevel}${entry.attackGain ? `、ATK -${entry.attackGain}` : ""}`
+      : `第 ${entry.round} 轮 ${entry.stat.toUpperCase()} +${entry.amount}`).join("；")}。此前及本轮负面效果保留。`
+    : "";
+  return `第 ${round} 轮 · ${label}：${success ? "正面，成功" : "反面，失败"}。${outcome}。${revoked}`;
 }
 
 function renderGambleRoundResult(result) {
@@ -4859,7 +4925,8 @@ function renderAdventureEvent() {
       choices.push(decisionChoice(`gamble_recipient|${id}`, partyPresentation(id)?.name ?? id, ""));
     }
     else if (record.data.phase === "choice") {
-      choices.push(decisionChoice("gamble_play", ["赌一把", "再赌一把", "最后一搏"][record.data.round - 1], ""));
+      choices.push(decisionChoice("gamble_play", ["赌一把", "再赌一把", "最后一搏"][record.data.round - 1],
+        record.data.round === 3 ? "失败将额外失去前两轮获得的全部加成，且保留所有负面效果。" : ""));
       choices.push(decisionChoice("gamble_quit", record.data.round === 3 ? "点到为止" : "不赌为妙", ""));
     }
   } else if (record.eventId === "kings_treasury") {

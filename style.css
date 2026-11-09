@@ -112,9 +112,14 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .health-value { min-width: 0; text-align: right; white-space: nowrap; font: 500 7px Consolas, monospace; color: #526177; }
 .health-value small { color: #9ba6a7; font-size: 6px; }
 .health-row.is-dead .health-name, .health-row.is-dead .health-value { opacity: .42; }
-.ally-status-icons { display: flex; flex-wrap: wrap; gap: 5px; min-height: 0; margin-top: 5px; }
+.status-board-icons, .status-board-details { grid-column: 1 / -1; display: flex; min-width: 0; gap: 8px; }
+.status-board-icons:not(:has(> :not([hidden]))), .status-board-details:not(:has(> :not([hidden]))) { display: none; }
+.status-board-icons .ally-status-icons:not(.enemy-status-icons) { flex: 1 1 auto; }
+.status-board-icons .enemy-status-icons { flex: 0 1 auto; max-width: 28%; }
+.status-board-details .ally-status-detail { flex: 1 1 0; }
+.ally-status-icons { display: flex; flex-wrap: nowrap; gap: 3px; min-height: 0; min-width: 0; max-width: 100%; margin-top: 5px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
 .ally-status-icons[hidden], .ally-status-detail[hidden] { display: none; }
-.ally-status-icon { display: grid; place-items: center; width: 29px; height: 29px; padding: 2px; overflow: hidden; background: #f6f3e8; border: 1.5px solid #a9b4a6; border-radius: 5px; box-shadow: 1px 1px 0 rgba(38,50,75,.25); cursor: pointer; image-rendering: pixelated; }
+.ally-status-icon { display: grid; place-items: center; flex: 0 0 27px; width: 27px; height: 27px; padding: 2px; overflow: hidden; background: #f6f3e8; border: 1.5px solid #a9b4a6; border-radius: 5px; box-shadow: 1px 1px 0 rgba(38,50,75,.25); cursor: pointer; image-rendering: pixelated; }
 .ally-status-icon img { display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
 .ally-status-icon.is-buff { border-color: #61a875; background: #e8f4df; }
 .ally-status-icon.is-debuff { border-color: #cf7866; background: #fae7df; }
@@ -284,7 +289,7 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .fighter[data-character="eren"][data-evolution="2"].is-skill-posing .sprite-action-frame { transform: scale(var(--action-frame-scale, 1)); }
 .evolution-aura { position: absolute; z-index: -1; width: 125%; height: 125%; left: -12.5%; bottom: -8%; object-fit: contain; image-rendering: pixelated; pointer-events: none; filter: drop-shadow(0 0 5px #a22950); }
 .trial-projectile { position: absolute; z-index: 18; width: clamp(70px, 13vw, 140px); height: clamp(70px, 13vw, 140px); object-fit: contain; image-rendering: pixelated; pointer-events: none; transform: scaleX(-1); }
-.shin-hammer-projectile { position: absolute; z-index: 18; width: clamp(150px, 20vw, 210px); height: auto; image-rendering: pixelated; pointer-events: none; }
+.shin-hammer-projectile { position: absolute; z-index: 18; width: clamp(120px, 16vw, 170px); height: auto; image-rendering: pixelated; pointer-events: none; }
 .fighter[data-character="shin"] .sprite-action-frame[data-frame-name="throw"] { transform: scaleX(-1); }
 .fighter[data-character="shin"].is-melee-running .sprite-wrap,
 .fighter[data-character="noi"].is-melee-running .sprite-wrap { animation: summon-jog .24s steps(2, end) infinite; }
@@ -720,7 +725,7 @@ h2 { margin: 0; color: #3a455c; font-size: 11px; font-weight: 900; }
 .route-screen .route-party .route-player { position: relative; left: auto; bottom: auto; width: 82px; transform: none; }
 .route-screen .route-party.has-partner .route-player { width: 72px; }
 .route-screen .route-party .route-player img { height: 112px; }
-.route-screen.stage-two .route-party [data-character-detail="eren"] img { transform: translateY(4px); }
+.route-screen.stage-two .route-party [data-character-detail="eren"] img { transform: translateY(4px) scale(1.35); transform-origin: center bottom; }
 .route-screen .route-signs { bottom: 20%; align-items: end; }
 .route-screen .route-signs-single { justify-content: flex-start; }
 .route-screen .route-sign { flex-basis: 31%; height: clamp(108px, 22vw, 158px); }

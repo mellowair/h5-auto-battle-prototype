@@ -249,6 +249,7 @@ export function getAvailableAdventureEventIds(runState, step = 1, partyStates = 
       record.eventId === "gamble" && record.status === "completed" && record.data.stageId < stageId) &&
       !Object.values(runState.eventResults).some((record) => record.eventId === "gamble_2"))
     && (eventId !== "kings_treasury" || stageId === 2)
+    && (stageId !== 3 || !["death_note", "fate_gate", "giant_encirclement"].includes(eventId))
     && (eventId !== "giant_encirclement" || step >= 8)
     && (eventId !== "scroll" || eligible("scroll", 1, partyStates.some((state) => getUnlearnedActiveSkills(state).length > 0)))
     && (eventId !== "old_scroll_2" || eligible("scroll", 2, partyStates.some((state) =>
@@ -656,9 +657,13 @@ export function resolveAdventureEvent(runState, sourceId, choiceId = null, rando
         if (gamble.success) {
           const skills = getUpgradeableSkills(recipientState);
           if (!skills.length) return false;
-          const skill = upgradeActiveSkill(recipientState, skills[rngIndex(skills.length, random)], `${sourceId}:round:${data.round}`);
+          const skillId = skills[rngIndex(skills.length, random)];
+          const previousLevel = recipientState.skillLevels[skillId] ?? 1;
+          const previousAtk = recipientState.atk;
+          const skill = upgradeActiveSkill(recipientState, skillId, `${sourceId}:round:${data.round}`);
           if (!skill) return false;
-          change = { skillId: skill.id, skillName: skill.name, level: skill.level };
+          change = { skillId: skill.id, skillName: skill.name, level: skill.level,
+            previousLevel, attackGain: recipientState.atk - previousAtk };
         } else {
           const loss = Math.min(Math.floor(recipientState.maxHp * .4), Math.max(0, recipientState.currentHp - 1));
           recipientState.currentHp -= loss;
@@ -675,6 +680,29 @@ export function resolveAdventureEvent(runState, sourceId, choiceId = null, rando
       const settled = { ...gamble, change };
       data.rounds.push(settled);
       if (gamble.success) data.successCount += 1;
+      if (data.round === 3 && !gamble.success) {
+        const revoked = [];
+        for (const previous of [...data.rounds.slice(0, 2)].reverse()) {
+          if (!previous.success) continue;
+          if (previous.change.skillId) {
+            const { skillId, skillName, previousLevel, attackGain } = previous.change;
+            recipientState.skillLevels[skillId] = previousLevel;
+            recipientState.atk -= attackGain ?? 0;
+            const upgradeSource = `${sourceId}:round:${previous.round}`;
+            recipientState.skillHistory = recipientState.skillHistory.filter((entry) =>
+              !(entry.skillId === skillId && entry.sourceId === upgradeSource));
+            recipientState.consumedActions = recipientState.consumedActions.filter((key) =>
+              key !== `skill:${skillId}:${upgradeSource}`);
+            revoked.push({ round: previous.round, skillId, skillName, fromLevel: previous.change.level,
+              toLevel: previousLevel, attackGain: attackGain ?? 0 });
+          } else if (previous.change.stat) {
+            const { stat, amount } = previous.change;
+            recipientState[stat] -= amount;
+            revoked.push({ round: previous.round, stat, amount });
+          }
+        }
+        settled.revoked = revoked.reverse();
+      }
       data.pendingGamble = null;
       if (data.round === 3) {
         const pairPool = [[GIANT_SPINAL_FLUID.id, "odm_gear"], ["sukuna_finger", "magic_conch"], [GUN_DEVIL_FRAGMENT.id, "magic_conch"]];

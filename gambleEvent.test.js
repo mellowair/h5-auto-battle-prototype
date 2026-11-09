@@ -128,3 +128,110 @@ test("campaign keeps the selected partner through coin settlement and marks the 
   assert.equal(campaign.eventResolved, true);
   assert.equal(resolveCampaignEvent(campaign, "gamble_quit"), false);
 });
+
+const playRound = (run, sourceId, typeRoll, success) => {
+  resolveAdventureEvent(run, sourceId, "gamble_play", rolls(typeRoll, success ? 0 : .99), run);
+  const result = resolveAdventureEvent(run, sourceId, "gamble_settle", () => .4, run);
+  if (run.eventResults[sourceId].status === "pending")
+    resolveAdventureEvent(run, sourceId, "gamble_next", () => 0, run);
+  return result;
+};
+
+test("third-round loss revokes two earlier stat wins but keeps its penalty and two-win reward", () => {
+  const run = make("naruto");
+  const before = { atk: run.atk, def: run.def };
+  createAdventureEventResult(run, "reverse-stats", "gamble", () => 0, [run], 1);
+  resolveAdventureEvent(run, "reverse-stats", "gamble_recipient|naruto", () => 0, run);
+  playRound(run, "reverse-stats", .4, true);
+  playRound(run, "reverse-stats", .9, true);
+  const final = playRound(run, "reverse-stats", .4, false);
+  assert.equal(final.result.successCount, 2);
+  assert.equal(final.result.treasures.length, 2);
+  assert.deepEqual(final.result.settled.revoked.map((entry) => [entry.round, entry.stat, entry.amount]),
+    [[1, "atk", 20], [2, "def", 20]]);
+  assert.equal(final.result.treasures[0].id, "sukuna_finger");
+  assert.equal(run.atk, before.atk + 30, "the separate treasure reward remains");
+  assert.equal(run.def, before.def - 20);
+});
+
+test("third-round loss restores only skill levels earned in this gamble", () => {
+  const run = make("naruto");
+  const skillId = run.learnedActiveSkills[0];
+  const initialLevel = run.skillLevels[skillId];
+  const baseAtk = run.atk;
+  const baseDef = run.def;
+  createAdventureEventResult(run, "reverse-skill", "gamble", () => 0, [run], 1);
+  resolveAdventureEvent(run, "reverse-skill", "gamble_recipient|naruto", () => 0, run);
+  playRound(run, "reverse-skill", 0, true);
+  assert.equal(run.skillLevels[skillId], initialLevel + 1);
+  playRound(run, "reverse-skill", .4, false);
+  const final = playRound(run, "reverse-skill", .9, false);
+  assert.equal(run.skillLevels[skillId], initialLevel);
+  assert.equal(run.atk, baseAtk - 20);
+  assert.equal(run.def, baseDef - 20);
+  assert.deepEqual(final.result.settled.revoked.map((entry) => entry.skillId), [skillId]);
+  assert.equal(run.skillHistory.some((entry) => entry.sourceId === "reverse-skill:round:1"), false);
+  assert.equal(final.result.successCount, 1);
+});
+
+test("third-round loss with no earlier win keeps every prior penalty", () => {
+  const run = make("naruto");
+  const baseAtk = run.atk;
+  const baseDef = run.def;
+  run.currentHp = 300;
+  createAdventureEventResult(run, "all-loss", "gamble", () => 0, [run], 1);
+  resolveAdventureEvent(run, "all-loss", "gamble_recipient|naruto", () => 0, run);
+  playRound(run, "all-loss", 0, false);
+  const hpAfterFirst = run.currentHp;
+  playRound(run, "all-loss", .4, false);
+  const final = playRound(run, "all-loss", .9, false);
+  assert.equal(run.currentHp, hpAfterFirst);
+  assert.equal(run.atk, baseAtk - 20);
+  assert.equal(run.def, baseDef - 20);
+  assert.deepEqual(final.result.settled.revoked, []);
+  assert.equal(final.result.successCount, 0);
+});
+
+test("stage-three event pool excludes three old encounters but keeps gamble", () => {
+  const run = make("naruto");
+  const pool = getAvailableAdventureEventIds(run, 9, [run], 3);
+  assert.ok(pool.includes("gamble"));
+  for (const id of ["death_note", "fate_gate", "giant_encirclement"])
+    assert.equal(pool.includes(id), false);
+  const stageOne = getAvailableAdventureEventIds(run, 9, [run], 1);
+  for (const id of ["gamble", "death_note", "fate_gate", "giant_encirclement"])
+    assert.ok(stageOne.includes(id));
+});
+
+test("two upgrades of one skill are both undone in reverse order", () => {
+  const run = make("naruto");
+  const skillId = run.learnedActiveSkills[0];
+  const startingLevel = run.skillLevels[skillId];
+  createAdventureEventResult(run, "double-skill", "gamble", () => 0, [run], 1);
+  resolveAdventureEvent(run, "double-skill", "gamble_recipient|naruto", () => 0, run);
+  playRound(run, "double-skill", 0, true);
+  playRound(run, "double-skill", 0, true);
+  assert.equal(run.skillLevels[skillId], startingLevel + 2);
+  const result = playRound(run, "double-skill", .4, false);
+  assert.equal(run.skillLevels[skillId], startingLevel);
+  assert.deepEqual(result.result.settled.revoked.map((entry) => entry.round), [1, 2]);
+  assert.equal(run.skillHistory.some((entry) => entry.sourceId.startsWith("double-skill:round:")), false);
+  assert.equal(result.result.successCount, 2);
+});
+
+test("rolled-back Journey West upgrade also removes its intrinsic attack gain", () => {
+  const run = make("tang");
+  run.evolution = { phase: 2 };
+  run.skillLevels["journey-west"] = 10;
+  const baseAtk = run.atk;
+  createAdventureEventResult(run, "journey-risk", "gamble", () => 0, [run], 2);
+  resolveAdventureEvent(run, "journey-risk", "gamble_recipient|tang", () => 0, run);
+  playRound(run, "journey-risk", 0, true);
+  assert.equal(run.skillLevels["journey-west"], 11);
+  assert.equal(run.atk, baseAtk + 100);
+  playRound(run, "journey-risk", .9, false);
+  const final = playRound(run, "journey-risk", .9, false);
+  assert.equal(run.skillLevels["journey-west"], 10);
+  assert.equal(run.atk, baseAtk - 40);
+  assert.equal(final.result.settled.revoked[0].attackGain, 100);
+});

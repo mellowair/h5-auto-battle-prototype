@@ -4,6 +4,30 @@ import { SKILL_DATA } from "./skills.js";
 import { chooseTangSummon, tangSummonStats, tangSummonVisual } from "./tangSummons.js";
 
 const MAHITO_ATTACK_BONUS = SKILL_DATA["mahito-domain"].levels[1].attackBonusPerRound;
+const GRAVITY_HEAL_PER_LAYER = 300;
+
+function attachGravityHealing(state, unit, fallingDevil) {
+  unit.entryPanelSpd = unit.spd;
+  unit.spd = 1;
+  unit.gravityStacks = 0;
+  unit.gravityHealProgress = 0;
+  let hp = unit.currentHp;
+  Object.defineProperty(unit, "currentHp", { enumerable: true, configurable: true,
+    get() { return hp; },
+    set(next) {
+      const restored = Math.max(0, Math.min(unit.maxHp, next) - Math.min(unit.maxHp, hp));
+      hp = next;
+      if (restored <= 0 || !fallingDevil.alive || unit.gravityStacks <= 0) return;
+      const total = unit.gravityHealProgress + restored;
+      const layersRemoved = Math.min(unit.gravityStacks, Math.floor(total / GRAVITY_HEAL_PER_LAYER));
+      unit.gravityStacks -= layersRemoved;
+      unit.gravityHealProgress = unit.gravityStacks > 0 ? total - layersRemoved * GRAVITY_HEAL_PER_LAYER : 0;
+      state.gravityHealEvents.push({ type: "gravity-heal", round: state.round,
+        targetId: unit.id, restored, layersRemoved, stacks: unit.gravityStacks,
+        healingProgress: unit.gravityHealProgress });
+    },
+  });
+}
 
 export function initializeBattle(config = CHARACTER_DATA, options = {}) {
   const characters = config.map((character) => {
@@ -16,6 +40,8 @@ export function initializeBattle(config = CHARACTER_DATA, options = {}) {
     return { ...character, atk: character.atk + (normalBonus.atk ?? 0), def: character.def + (normalBonus.def ?? 0), originalTeam: character.team, skill: character.skill ? { ...character.skill } : null, skills: character.skills?.map((skill) => ({ ...skill })) ?? character.skills, maxHp, currentHp, alive: currentHp > 0, elitePassiveActive: false, elitePassiveLastRound: 0, freeWillTriggers: 0, damageTakenHits: 0, critRateBonus: (character.critRateBonus ?? 0) + (character.passiveSkillId === "kaneki-one-eye" && character.passiveLevel >= 2 ? 0.10 : 0), dodgeRateBonus: character.dodgeRateBonus ?? 0, baseDodgeRateBonus: character.dodgeRateBonus ?? 0, battleAttackBonus: 0, shieldHp: 0, tauntRounds: [], jinchurikiActive: false, jinchurikiAttackBonus: 0,
       evolutionBaseAtk: character.atk, pathsImmuneRemaining: character.passiveSkillId === "eren-paths" ? 1 : 0,
       pathsEmergencyUsed: false, oneEyeKingEmergencyUsed: false, oneEyeKingUntilRound: 0,
+      oneEyeKingCritRateBonus: 0, baseCritRateBonus: (character.critRateBonus ?? 0) +
+        (character.passiveSkillId === "kaneki-one-eye" && character.passiveLevel >= 2 ? .10 : 0),
       nineTailsLowHpActive: false, nineTailsLowHpBonus: 0, nineTailsTeammateBonus: 0,
       nineTailsTriggeredIds: [], chakraClones: character.extraPassiveSkillIds?.includes("naruto-chakra-clones") ? 2 : 0,
       chakra: 0, hardeningStacks: 0, reflectStartRound: 0, reflectUntilRound: 0,
@@ -48,29 +74,8 @@ export function initializeBattle(config = CHARACTER_DATA, options = {}) {
     random: Math.random,
   };
   const fallingDevil = characters.find((unit) => unit.id === "falling-devil" && unit.team === "enemy");
-  if (fallingDevil) for (const unit of characters.filter((entry) => entry.team === "ally")) {
-    unit.entryPanelSpd = unit.spd;
-    unit.gravityStacks = 0;
-    unit.gravityHealProgress = 0;
-    unit.spd = 1;
-    let hp = unit.currentHp;
-    Object.defineProperty(unit, "currentHp", { enumerable: true, configurable: true,
-      get() { return hp; },
-      set(next) {
-        const restored = Math.max(0, Math.min(unit.maxHp, next) - Math.min(unit.maxHp, hp));
-        hp = next;
-        if (restored > 0 && fallingDevil.alive && unit.gravityStacks > 0) {
-          const total = unit.gravityHealProgress + restored;
-          const layersRemoved = Math.min(unit.gravityStacks, restored > 0 ? 1 : 0);
-          unit.gravityStacks -= layersRemoved;
-          unit.gravityHealProgress = 0;
-          state.gravityHealEvents.push({ type: "gravity-heal", round: state.round,
-            targetId: unit.id, restored, layersRemoved, stacks: unit.gravityStacks,
-            healingProgress: unit.gravityHealProgress });
-        }
-      },
-    });
-  }
+  if (fallingDevil) for (const unit of characters.filter((entry) => entry.team === "ally"))
+    attachGravityHealing(state, unit, fallingDevil);
   if (state.battleId) for (const player of state.characters.filter((character) => character.team === "ally"))
     player.jinchurikiTriggered = false;
   return state;
@@ -237,9 +242,12 @@ function applyTrialDamage(state, target, requested, kind = "attack") {
     target.currentHp += emergencyHeal;
     target.alive = target.currentHp > 0;
   }
-  if (target.passiveSkillId === "kaneki-one-eye-king" && !target.oneEyeKingEmergencyUsed && target.currentHp < target.maxHp * .4) {
+  const oneEyeKingTriggered = target.passiveSkillId === "kaneki-one-eye-king" && !target.oneEyeKingEmergencyUsed && target.currentHp < target.maxHp * .4;
+  if (oneEyeKingTriggered) {
     target.oneEyeKingEmergencyUsed = true;
-    target.oneEyeKingUntilRound = state.round + 2;
+    target.oneEyeKingUntilRound = state.round + SKILL_DATA["kaneki-one-eye-king"].levels[1].durationRounds - 1;
+    target.oneEyeKingCritRateBonus = SKILL_DATA["kaneki-one-eye-king"].levels[1].critRateBonus;
+    target.critRateBonus = (target.critRateBonus ?? 0) + target.oneEyeKingCritRateBonus;
   }
   const nineTails = state.characters.find((unit) => unit.id === "naruto" && unit.team === target.team && unit.alive &&
     unit.passiveSkillId === "naruto-nine-tails-bond");
@@ -252,6 +260,8 @@ function applyTrialDamage(state, target, requested, kind = "attack") {
     }
   }
   return { dealt: before - Math.max(0, before - amount), emergencyHeal, cloneSpent, odinReduction, odinReductionVisual,
+    oneEyeKingTriggered, oneEyeKingUntilRound: oneEyeKingTriggered ? target.oneEyeKingUntilRound : null,
+    oneEyeKingCritRateBonus: oneEyeKingTriggered ? target.oneEyeKingCritRateBonus : 0,
     clonesRemaining: cloneSpent ? naruto.chakraClones : null, sharedDamage,
     damageAdjusted: amount !== Math.floor(requested) };
 }
@@ -317,8 +327,8 @@ export function resolveFallingRoundEnd(state) {
     healingBeforeFall.push(...state.gravityHealEvents.splice(0));
     let fallStacks = target.gravityStacks;
     if (!fellDead) {
-      fallStacks = target.gravityStacks = Math.min(5, target.gravityStacks + 1);
-      if (fallStacks >= 5) {
+      fallStacks = target.gravityStacks = Math.min(4, target.gravityStacks + 1);
+      if (fallStacks >= 4) {
         const defenseAtTrigger = combatDefense(target, state.round);
         if (defenseAtTrigger > 260) {
           const hit = resolveTrueDamageSkill(state, devil, target,
@@ -341,8 +351,12 @@ export function resolveFallingRoundEnd(state) {
       afterDefense, actualDamage, shieldAbsorbed, shieldHp: shieldHpAfterFall,
       hpAfter: hpAfterFall, stacks: fallStacks, fellDead, protection });
   }
+  const missingHp = Math.max(0, devil.maxHp - devil.currentHp);
+  const healedAmount = hits.length ? Math.floor(missingHp * .15) : 0;
+  devil.currentHp = Math.min(devil.maxHp, devil.currentHp + healedAmount);
   return [...healingBeforeFall,
-    { type: "gravity-fall", round: state.round, attackerId: devil.id, hits }, ...executions];
+    { type: "gravity-fall", round: state.round, attackerId: devil.id, hits,
+      healedAmount, devilHpAfter: devil.currentHp, devilMaxHp: devil.maxHp }, ...executions];
 }
 
 function summonMakimaMinion(state, id, events) {
@@ -395,12 +409,12 @@ export function resolveStageThreeDeaths(state, events = []) {
     if (state.makima?.deadMinions.includes(unit.id)) continue;
     state.makima?.deadMinions.push(unit.id);
     if (makima?.alive) {
-      makima.atk += 100;
+      makima.atk += 150;
       events.push({ type: "stage3-minion-death", round: state.round, targetId: unit.id,
-        attackerId: makima.id, attackBonus: 100, currentAtk: makima.atk });
+        attackerId: makima.id, attackBonus: 150, currentAtk: makima.atk });
       if (state.makima.deadMinions.length === 4) {
-        makima.lifesteal = (makima.lifesteal ?? 0) + .1;
-        events.push({ type: "stage3-lifesteal", round: state.round, attackerId: makima.id, lifesteal: .1 });
+        makima.lifesteal = (makima.lifesteal ?? 0) + .25;
+        events.push({ type: "stage3-lifesteal", round: state.round, attackerId: makima.id, lifesteal: .25 });
       }
       state.makima.nextBangRound = Math.min(state.makima.nextBangRound,
         state.round + Math.max(1, 5 - state.makima.deadMinions.length));
@@ -429,13 +443,23 @@ export function resolveStageThreeDeaths(state, events = []) {
 function clearSkillBuffs(unit) {
   const cleared = [];
   for (const [field, counter] of [["jinchurikiAttackBonus", "atk"], ["nineTailsLowHpBonus", "atk"],
-    ["nineTailsTeammateBonus", "atk"], ["dharmaAllyAttackBonus", "atk"], ["battleAttackBonus", "atk"]]) {
+    ["nineTailsTeammateBonus", "atk"], ["dharmaAllyAttackBonus", "atk"],
+    ["battleAttackBonus", "atk"], ["tangRepeatedWukongAtkBonus", "atk"]]) {
     if (unit[field] > 0) { unit[counter] -= unit[field]; cleared.push(field); unit[field] = 0; }
   }
   if (unit.defenseBuff) { unit.defenseBuff = 0; unit.defenseBuffUntilRound = -1; cleared.push("defenseBuff"); }
   if (unit.wukongDefenseBuff) { unit.wukongDefenseBuff = 0; unit.wukongDefenseBuffUntilRound = -1; cleared.push("wukongDefenseBuff"); }
   if (unit.shieldHp) { unit.shieldHp = 0; cleared.push("shieldHp"); }
-  if (unit.critRateBonus) { unit.critRateBonus = 0; cleared.push("critRateBonus"); }
+  if (unit.oneEyeKingCritRateBonus > 0) {
+    unit.critRateBonus = Math.max(unit.baseCritRateBonus ?? 0, unit.critRateBonus - unit.oneEyeKingCritRateBonus);
+    unit.oneEyeKingCritRateBonus = 0;
+    unit.oneEyeKingUntilRound = 0;
+    cleared.push("oneEyeKingCritRateBonus", "oneEyeKingCritDamageBonus");
+  }
+  if ((unit.critRateBonus ?? 0) > (unit.baseCritRateBonus ?? 0)) {
+    unit.critRateBonus = unit.baseCritRateBonus ?? 0; cleared.push("skillCritRateBonus");
+  }
+  if (unit.reactiveCritDamageBonus > 0) { unit.reactiveCritDamageBonus = 0; cleared.push("reactiveCritDamageBonus"); }
   if (unit.dodgeRateBonus !== unit.baseDodgeRateBonus) { unit.dodgeRateBonus = unit.baseDodgeRateBonus; cleared.push("skillDodgeBonus"); }
   unit.jinchurikiActive = false;
   unit.nineTailsLowHpActive = false;
@@ -484,9 +508,15 @@ export function stageThreeRoundStart(state, random = Math.random) {
     }
   }
   if (state.round >= 3 && (state.round - 3) % 4 === 0) {
-    for (const unit of state.characters.filter((entry) => entry.team !== makima.team && entry.alive)) {
+    for (const unit of state.characters.filter((entry) => entry.originalTeam === "ally" && entry.alive)) {
       const cleared = clearSkillBuffs(unit);
-      events.push({ type: "stage3-buff-clear", round: state.round, attackerId: makima.id, targetId: unit.id, cleared });
+      const buffState = Object.fromEntries(["atk", "def", "spd", "maxHp", "critRateBonus", "dodgeRateBonus",
+        "reactiveCritDamageBonus", "oneEyeKingCritRateBonus", "oneEyeKingUntilRound", "shieldHp",
+        "defenseBuff", "wukongDefenseBuff", "lifesteal", "damageReductionBonus",
+        "battleAttackBonus", "jinchurikiActive", "nineTailsLowHpActive", "nineTailsLowHpBonus",
+        "nineTailsTeammateBonus", "dharmaAllyAttackBonus", "tangRepeatedWukongAtkBonus"].map((key) => [key, unit[key] ?? 0]));
+      events.push({ type: "stage3-buff-clear", round: state.round, attackerId: makima.id,
+        targetId: unit.id, cleared, buffState });
     }
   }
   if (state.round >= state.makima.nextBangRound) {
@@ -527,14 +557,8 @@ export function summonAtRoundStart(state) {
       alive: true, team: summoner.team, originalTeam: summoner.team, row: "front", position: "front",
       skill: unit.skill ? { ...unit.skill } : null,
     };
-    if (state.characters.some((entry) => entry.id === "falling-devil" && entry.alive) && summoned.team === "ally") {
-      summoned.entryPanelSpd = summoned.spd; summoned.spd = 1; summoned.gravityStacks = 0; summoned.gravityHealProgress = 0;
-      let hp = summoned.currentHp;
-      Object.defineProperty(summoned, "currentHp", { enumerable: true, configurable: true, get() { return hp; }, set(next) {
-        const restored = Math.max(0, Math.min(summoned.maxHp, next) - Math.min(summoned.maxHp, hp)); hp = next;
-        if (restored > 0 && summoned.gravityStacks > 0) { summoned.gravityStacks -= 1; state.gravityHealEvents.push({ type: "gravity-heal", round: state.round, targetId: summoned.id, restored, layersRemoved: 1, stacks: summoned.gravityStacks, healingProgress: 0 }); }
-      } });
-    }
+    const fallingDevil = state.characters.find((entry) => entry.id === "falling-devil" && entry.alive);
+    if (fallingDevil && summoned.team === "ally") attachGravityHealing(state, summoned, fallingDevil);
     summoner.lastSummonedRound = state.round;
     state.characters.push(summoned);
     summonedEvents.push({ type: "summon", round: state.round, summonerId: summoner.id,
@@ -682,6 +706,7 @@ export function executeAttack(state, attacker, target, random = Math.random, att
     if (passive?.skillId === "jinchuriki") {
       const originalAtk = attacker.atk;
       attacker.atk = passive.rounding === "floor" ? Math.floor(originalAtk * (1 + passive.attackBonus)) : originalAtk * (1 + passive.attackBonus);
+      attacker.jinchurikiAttackBonus = attacker.atk - originalAtk;
       attacker.jinchurikiTriggered = true;
       jinchurikiTriggered = { ...passive, originalAtk, effectiveAtk: attacker.atk };
     }
@@ -843,14 +868,10 @@ export function executeAttack(state, attacker, target, random = Math.random, att
   if (actualDamage > 0 && reactiveSkill) {
     target.damageTakenHits = (target.damageTakenHits ?? 0) + 1;
     if (target.damageTakenHits % reactiveSkill.hitsPerTrigger === 0) {
-      target.critRateBonus = (target.critRateBonus ?? 0) + reactiveSkill.critRateBonus;
-      target.dodgeRateBonus = (target.dodgeRateBonus ?? 0) + reactiveSkill.dodgeRateBonus;
       target.battleAttackBonus = (target.battleAttackBonus ?? 0) + (reactiveSkill.attackBonus ?? 0);
       target.atk += reactiveSkill.attackBonus ?? 0;
       damageSkillTriggered = {
         skillId: reactiveSkill.id, skillName: reactiveSkill.name, hits: target.damageTakenHits,
-        critRateGain: reactiveSkill.critRateBonus, dodgeRateGain: reactiveSkill.dodgeRateBonus,
-        critRateBonus: target.critRateBonus, dodgeRateBonus: target.dodgeRateBonus,
         attackGain: reactiveSkill.attackBonus ?? 0, effectiveAtk: target.atk,
       };
     }
@@ -1048,13 +1069,43 @@ function resolveTrueDamageSkill(state, attacker, target, skill, amount) {
     summonerId: summoner?.id ?? null, summonerHealedAmount, summonerHp: summoner?.currentHp ?? null };
 }
 
+function resolveAttackTitanHpDamage(state, attacker, target, hpSnapshot) {
+  if (!target?.alive || target.currentHp <= 0) return null;
+  const power = Math.floor(hpSnapshot * .1);
+  const before = target.currentHp;
+  let damage = calculateDamage({ atk: power }, { def: combatDefense(target, state.round) });
+  if (attacker.weaknessRound === state.round) damage = Math.max(1, Math.floor(damage * .5));
+  if (attacker.damageDealtMultiplier > 1) damage = Math.floor(damage * attacker.damageDealtMultiplier);
+  if (target.damageTakenMultiplier > 1) damage = Math.floor(damage * target.damageTakenMultiplier);
+  if (target.borosPhase === 1) damage = Math.max(1, Math.floor(damage * .9));
+  if (target.id === "tang" && state.characters.some((unit) => unit.summonerId === "tang" && unit.alive))
+    damage = Math.max(1, Math.floor(damage * .8));
+  if (target.tangSummonKind === "wukong" && target.wukongReductionRound === state.round)
+    damage = Math.max(1, Math.floor(damage * (1 - SKILL_DATA["wukong-fate"].levels[1].damageResistance)));
+  if (target.id === "armored-titan" && target.armorReductionStartRound != null &&
+      state.round >= target.armorReductionStartRound && state.round <= target.armorReductionUntilRound)
+    damage = Math.max(1, Math.floor(damage * (1 - SKILL_DATA["reiner-sat-down"].levels[1].reduction)));
+  damage = applyTojiExhaustion(target, applyNormalDamageReduction(target, damage));
+  const shieldAbsorbed = Math.min(damage, target.shieldHp ?? 0);
+  target.shieldHp = Math.max(0, (target.shieldHp ?? 0) - shieldAbsorbed);
+  const trialDamage = applyTrialDamage(state, target, damage - shieldAbsorbed, "attached");
+  const actualDamage = trialDamage.emergencyHeal ? trialDamage.dealt : Math.max(0, before - target.currentHp);
+  accumulateBombDamage(state, target.id, actualDamage);
+  const targetDied = handleDeath(target);
+  const scorpionHeals = healScorpionAllies(state, target, actualDamage);
+  return { type: "attack-titan-hp-damage", attackerId: attacker.id, targetId: target.id,
+    round: state.round, hpSnapshot, power, actualDamage, shieldAbsorbed,
+    targetShield: target.shieldHp, targetHp: target.currentHp, targetDied, trialDamage, scorpionHeals };
+}
+
 function resolveCloneSplash(state, attacker, primary, skill, random) {
   const splash = [];
-  const base = Math.floor(primary.calculatedDamage * skill.splashRatio);
   const otherTargets = state.characters.filter((unit) => unit.team !== attacker.team && unit.id !== primary.targetId && unit.alive && unit.currentHp > 0);
   const primaryTarget = state.characters.find((unit) => unit.id === primary.targetId);
   const splashTargets = otherTargets.length ? otherTargets : primaryTarget?.alive && primaryTarget.currentHp > 0 ? [primaryTarget] : [];
   for (const target of splashTargets) {
+    const splashRatio = otherTargets.length ? skill.splashRatio : skill.singleTargetSplashRatio ?? skill.splashRatio;
+    const base = Math.floor(primary.calculatedDamage * splashRatio);
     const dodged = !attacker.unavoidableAttack && random() < getSkillDodgeChance(target);
     let damage = dodged ? 0 : applyTojiExhaustion(target, applyNormalDamageReduction(target, calculateDamage({ atk: base }, { def: combatDefense(target, state.round) })));
     const shieldAbsorbed = Math.min(damage, target.shieldHp ?? 0);
@@ -1119,14 +1170,8 @@ function createTangSummon(state, summoner, skill, random) {
     summoned.currentHp = summoned.maxHp;
   }
   summoned.healingBlocked = Boolean(summoner.healingBlocked);
-  if (state.characters.some((unit) => unit.id === "falling-devil" && unit.alive) && summoned.team === "ally") {
-    summoned.entryPanelSpd = summoned.spd; summoned.spd = 1; summoned.gravityStacks = 0; summoned.gravityHealProgress = 0;
-    let hp = summoned.currentHp;
-    Object.defineProperty(summoned, "currentHp", { enumerable: true, configurable: true, get() { return hp; }, set(next) {
-      const restored = Math.max(0, Math.min(summoned.maxHp, next) - Math.min(summoned.maxHp, hp)); hp = next;
-      if (restored > 0 && summoned.gravityStacks > 0) { summoned.gravityStacks -= 1; state.gravityHealEvents.push({ type: "gravity-heal", round: state.round, targetId: summoned.id, restored, layersRemoved: 1, stacks: summoned.gravityStacks, healingProgress: 0 }); }
-    } });
-  }
+  const fallingDevil = state.characters.find((unit) => unit.id === "falling-devil" && unit.alive);
+  if (fallingDevil && summoned.team === "ally") attachGravityHealing(state, summoned, fallingDevil);
   if (summoner.odinMimirStat) {
     const stat = summoner.odinMimirStat;
     summoned.odinMimirStat = stat;
@@ -1478,7 +1523,7 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
       if (skill?.id === "naruto-multi-clone" && skill.cloneGain) {
         attacker.chakraClones += skill.cloneGain;
         events.push({ type: "evolution-clone-gain", attackerId: attacker.id, round: state.round,
-          count: attacker.chakraClones });
+          count: attacker.chakraClones, gained: skill.cloneGain });
       }
       if (skill?.id === "naruto-giant-rasengan") {
         attacker.chakra += skill.chakraLevelGain + attacker.spd / 10;
@@ -1501,9 +1546,11 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
       if (faster) attacker.fasterActions = Math.min(tojiRule.maxHits - 1, attacker.fasterActions + 1);
       const segmentCount = attacker.elitePassiveId === "toji-heavenly-restriction"
         ? faster ? Math.min(tojiRule.maxHits, 1 + attacker.fasterActions) : 1 : targets.length;
+      const titanHpDamageTargets = new Set();
       for (let index = 0; index < segmentCount; index += 1) {
         const struck = targets[attacker.elitePassiveId === "toji-heavenly-restriction" ? 0 : index];
         if (!struck?.alive || struck.currentHp <= 0) break;
+        const attackerHpSnapshot = attacker.currentHp;
         const event = gilgameshCast === 4
           ? resolveTrueDamageSkill(state, attacker, struck, skill, Math.floor(struck.maxHp * skill.trueDamageRatio))
           : executeAttack(state, attacker, struck, random, {
@@ -1517,6 +1564,13 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
         if (event.jinchurikiTriggered) events.push({ type: "passive-trigger", ...event.jinchurikiTriggered, attackerId: attacker.id });
         if (event.elitePassiveTriggered) events.push({ type: "elite-passive-trigger", ...event.elitePassiveTriggered, attackerId: attacker.id });
         events.push(event);
+        let hpDamageEvent = null;
+        if (attacker.id === "eren" && attacker.evolutionPhase === 2 && event.type === "attack" &&
+            event.hit && !event.dodged && !titanHpDamageTargets.has(struck.id)) {
+          titanHpDamageTargets.add(struck.id);
+          hpDamageEvent = resolveAttackTitanHpDamage(state, attacker, struck, attackerHpSnapshot);
+          if (hpDamageEvent) events.push(hpDamageEvent);
+        }
         resolveStageThreeDeaths(state, events);
         if (event.type === "attack" && attacker.skills?.some((entry) => entry.id === "kaneki-2000-14")) {
           const reactive = attacker.skills.find((entry) => entry.id === "kaneki-2000-14");
@@ -1587,13 +1641,20 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
         if (["shadow-clone-rush", "naruto-multi-clone"].includes(skill?.id) && skill.splashRatio && !event.dodged) {
           for (const splash of resolveCloneSplash(state, attacker, event, skill, random)) {
             events.push(splash);
+            if (attacker.id === "eren" && attacker.evolutionPhase === 2 && splash.hit && !splash.dodged &&
+                !titanHpDamageTargets.has(splash.targetId)) {
+              titanHpDamageTargets.add(splash.targetId);
+              const splashTarget = state.characters.find((unit) => unit.id === splash.targetId);
+              const hpDamage = resolveAttackTitanHpDamage(state, attacker, splashTarget, attackerHpSnapshot);
+              if (hpDamage) events.push(hpDamage);
+            }
             if (splash.targetDied) {
               const defeated = state.characters.find((unit) => unit.id === splash.targetId);
               if (defeated) resolveAhFuDefeat(state, defeated, events);
             }
           }
         }
-        const targetDied = event.targetDied || jasonHit?.targetDied || treasureHit?.targetDied;
+        const targetDied = event.targetDied || hpDamageEvent?.targetDied || jasonHit?.targetDied || treasureHit?.targetDied;
         if (targetDied) resolveAhFuDefeat(state, struck, events);
         if (targetDied) resolveStageThreeDeaths(state, events);
         if (targetDied && state.characters.find((character) => character.id === event.targetId)?.escapeAsset) {

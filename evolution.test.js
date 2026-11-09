@@ -224,3 +224,63 @@ test("new descriptions and enemy squad use level buttons and portrait cards", ()
   assert.match(app, /portrait\.src = enemy\.asset/);
   assert.doesNotMatch(app, /lines\[1\]\.textContent = `ATK/);
 });
+
+test("Attack Titan adds current-HP damage after landed normal attacks", () => {
+  const result = simulateBattle([
+    testUnit("eren", "ally", { hp: 1000, maxHp: 1000, currentHp: 1000, atk: 100,
+      spd: 100, evolutionPhase: 2, passiveSkillId: "eren-paths" }),
+    testUnit("foe", "enemy", { hp: 5000, maxHp: 5000, currentHp: 5000, atk: 2000, spd: 1 })
+  ], () => .99);
+  const primary = result.events.find((event) => event.type === "attack" && event.attackerId === "eren");
+  const extra = result.events.find((event) => event.type === "attack-titan-hp-damage");
+  assert.ok(primary.actualDamage > 0);
+  assert.deepEqual([extra.hpSnapshot, extra.power, extra.actualDamage], [1000, 100, 100]);
+  assert.equal(result.events.indexOf(extra), result.events.indexOf(primary) + 1);
+});
+
+test("One Eye King keeps its crit rate for the battle and crit damage for five rounds", () => {
+  const state = initializeBattle([
+    testUnit("kaneki", "ally", { hp: 1000, maxHp: 1000, currentHp: 410, atk: 100,
+      passiveSkillId: "kaneki-one-eye-king" }),
+    testUnit("foe", "enemy", { hp: 5000, maxHp: 5000, currentHp: 5000, atk: 100 })]);
+  const [kaneki, foe] = state.characters;
+  state.round = 2;
+  const hit = executeAttack(state, foe, kaneki, () => .99, { skill: null });
+  assert.equal(hit.trialDamage.oneEyeKingTriggered, true);
+  assert.equal(kaneki.oneEyeKingUntilRound, 6);
+  assert.equal(getCritChanceForTest(kaneki), .6);
+  state.round = 6;
+  const active = executeAttack(state, kaneki, foe, (() => { const rolls = [.99, .5]; return () => rolls.shift() ?? .99; })(), { skill: null });
+  state.round = 7;
+  const expired = executeAttack(state, kaneki, foe, (() => { const rolls = [.99, .5]; return () => rolls.shift() ?? .99; })(), { skill: null });
+  assert.equal(active.critical, true);
+  assert.equal(expired.critical, true);
+  assert.ok(active.calculatedDamage > expired.calculatedDamage);
+  assert.equal(getCritChanceForTest(kaneki), .6);
+  foe.currentHp = 1; foe.alive = true;
+  const lateKill = executeAttack(state, kaneki, foe, () => .99, { skill: null });
+  assert.equal(lateKill.oneEyeKingAttackBonus, 0);
+});
+
+const getCritChanceForTest = (unit) => Math.min(1, (unit.critChance ?? 0) + (unit.critRateBonus ?? 0));
+
+test("Nine Tails clone skill has the requested four levels and gains clones only on cast", () => {
+  const expected = [[.5, 1.5, 1], [.6, 1.8, 1], [.7, 2.1, 1], [.7, 2.5, 2]];
+  for (const [index, [chance, multiplier, cloneGain]] of expected.entries()) {
+    const skill = effect("naruto-multi-clone", index + 1);
+    assert.deepEqual([skill.chance, skill.multiplier, skill.splashRatio,
+      skill.singleTargetSplashRatio, skill.cloneGain], [chance, multiplier, .75, .5, cloneGain]);
+    const result = simulateBattle([
+      testUnit("naruto", "ally", { atk: 100, spd: 100, hp: 1000, currentHp: 1000,
+        extraPassiveSkillIds: ["naruto-chakra-clones"], skills: [skill] }),
+      testUnit("foe", "enemy", { hp: 1000, currentHp: 1000, atk: 2000, spd: 1 })], () => 0);
+    const gain = result.events.find((event) => event.type === "evolution-clone-gain");
+    assert.equal(gain.count, 2 + cloneGain);
+    assert.ok(result.events.some((event) => event.skillId === "naruto-multi-clone" && event.splash));
+  }
+  const failed = simulateBattle([
+    testUnit("naruto", "ally", { atk: 100, spd: 100,
+      extraPassiveSkillIds: ["naruto-chakra-clones"], skills: [effect("naruto-multi-clone", 1)] }),
+    testUnit("foe", "enemy", { hp: 500, currentHp: 500, atk: 2000, spd: 1 })], () => .99);
+  assert.equal(failed.events.some((event) => event.type === "evolution-clone-gain"), false);
+});

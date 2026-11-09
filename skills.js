@@ -5,13 +5,13 @@ export const SKILL_DATA = {
   "falling-gravity-domain": { id: "falling-gravity-domain", name: "重力领域", type: "passive", passive: true,
     description: "开战时将所有玩家角色的实际战斗 SPD 固定为 1；入场面板 SPD 仍用于失重伤害。", levels: { 1: {} } },
   "falling-weightlessness": { id: "falling-weightlessness", name: "失重", type: "passive", passive: true,
-    description: "第 3、6、9……回合结束时，使所有存活玩家角色坠落；基础伤害为各自入场面板 SPD × 4 + 250，再按 DEF 和现有防护规则结算。", levels: { 1: {} } },
+    description: "第 3、6、9……回合结束时抬起所有存活玩家角色及召唤物，抬升后恢复自身已损失 HP 的 15%，再使目标坠落；基础伤害为各自入场面板 SPD × 4 + 250，按 DEF 和现有防护规则结算。", levels: { 1: {} } },
   "falling-main-course": { id: "falling-main-course", name: "主菜", type: "passive", passive: true,
-    description: "每次失重后存活者获得 1 层失去引力；每次实际获得治疗减少 1 层。达到 5 层时，实际战斗 DEF 高于 260 的目标改受 800 点真实伤害，否则立即被处决。", levels: { 1: {} } },
+    description: "每次失重后存活者获得 1 层失去引力；累计实际恢复 300 HP 清除 1 层。达到 4 层时，实际战斗 DEF 高于 260 的目标改受 800 点真实伤害，否则立即被处决。", levels: { 1: {} } },
   "stage3-resurrection": { id: "stage3-resurrection", name: "双人复活", type: "passive", passive: true,
     description: "倒地时另一人若存活，等待四回合后以 40% 最大 HP 复活；等待期间存活者攻击力翻倍；两人同时倒地则战斗结束。", levels: { 1: {} } },
   "makima-weapons": { id: "makima-weapons", name: "武器人", type: "passive", passive: true,
-    description: "开局召唤两名眷属；低于半血再召唤两名。每名眷属阵亡 ATK +100；四名全灭后吸血 +10%。", levels: { 1: {} } },
+    description: "开局召唤两名眷属；低于半血再召唤两名。每名眷属阵亡 ATK +150；四名全灭后吸血 +25%。", levels: { 1: {} } },
   "makima-control": { id: "makima-control", name: "支配", type: "passive", passive: true,
     description: "第 2 回合起每回合 25% 概率支配伙伴；成功后持续当前及下一回合，随后必定解除，每场最多成功一次。", levels: { 1: {} } },
   "makima-angel": { id: "makima-angel", name: "天使恶魔", type: "passive", passive: true,
@@ -40,7 +40,7 @@ export const SKILL_DATA = {
     description: "造成 1.2 倍攻击伤害，命中后使目标沉默两回合。",
     levels: { 1: { chance: .4, multiplier: 1.2, effectType: "damage", attackType: "melee", silenceRounds: 2 } } },
   "eren-paths": { id: "eren-paths", name: "道路", type: "passive", passive: true, maxLevel: 1,
-    description: "每场首次受到伤害免疫；首次生命低于 20% 时恢复 40% 最大 HP。", levels: { 1: { immuneHits: 1, emergencyHealRatio: .4, emergencyThreshold: .2 } } },
+    description: "每场首次受到伤害免疫；首次生命低于 20% 时恢复 40% 最大 HP；普攻和伤害技能命中时追加自身当前 HP 10% 为基础的正常防御伤害，不消耗 HP。", levels: { 1: { immuneHits: 1, emergencyHealRatio: .4, emergencyThreshold: .2 } } },
   "eren-hardening": { id: "eren-hardening", name: "硬质化", type: "active", triggerType: "on_action", maxLevel: 4,
     description: "增加本场防御，受到攻击时反伤；高等级可嘲讽。",
     levels: Object.fromEntries([[.5,10,.8,false],[.6,15,.8,false],[.6,20,1,false],[.7,25,1,true]].map(([chance,defenseBonus,reflectMultiplier,taunt], index) =>
@@ -50,8 +50,8 @@ export const SKILL_DATA = {
     levels: Object.fromEntries([[.4,1.7,.4,40],[.5,1.8,.5,40],[.5,1.9,.6,30],[.6,1.9,.7,30]].map(([chance,multiplier,ignoreDefenseFromOwnDef,defenseCost], index) =>
       [index + 1, { chance, multiplier, ignoreDefenseFromOwnDef, defenseCost, attackFormula: "atk_plus_current_def", effectType: "damage", attackType: "melee" }])) },
   "kaneki-one-eye-king": { id: "kaneki-one-eye-king", name: "独眼之王", type: "passive", passive: true, maxLevel: 1,
-    description: "暴击吸血；首次低于 40% HP 时获得三回合暴伤强化，期间击杀永久加攻。",
-    levels: { 1: { healFromCalculatedDamage: .3, emergencyThreshold: .4, critDamageBonus: .4, durationRounds: 3, killAttackBonus: 10 } } },
+    description: "暴击吸血 30%；每战首次低于 40% HP 时，暴击伤害 +40% 持续 5 回合，暴击率 +60 个百分点持续本场；暴伤窗口内击杀永久 ATK +10。",
+    levels: { 1: { healFromCalculatedDamage: .3, emergencyThreshold: .4, critDamageBonus: .4, critRateBonus: .6, durationRounds: 5, killAttackBonus: 10 } } },
   "kaneki-glutton": { id: "kaneki-glutton", name: "暴食者", type: "active", triggerType: "on_action", maxLevel: 4,
     description: "以攻击与速度造成伤害；目标血量低于等级阈值时必暴击。",
     levels: Object.fromEntries([[.6,1.2,.3,50],[.65,1.3,.3,50],[.7,1.4,.4,50],[.7,1.4,.5,100]].map(([chance,multiplier,guaranteedCritBelowHpRatio,killMaxHpBonus], index) =>
@@ -59,8 +59,8 @@ export const SKILL_DATA = {
         attackFormula: "atk_plus_spd", effectType: "damage", attackType: "melee" }])) },
   "kaneki-2000-14": { id: "kaneki-2000-14", name: "2000-14", type: "active", triggerType: "on_damage", maxLevel: 4,
     description: "本场受伤和攻击次数分别累计，自身逐步强化。",
-    levels: Object.fromEntries([[2,.07,10,2,.03,0],[2,.07,20,2,.04,0],[2,.14,25,2,.05,0],[1,.07,15,1,.03,.04]].map(([hitsPerTrigger,critRateBonus,attackBonus,attacksPerTrigger,critDamagePerAttack,dodgeRateBonus], index) =>
-      [index + 1, { hitsPerTrigger, critRateBonus, attackBonus, attacksPerTrigger, critDamagePerAttack, dodgeRateBonus,
+    levels: Object.fromEntries([[2,10,2,.03],[2,20,2,.04],[2,25,2,.05],[1,15,1,.03]].map(([hitsPerTrigger,attackBonus,attacksPerTrigger,critDamagePerAttack], index) =>
+      [index + 1, { hitsPerTrigger, attackBonus, attacksPerTrigger, critDamagePerAttack,
         counterDamageEvery: index === 3 ? 10 : 0 }])) },
   "naruto-nine-tails-bond": { id: "naruto-nine-tails-bond", name: "九尾的羁绊", type: "passive", passive: true, maxLevel: 1,
     description: "低于半血时提升攻击并吸血；队友濒危时再强化攻击，并将伤害转为队友护盾。",
@@ -69,9 +69,9 @@ export const SKILL_DATA = {
     description: "每场自带两个分身；队友在 HP 不高于最大 HP 的 20% 时受到攻击，必定消耗一个分身，将本次伤害减半。",
     levels: { 1: { startingClones: 2, teammateHpThreshold: .2, reduction: .5 } } },
   "naruto-multi-clone": { id: "naruto-multi-clone", name: "多重影分身", type: "active", triggerType: "on_action", maxLevel: 4,
-    description: "分身攻击主目标，并对其余敌人造成附加伤害；只有一个敌人时附加伤害仍命中主目标。",
-    levels: Object.fromEntries([[.5,1.3],[.6,1.6],[.7,1.9],[.7,2.2]].map(([chance,multiplier], index) =>
-      [index + 1, { chance, multiplier, splashRatio: index === 3 ? .5 : .75, cloneGain: index === 3 ? 1 : 0, effectType: "damage", attackType: "melee" }])) },
+    description: "50%/60%/70%/70% 概率造成 1.5/1.8/2.1/2.5 倍 ATK 主目标伤害；其他敌人承受主目标伤害的 75%，仅剩一敌人时额外承受 50%；成功释放增加 1/1/1/2 个影分身。",
+    levels: Object.fromEntries([[.5,1.5],[.6,1.8],[.7,2.1],[.7,2.5]].map(([chance,multiplier], index) =>
+      [index + 1, { chance, multiplier, splashRatio: .75, singleTargetSplashRatio: .5, cloneGain: index === 3 ? 2 : 1, effectType: "damage", attackType: "melee" }])) },
   "naruto-giant-rasengan": { id: "naruto-giant-rasengan", name: "大玉螺旋丸", type: "active", triggerType: "on_action", maxLevel: 4,
     description: "沿用螺旋丸等级伤害；每次施放积累查克拉，满 100 时追加超大玉螺旋丸。",
     levels: Object.fromEntries(Array.from({ length: 4 }, (_, index) => [index + 1, {
@@ -179,13 +179,13 @@ export const SKILL_DATA = {
     },
   },
   "kaneki-1000-7": {
-    id: "kaneki-1000-7", name: "1000-7", type: "active", description: "受伤后自动计数；达到当前等级所需次数时，本场暴击率与攻击力累加，Lv.4 还增加闪避率。",
+    id: "kaneki-1000-7", name: "1000-7", type: "active", description: "受伤后自动计数并增加本场 ATK；攻击次数累积增加暴击伤害，Lv.4 每累计受击 10 次额外反击。",
     triggerType: "on_damage", targetRule: "self", passive: false, unlockMethod: "character_choice", maxLevel: 4,
     levels: {
-      1: { hitsPerTrigger: 2, critRateBonus: 0.07, attackBonus: 10, dodgeRateBonus: 0 },
-      2: { hitsPerTrigger: 2, critRateBonus: 0.07, attackBonus: 20, dodgeRateBonus: 0 },
-      3: { hitsPerTrigger: 2, critRateBonus: 0.14, attackBonus: 25, dodgeRateBonus: 0 },
-      4: { hitsPerTrigger: 1, critRateBonus: 0.07, attackBonus: 15, dodgeRateBonus: 0.03 },
+      1: { hitsPerTrigger: 2, attackBonus: 10, attacksPerTrigger: 2, critDamagePerAttack: .03 },
+      2: { hitsPerTrigger: 2, attackBonus: 20, attacksPerTrigger: 2, critDamagePerAttack: .04 },
+      3: { hitsPerTrigger: 2, attackBonus: 25, attacksPerTrigger: 2, critDamagePerAttack: .05 },
+      4: { hitsPerTrigger: 1, attackBonus: 15, attacksPerTrigger: 1, critDamagePerAttack: .03, counterDamageEvery: 10 },
     },
   },
   "c4-garuda": {
@@ -380,8 +380,8 @@ export const ADVENTURE_EVENT_DATA = {
     image: "assets/events/event_kings_treasury.png", effectText: "决定如何面对王之宝库。",
     containsBattle: false, providesReward: true, requiresChoice: true,
   },
-  gamble: { id: "gamble", name: "一次豪赌", type: "gamble", description: "小赌怡情，大赌伤身（三局两胜者，当赏！）", image: "assets/events/gamble-coin.svg", effectText: "先选择一名队员，再决定是否参与每一轮赌博。", containsBattle: false, providesReward: true, requiresChoice: true },
-  gamble_2: { id: "gamble_2", name: "一次豪赌（2）", type: "gamble", description: "小赌怡情，大赌伤身（三局两胜者，当赏！）", image: "assets/events/gamble-coin.svg", effectText: "先选择一名队员，再决定是否参与每一轮赌博。", containsBattle: false, providesReward: true, requiresChoice: true },
+  gamble: { id: "gamble", name: "一次豪赌", type: "gamble", description: "小赌怡情，大赌伤身（三局两胜者，当赏！）", image: "assets/events/event_gamble.png", effectText: "先选择一名队员，再决定是否参与每一轮赌博。", containsBattle: false, providesReward: true, requiresChoice: true },
+  gamble_2: { id: "gamble_2", name: "一次豪赌（2）", type: "gamble", description: "小赌怡情，大赌伤身（三局两胜者，当赏！）", image: "assets/events/event_gamble.png", effectText: "先选择一名队员，再决定是否参与每一轮赌博。", containsBattle: false, providesReward: true, requiresChoice: true },
 };
 
 export const GIANT_SPINAL_FLUID = Object.freeze({

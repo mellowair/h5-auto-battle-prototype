@@ -134,7 +134,7 @@ test("either opening active skill preserves One Eye on the real campaign battle 
   }
 });
 
-test("1000-7 critical gain contributes to later One Eye healing in battle", () => {
+test("1000-7 adds attack without increasing crit chance, while One Eye still heals", () => {
   const hero = unit({ currentHp: 900, skills: [skillAt("kaneki-1000-7", 1)] });
   const foe = enemy({ atk: 10, currentHp: 1000 });
   const state = initializeBattle([hero, foe]);
@@ -142,10 +142,10 @@ test("1000-7 critical gain contributes to later One Eye healing in battle", () =
   executeAttack(state, opponent, fighter, rolls(0.99, 0.99));
   const second = executeAttack(state, opponent, fighter, rolls(0.99, 0.99));
   assert.ok(second.damageSkillTriggered);
-  assert.ok(Math.abs(getCritChance(fighter) - 0.12) < 1e-10);
+  assert.ok(Math.abs(getCritChance(fighter) - 0.05) < 1e-10);
   assert.equal(fighter.atk, 210);
   const before = fighter.currentHp;
-  const counter = executeAttack(state, fighter, opponent, rolls(0.99, 0.08));
+  const counter = executeAttack(state, fighter, opponent, rolls(0.99, 0.01));
   assert.equal(counter.critical, true);
   assert.equal(counter.oneEyeHealedAmount, Math.floor(counter.calculatedDamage * 0.25));
   assert.equal(fighter.currentHp, before + counter.oneEyeHealedAmount);
@@ -224,7 +224,7 @@ test("Predator Lv4 grants 50 lasting max HP only when its hit kills", () => {
 });
 
 test("1000-7 reacts only to effective damage and its bonuses reset with a new battle", () => {
-  assert.equal(SKILL_DATA["kaneki-1000-7"].levels[4].dodgeRateBonus, .03);
+  assert.equal(SKILL_DATA["kaneki-1000-7"].levels[4].dodgeRateBonus, undefined);
   for (const level of [1, 2, 3, 4]) {
     const actor = unit({ skills: [skillAt("kaneki-1000-7", level)] });
     const foe = enemy({ atk: 20 });
@@ -235,17 +235,17 @@ test("1000-7 reacts only to effective damage and its bonuses reset with a new ba
     assert.equal(hero.damageTakenHits, 1);
     const second = executeAttack(state, attacker, hero, rolls(0.99, 0.99));
     const effect = SKILL_DATA["kaneki-1000-7"].levels[level];
-    assert.equal(hero.critRateBonus, effect.critRateBonus * (level === 4 ? 2 : 1));
-    assert.equal(hero.dodgeRateBonus, effect.dodgeRateBonus * (level === 4 ? 2 : 1));
+    assert.equal(hero.critRateBonus, 0);
+    assert.equal(hero.dodgeRateBonus, 0);
     assert.equal(hero.atk, 200 + effect.attackBonus * (level === 4 ? 2 : 1));
     assert.equal(second.damageSkillTriggered !== null, true);
-    assert.equal(second.damageSkillTriggered.critRateGain, effect.critRateBonus);
-    assert.equal(second.damageSkillTriggered.dodgeRateGain, effect.dodgeRateBonus);
+    assert.equal(second.damageSkillTriggered.critRateGain, undefined);
+    assert.equal(second.damageSkillTriggered.dodgeRateGain, undefined);
     assert.equal(second.damageSkillTriggered.attackGain, effect.attackBonus);
     executeAttack(state, attacker, hero, rolls(0.99, 0.99));
     executeAttack(state, attacker, hero, rolls(0.99, 0.99));
-    assert.equal(hero.critRateBonus, effect.critRateBonus * (level === 4 ? 4 : 2));
-    assert.equal(hero.dodgeRateBonus, effect.dodgeRateBonus * (level === 4 ? 4 : 2));
+    assert.equal(hero.critRateBonus, 0);
+    assert.equal(hero.dodgeRateBonus, 0);
     assert.equal(hero.atk, 200 + effect.attackBonus * (level === 4 ? 4 : 2));
     const next = initializeBattle([actor, foe]);
     assert.equal(next.characters[0].damageTakenHits, 0);

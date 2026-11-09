@@ -2,10 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { ELITE_ENEMY_DATA } from "./characters.js";
-import { executeAttack, initializeBattle, resolveFallingRoundEnd, simulateBattle } from "./battle.js";
+import { executeAttack, initializeBattle, resolveFallingRoundEnd, simulateBattle, summonAtRoundStart } from "./battle.js";
 import { prepareBattle } from "./campaign.js";
 import { createStageThreeTestCampaign } from "./dev/stage3-config.js";
-import { getGravityLiftPixels } from "./visualConfig.js";
+import { getCharacterVisual, getGravityLiftPixels } from "./visualConfig.js";
 
 const devil = ELITE_ENEMY_DATA.find((unit) => unit.id === "falling-devil");
 const ally = (id, spd = 100, def = 100) => ({ id, name: id, team: "ally", row: "front",
@@ -20,6 +20,30 @@ test("falling devil joins the stage-three elite registry with all eight real art
   const enemy = prepareBattle(campaign).roster.find((unit) => unit.id === "falling-devil");
   assert.equal(campaign.currentBattle.type, "elite");
   assert.deepEqual([enemy.maxHp, enemy.atk, enemy.def, enemy.spd], [6000, 250, 130, 140]);
+});
+
+test("falling devil heals 15% of missing HP once after lifting living opponents", () => {
+  const state = initializeBattle([ally("hero"), ally("summon"), devil]);
+  const enemy = state.characters[2];
+  enemy.currentHp = 1000;
+  state.round = 3;
+  const [fall] = resolveFallingRoundEnd(state);
+  assert.equal(fall.type, "gravity-fall");
+  assert.equal(fall.hits.length, 2);
+  assert.equal(fall.healedAmount, 750);
+  assert.equal(fall.devilHpAfter, 1750);
+  assert.equal(enemy.currentHp, 1750);
+  enemy.currentHp = 5990;
+  state.round = 6;
+  assert.equal(resolveFallingRoundEnd(state)[0].healedAmount, 1);
+  assert.equal(enemy.currentHp, 5991);
+  state.characters[0].alive = false;
+  state.characters[1].alive = false;
+  enemy.currentHp = 1000;
+  state.round = 9;
+  assert.equal(resolveFallingRoundEnd(state)[0].healedAmount, 0);
+  assert.equal(enemy.currentHp, 1000);
+  assert.equal(getCharacterVisual(devil).scale, 1.6);
 });
 
 test("gravity fixes combat speed at one without changing individual entry speed snapshots", () => {
@@ -44,34 +68,58 @@ test("falling happens only every third completed round and stops after the devil
   assert.deepEqual(resolveFallingRoundEnd(state), []);
 });
 
-test("each actual healing event removes one gravity stack per target", () => {
+test("each target clears one gravity stack per 300 actual HP restored", () => {
   const state = initializeBattle([ally("hero"), ally("friend"), devil]);
   const [hero, friend] = state.characters;
   hero.gravityStacks = 4; friend.gravityStacks = 2;
   hero.currentHp -= 2000;
-  hero.currentHp += 499;
-  assert.deepEqual([hero.gravityStacks, hero.gravityHealProgress], [3, 0]);
+  hero.currentHp += 299;
+  assert.deepEqual([hero.gravityStacks, hero.gravityHealProgress], [4, 299]);
   hero.currentHp += 1;
-  assert.deepEqual([hero.gravityStacks, hero.gravityHealProgress], [2, 0]);
-  hero.currentHp += 1200;
-  assert.deepEqual([hero.gravityStacks, hero.gravityHealProgress], [1, 0]);
-  hero.currentHp += 100;
+  assert.deepEqual([hero.gravityStacks, hero.gravityHealProgress], [3, 0]);
+  hero.currentHp += 650;
+  assert.deepEqual([hero.gravityStacks, hero.gravityHealProgress], [1, 50]);
+  hero.currentHp += 249;
+  assert.deepEqual([hero.gravityStacks, hero.gravityHealProgress], [1, 299]);
+  hero.currentHp += 1;
   assert.deepEqual([hero.gravityStacks, hero.gravityHealProgress], [0, 0]);
   hero.currentHp += 200;
   assert.deepEqual([hero.gravityStacks, hero.gravityHealProgress], [0, 0]);
   assert.deepEqual(state.gravityHealEvents.map((event) => [event.targetId, event.layersRemoved]),
-    [["hero", 1], ["hero", 1], ["hero", 1], ["hero", 1]]);
+    [["hero", 0], ["hero", 1], ["hero", 2], ["hero", 0], ["hero", 1]]);
   friend.currentHp -= 400;
-  friend.currentHp += 400;
+  friend.currentHp += 299;
+  assert.deepEqual([friend.gravityStacks, friend.gravityHealProgress], [2, 299]);
+  friend.currentHp += 1;
   assert.deepEqual([friend.gravityStacks, friend.gravityHealProgress], [1, 0]);
   friend.currentHp = friend.maxHp + 100;
-  assert.deepEqual([friend.gravityStacks, friend.gravityHealProgress], [1, 0]);
+  assert.deepEqual([friend.gravityStacks, friend.gravityHealProgress], [1, 100]);
+  friend.currentHp = friend.maxHp + 200;
+  assert.deepEqual([friend.gravityStacks, friend.gravityHealProgress], [1, 100]);
   hero.currentHp -= 500;
   hero.currentHp += 500;
   assert.deepEqual([hero.gravityStacks, hero.gravityHealProgress], [0, 0]);
 });
 
-test("critical healing and treasure lifesteal each remove one gravity stack", () => {
+test("a summon created during battle keeps its own 300 HP healing progress", () => {
+  const summoner = { ...ally("summoner"), summonPassive: { name: "召唤", firstRound: 1,
+    everyRounds: 3, unit: { id: "guard", name: "守卫", team: "ally", hp: 1000,
+      atk: 50, def: 100, spd: 80 } } };
+  const state = initializeBattle([summoner, devil]);
+  state.round = 1;
+  const [event] = summonAtRoundStart(state);
+  const guard = state.characters.find((unit) => unit.id === event.character.id);
+  assert.deepEqual([guard.entryPanelSpd, guard.spd], [80, 1]);
+  guard.gravityStacks = 2;
+  guard.currentHp -= 600;
+  guard.currentHp += 299;
+  assert.deepEqual([guard.gravityStacks, guard.gravityHealProgress], [2, 299]);
+  guard.currentHp += 301;
+  assert.deepEqual([guard.gravityStacks, guard.gravityHealProgress], [0, 0]);
+  assert.equal(state.characters[0].gravityStacks, 0);
+});
+
+test("critical healing and treasure lifesteal share the 300 HP recovery counter", () => {
   const kaneki = { ...ally("kaneki"), atk: 5000, critChance: 1, passiveSkillId: "kaneki-one-eye",
     passiveLevel: 1, lifesteal: .25 };
   const state = initializeBattle([kaneki, devil]);
@@ -82,22 +130,24 @@ test("critical healing and treasure lifesteal each remove one gravity stack", ()
   const hit = executeAttack(state, hero, enemy, () => .99, { skill: null });
   assert.ok(hit.oneEyeHealedAmount > 0);
   assert.ok(hit.treasureLifesteal > 0);
-  assert.equal(hero.gravityStacks, 1);
-  assert.equal(hero.gravityHealProgress, 0);
+  const totalRestored = hit.oneEyeHealedAmount + hit.treasureLifesteal;
+  const layersRemoved = Math.min(3, Math.floor(totalRestored / 300));
+  assert.equal(hero.gravityStacks, 3 - layersRemoved);
+  assert.equal(hero.gravityHealProgress, layersRemoved === 3 ? 0 : totalRestored - layersRemoved * 300);
   assert.deepEqual(state.gravityHealEvents.map((event) => event.restored),
     [hit.oneEyeHealedAmount, hit.treasureLifesteal]);
 });
 
-test("the fifth fall executes only surviving five-stack targets regardless of remaining HP", () => {
+test("the fourth fall executes only surviving four-stack targets regardless of remaining HP", () => {
   const state = initializeBattle([ally("hero", 100, 100), ally("friend", 50, 100), devil]);
   state.round = 15;
-  state.characters[0].gravityStacks = 4;
-  state.characters[1].gravityStacks = 3;
+  state.characters[0].gravityStacks = 3;
+  state.characters[1].gravityStacks = 2;
   const events = resolveFallingRoundEnd(state);
   assert.deepEqual(events.map((event) => event.type), ["gravity-fall", "gravity-execution"]);
   assert.equal(events[1].targetId, "hero");
   assert.deepEqual(state.characters.slice(0, 2).map((unit) => [unit.currentHp > 0, unit.alive, unit.gravityStacks]),
-    [[false, false, 5], [true, true, 4]]);
+    [[false, false, 4], [true, true, 3]]);
   const victim = initializeBattle([ally("fragile", 300, 0), devil]);
   victim.round = 3; victim.characters[0].currentHp = 10;
   const fall = resolveFallingRoundEnd(victim);
@@ -109,14 +159,14 @@ test("the fifth fall executes only surviving five-stack targets regardless of re
 test("main course executes at 260 defense and deals true damage above 260", () => {
   const boundary = initializeBattle([ally("boundary", 100, 260), devil]);
   boundary.round = 15;
-  boundary.characters[0].gravityStacks = 4;
+  boundary.characters[0].gravityStacks = 3;
   const boundaryEvents = resolveFallingRoundEnd(boundary);
   assert.deepEqual(boundaryEvents.map((event) => event.type), ["gravity-fall", "gravity-execution"]);
   assert.equal(boundary.characters[0].alive, false);
 
   const resistant = initializeBattle([ally("resistant", 100, 261), devil]);
   resistant.round = 15;
-  resistant.characters[0].gravityStacks = 4;
+  resistant.characters[0].gravityStacks = 3;
   const events = resolveFallingRoundEnd(resistant);
   assert.deepEqual(events.map((event) => event.type), ["gravity-fall", "gravity-main-course-damage"]);
   assert.equal(events[1].defenseAtTrigger, 261);
@@ -124,14 +174,14 @@ test("main course executes at 260 defense and deals true damage above 260", () =
   assert.equal(events[1].actualDamage, 800);
   assert.equal(events[1].targetDied, false);
   assert.equal(resistant.characters[0].currentHp, events[0].hits[0].hpAfter - 800);
-  assert.equal(resistant.characters[0].gravityStacks, 5);
+  assert.equal(resistant.characters[0].gravityStacks, 4);
 });
 
 test("main course checks current combat defense and applies shield rules", () => {
   const state = initializeBattle([ally("buffed", 100, 250), devil]);
   state.round = 15;
   const target = state.characters[0];
-  target.gravityStacks = 4;
+  target.gravityStacks = 3;
   target.defenseBuff = 20;
   target.defenseBuffUntilRound = 15;
   target.shieldHp = 500;
@@ -152,7 +202,7 @@ test("main course treats a summon separately from the hero", () => {
   state.round = 15;
   const hero = state.characters[0];
   const summoned = state.characters[1];
-  summoned.gravityStacks = 4;
+  summoned.gravityStacks = 3;
   const events = resolveFallingRoundEnd(state);
   assert.equal(events[1].type, "gravity-main-course-damage");
   assert.equal(events[1].targetId, "summon");
@@ -166,7 +216,7 @@ test("main course treats a summon separately from the hero", () => {
 test("full simulation keeps the three-round schedule and normal ranged attacks", () => {
   const result = simulateBattle([ally("hero", 100, 100), devil], () => .99);
   const falls = result.events.filter((event) => event.type === "gravity-fall");
-  assert.deepEqual(falls.map((event) => event.round), [3, 6, 9, 12, 15]);
+  assert.deepEqual(falls.map((event) => event.round), [3, 6, 9, 12]);
   assert.equal(result.events.filter((event) => event.type === "gravity-execution").length, 1);
   assert.ok(result.events.some((event) => event.type === "attack" && event.attackerId === devil.id && !event.skilled));
   assert.equal(result.outcome, "defeat");
