@@ -96,16 +96,16 @@ test("Tang Flesh level two heals from actual summon damage and level one does no
   assert.ok(level2.finalCharacters.find((unit) => unit.id === "tang").currentHp <= 900);
 });
 
-test("Wukong charges with 20% resistance, then deals 666 true damage", () => {
+test("Wukong charges with 20% resistance, then deals true damage from Tang's ATK", () => {
   const wukongRun = (options) => { let calls = 0; return run(10, () => calls++ < 2 ? .95 : .3, options); };
   const result = wukongRun({ enemyHp: 4000 });
   assert.equal(result.events.find((event) => event.type === "summon")?.character.name, "孙悟空");
   assert.equal(result.events.find((event) => event.type === "summon")?.character.maxHp, 3000);
   assert.ok(result.events.some((event) => event.type === "wukong-charge" && event.round === 2 && event.reductionRound === 3
     && event.summonerId === "tang" && event.defenseBonus === 80 && event.defenseDurationRounds === 1 && event.defenseUntilRound === 2));
-  assert.ok(result.events.some((event) => event.skillId === "wukong-fate" && event.round === 3 && event.trueDamage && event.damage === 666));
-  assert.ok(wukongRun({ enemyHp: 5000, atk: 420 }).events.some((event) => event.skillId === "wukong-fate" && event.damage === 666));
-  assert.ok(wukongRun({ enemyHp: 5000, enemyDef: 1000 }).events.some((event) => event.skillId === "wukong-fate" && event.trueDamage && event.damage === 666));
+  assert.ok(result.events.some((event) => event.skillId === "wukong-fate" && event.round === 3 && event.trueDamage && event.damage === 680));
+  assert.ok(wukongRun({ enemyHp: 5000, atk: 420 }).events.some((event) => event.skillId === "wukong-fate" && event.damage === 752));
+  assert.ok(wukongRun({ enemyHp: 5000, enemyDef: 1000 }).events.some((event) => event.skillId === "wukong-fate" && event.trueDamage && event.damage === 680));
   assert.ok(result.events.some((event) => event.wukongTeleportAttack && event.skillId === "wukong-fate"));
   const frames = tangSummonVisual("wukong").animations;
   for (const path of [frames.charge.frames.charge, frames.skillAttack.frames.teleport, frames.skillAttack.frames.strike, frames.death.frames.down])

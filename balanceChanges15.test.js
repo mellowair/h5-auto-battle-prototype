@@ -11,12 +11,12 @@ const unit = (id, team, props = {}) => ({ id, name: id, team, row: "front", hp: 
   currentHp: 1000, maxHp: 1000, atk: 100, def: 0, spd: 10, critChance: 0,
   normalDodgeRate: 0, skillDodgeRate: 0, ...props });
 
-test("Eren gains Coordinate HP once, heals on every third Hardening, and keeps Warhammer DEF", () => {
+test("Eren's Coordinate adds no HP, Hardening heals every third cast, and Warhammer keeps DEF", () => {
   const eren = createRunCharacterState(STARTING_CHARACTERS.find((entry) => entry.id === "eren"));
   const originalMaxHp = eren.maxHp;
   const campaign = { trialCompleted: true, evolutionPending: true, playerId: "eren", partyIds: ["eren"], partyStates: { eren } };
   assert.equal(evolveTrialParty(campaign), true);
-  assert.equal(eren.maxHp, Math.floor(originalMaxHp * 1.1) + 500);
+  assert.equal(eren.maxHp, Math.floor(originalMaxHp * 1.1));
   assert.deepEqual(eren.extraPassiveSkillIds, ["eren-coordinate"]);
   assert.equal(evolveTrialParty(campaign), false);
   const state = initializeBattle([unit("eren", "ally", { currentHp: 500, def: 100 }), unit("foe", "enemy", { maxHp: 10000, currentHp: 10000 })]);

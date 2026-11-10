@@ -240,6 +240,22 @@ test("Attack Titan coordinate adds damage from missing HP after landed normal at
   assert.equal(result.events.indexOf(extra), result.events.indexOf(primary) + 1);
 });
 
+test("Attack Titan coordinate uses max HP for skills and triggers once per successful hit", () => {
+  const warhammer = { ...effect("eren-warhammer"), chance: 1 };
+  const result = simulateBattle([
+    testUnit("eren", "ally", { hp: 1000, maxHp: 1000, currentHp: 800, atk: 100, def: 100,
+      spd: 100, evolutionPhase: 2, passiveSkillId: "eren-paths", skills: [warhammer] }),
+    testUnit("foe", "enemy", { hp: 10000, maxHp: 10000, currentHp: 10000, atk: 1, spd: 1 }),
+  ], () => .99);
+  const primary = result.events.find((event) => event.type === "attack" && event.attackerId === "eren");
+  const extra = result.events.find((event) => event.type === "attack-titan-hp-damage");
+  assert.equal(primary.skillId, "eren-warhammer");
+  assert.deepEqual([extra.attackKind, extra.power, extra.actualDamage], ["skill", 100, 100]);
+  assert.equal(result.events.indexOf(extra), result.events.indexOf(primary) + 1);
+  assert.equal(result.events.filter((event) => event.type === "attack-titan-hp-damage").length,
+    result.events.filter((event) => event.type === "attack" && event.attackerId === "eren" && event.actualDamage > 0 && !event.targetDied).length);
+});
+
 test("One Eye King keeps its crit rate for the battle and crit damage for five rounds", () => {
   const state = initializeBattle([
     testUnit("kaneki", "ally", { hp: 1000, maxHp: 1000, currentHp: 410, atk: 100,

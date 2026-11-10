@@ -258,6 +258,7 @@ test("Eren's 2000 Years passive blocks only his first incoming attack each battl
 test("Eren's Free Will levels grant a normal hit and cumulative battle-long DEF", () => {
   const expected = [[1, 0.5, 10], [2, 0.55, 15], [3, 0.6, 20], [4, 0.7, 25]];
   assert.deepEqual(expected.map(([level]) => [SKILL_DATA["eren-free-will"].levels[level].chance, SKILL_DATA["eren-free-will"].levels[level].defenseBonus]), expected.map(([, chance, bonus]) => [chance, bonus]));
+  assert.deepEqual(expected.map(([level]) => SKILL_DATA["eren-free-will"].levels[level].multiplier), [.7, .7, .7, .7]);
   const run = createRunCharacterState(STARTING_CHARACTERS.find((entry) => entry.id === "eren"), "eren-free-will");
   const skill = { ...getSkillAtLevel(run, "eren-free-will"), chance: 1 };
   const eren = { id: "eren", team: "ally", atk: 110, def: 100, spd: 50, currentHp: 1000, maxHp: 1700, alive: true, skills: [skill] };
@@ -267,7 +268,7 @@ test("Eren's Free Will levels grant a normal hit and cumulative battle-long DEF"
   const first = makeHit();
   const second = makeHit();
   assert.equal(first.attackKind, "normal", "Free Will retains normal-attack dodge handling");
-  assert.equal(first.damage, 220);
+  assert.equal(first.damage, 154);
   assert.equal(first.defenseBonusApplied, 10);
   assert.equal(second.defenseBonusApplied, 10);
   assert.equal(eren.defenseBuff, 20, "repeated triggers accumulate rather than overwrite");
@@ -333,7 +334,7 @@ test("round-limited rock slowdown changes action order for exactly three real ro
   assert.equal(result.finalCharacters.find((character) => character.id === "hero").spd, 50);
 });
 
-test("Eren's Tatakae uses ATK plus 1.5 times current DEF and taunts in the next round", () => {
+test("Eren's Tatakae uses only 1.5 times current DEF and taunts in the next round", () => {
   const expected = [[1, 0.3, 1.7], [2, 0.35, 1.9], [3, 0.4, 2.1], [4, 0.5, 2.3]];
   assert.deepEqual(expected.map(([level]) => [SKILL_DATA["eren-tatakae"].levels[level].chance, SKILL_DATA["eren-tatakae"].levels[level].multiplier]), expected.map(([, chance, multiplier]) => [chance, multiplier]));
   const run = createRunCharacterState(STARTING_CHARACTERS.find((entry) => entry.id === "eren"), "eren-tatakae");
@@ -342,9 +343,9 @@ test("Eren's Tatakae uses ATK plus 1.5 times current DEF and taunts in the next 
   const enemy = { id: "enemy", team: "enemy", atk: 100, def: 0, spd: 20, currentHp: 1000, maxHp: 1000, alive: true, skills: [] };
   const state = { characters: [eren, enemy], round: 1 };
   const skillHit = executeAttack(state, eren, enemy, () => 0.99);
-  assert.equal(skillHit.skillAttackPower, 160);
+  assert.equal(skillHit.skillAttackPower, 60);
   assert.equal(skillHit.skillMultiplier, 1.7);
-  assert.equal(skillHit.damage, 272);
+  assert.equal(skillHit.damage, 102);
   assert.deepEqual(eren.tauntRounds, [2]);
   const nextHit = executeAttack(state, enemy, eren, () => 0.99);
   assert.equal(nextHit.damage, 71);

@@ -241,8 +241,8 @@ function displaySkillEffect(skill, context = {}) {
   const chance = Number.isFinite(skill?.chance) ? `触发率 ${Math.round(skill.chance * 100)}%` : "自动生效";
   if (skill?.id === "kaneki-predator") return `${chance} · (ATK + SPD) × ${skill.multiplier ?? 1} · 目标 HP 严格低于 ${Math.round(skill.guaranteedCritBelowHpRatio * 100)}% 时命中必定暴击`;
   if (["kaneki-1000-7", "kaneki-2000-14"].includes(skill?.id)) return `每受到 ${skill.hitsPerTrigger} 次有效伤害：本场 ATK +${skill.attackBonus ?? 0}；每攻击 ${skill.attacksPerTrigger} 次暴击伤害 +${Math.round(skill.critDamagePerAttack * 100)}%${skill.counterDamageEvery ? `；每累计受击 ${skill.counterDamageEvery} 次追加反击` : ""}`;
-  if (skill?.id === "eren-free-will") return `${chance} · 以 ATK + DEF 普通攻击 · DEF +${skill.defenseBonus ?? 0}（本场最多 ${skill.maxDefenseStacks} 层） · 每触发 ${skill.healEveryTriggers} 次恢复最大 HP 的 ${Math.round(skill.healMaxHpFraction * 100)}%${skill.extraTrueDamageEvery ? ` · 每第 ${skill.extraTrueDamageEvery} 次释放追加 DEF×${skill.extraTrueDamageDefRatio} 真实伤害` : ""}`;
-  if (skill?.id === "eren-tatakae") return `${chance} · 攻击力按 ATK + 当前 DEF×${skill.defenseScale} 计算 · ${skill.multiplier ?? 1}×伤害 · 下回合嘲讽敌方单体攻击${skill.teamShield ? ` · 每名存活队友护盾刷新至最多 ${skill.teamShield} 点（不叠加）` : ""}`;
+  if (skill?.id === "eren-free-will") return `${chance} · (当前 ATK + 当前 DEF)×${skill.multiplier} 伤害 · DEF +${skill.defenseBonus ?? 0}（本场最多 ${skill.maxDefenseStacks} 层） · 每触发 ${skill.healEveryTriggers} 次恢复最大 HP 的 ${Math.round(skill.healMaxHpFraction * 100)}%${skill.extraTrueDamageEvery ? ` · 每第 ${skill.extraTrueDamageEvery} 次释放追加当前 DEF×${skill.extraTrueDamageDefRatio} 真实伤害` : ""}`;
+  if (skill?.id === "eren-tatakae") return `${chance} · 当前 DEF×${skill.defenseScale}×${skill.multiplier ?? 1} 伤害 · 下回合嘲讽敌方单体攻击${skill.teamShield ? ` · 每名存活队友护盾刷新至最多 ${skill.teamShield} 点（不叠加）` : ""}`;
   if (skill?.id === "eren-2000-years") return "Lv.1 每场免疫首次受击；Lv.2 每场免疫前两次受击，并一次性增加最大 HP 400。";
   if (skill?.id === "journey-west") {
     const [horse, bajie, shaseng, wukong] = TANG_SUMMON_WEIGHTS[skill.level ?? 1];
@@ -252,7 +252,7 @@ function displaySkillEffect(skill, context = {}) {
   if (skill?.id === "horse-hoof") return `${chance} · 以 ATK + SPD 造成 1 倍伤害`;
   if (skill?.id === "bajie-rake") return `${chance} · 以 ATK + 当前 HP 的 20% 造成 1 倍伤害`;
   if (skill?.id === "shaseng-staff") return `${chance} · 以 ATK + 当前 DEF 造成 1.5 倍伤害，攻击敌方全体`;
-  if (skill?.id === "wukong-fate") return `${chance} · 成功释放时交替发动：首次蓄力，下回合受到的伤害减少 ${Math.round(skill.damageResistance * 100)}%，唐僧 DEF +${skill.summonerDefenseBonus}（持续 ${skill.summonerDefenseDurationRounds} 回合）；再次瞬移到目标面前，造成 ${skill.trueDamage} 点真实伤害`;
+  if (skill?.id === "wukong-fate") return `${chance} · 成功释放时交替发动：首次蓄力，下回合受到的伤害减少 ${Math.round(skill.damageResistance * 100)}%，唐僧 DEF +${skill.summonerDefenseBonus}（持续 ${skill.summonerDefenseDurationRounds} 回合）；再次瞬移到目标面前，造成 ${skill.trueDamageBase} + 唐僧当前 ATK×${skill.summonerAttackRatio} 的真实伤害`;
   if (skill?.effectType === "buff") return `${chance} · 防御 +${skill.defenseBonus ?? 0}，持续 ${skill.durationTurns ?? 1} 回合`;
   if (skill?.id === "naruto-multi-clone") return `${chance} · 主目标 ${skill.multiplier}× ATK · 其他敌人 75% / 单目标追加 50% · 分身 +${skill.cloneGain}`;
   if (skill?.id === "shadow-clone-rush") return `影分身 ${skill.cloneCount ?? skill.level ?? 1} 个 · 伤害倍率 ${skill.multiplier ?? 1}× · ${chance}`;
@@ -340,7 +340,7 @@ function renderSkillDetailView(skillIndex = 0, level = null) {
     .split(/(?:[；。，]\s*)?Lv\.\d+/)[0].replace(/[；。，\s]+$/, "");
   add("技能描述", introduction || "随等级提升获得不同效果");
   const details = [];
-  if (effect.attackFormula) details.push(`伤害来源 ${({ atk_plus_spd: "ATK + SPD", atk_plus_current_def: "ATK + 当前 DEF", atk_plus_scaled_def: `ATK + 当前 DEF×${effect.defenseScale}` })[effect.attackFormula] ?? effect.attackFormula}`);
+  if (effect.attackFormula) details.push(`伤害来源 ${({ atk_plus_spd: "ATK + SPD", atk_plus_current_def: "ATK + 当前 DEF", atk_plus_scaled_def: `ATK + 当前 DEF×${effect.defenseScale}`, scaled_def: `当前 DEF×${effect.defenseScale}` })[effect.attackFormula] ?? effect.attackFormula}`);
   if (Number.isFinite(effect.multiplier)) details.push(`伤害 ${effect.multiplier}×`);
   if (Number.isFinite(effect.guaranteedCritBelowHpRatio)) details.push(`目标 HP 低于 ${Math.round(effect.guaranteedCritBelowHpRatio * 100)}% 时必暴击`);
   if (effect.killMaxHpBonus) details.push(`击杀后本局最大 HP +${effect.killMaxHpBonus}`);
@@ -516,7 +516,7 @@ function showFighterFrame(fighter, character, animationName, frameName) {
   visualLayer?.style.setProperty("--visual-action-offset-x", `${offset.offsetX ?? 0}px`);
   visualLayer?.style.setProperty("--visual-action-offset-y", `${offset.offsetY ?? 0}px`);
   node.style.setProperty("--action-frame-scale", getAnimationFrameVisualScale(character, animationName, frameName));
-  node.style.setProperty("--action-frame-foot-shift", `${fighter.closest(".battle-screen.stage-two") || ["tang-shaseng", "bomb-demon"].includes(character.visualId ?? character.id) ? getAnimationFrameFootShift(character, animationName, frameName) : 0}px`);
+  node.style.setProperty("--action-frame-foot-shift", `${fighter.closest(".battle-screen.stage-two") || ["tang-shaseng", "bomb-demon", "shin", "noi"].includes(character.visualId ?? character.id) ? getAnimationFrameFootShift(character, animationName, frameName) : 0}px`);
   const hasLoadedCurrent = [...(spriteFrameLayers.get(node)?.values() ?? [])].some(image => image.complete && image.naturalWidth > 0 && image.classList.contains("is-current"));
   if (hasLoadedCurrent || node?.dataset.framePending !== "true") fighter.classList.add("has-action-sprite");
   return true;
@@ -1105,10 +1105,11 @@ function updateHealth(character) {
     if (!character.alive && !fighter.classList.contains("has-shin-noi-fall")) {
       clearSpriteFrame(fighter);
       fighter.classList.remove("is-melee-running", "is-melee-returning", "is-melee-rushing", "is-attacking", "is-casting");
-      fighter.querySelector(".sprite").src = character.asset;
       fighter.classList.add("has-shin-noi-fall");
+      showFighterFrame(fighter, character, "fallen", "down");
     } else if (character.alive && fighter.classList.contains("has-shin-noi-fall")) {
       fighter.classList.remove("has-shin-noi-fall");
+      clearSpriteFrame(fighter);
       startIdleCycle(fighter, character);
     }
   }
@@ -1196,6 +1197,9 @@ function renderAllyStatusIcons() {
     if (unit.gravityStacks > 0) statuses.push({ id: `gravity-${unit.id}`, name: `失去引力 ×${unit.gravityStacks}`,
       image: "assets/stage3-elites/falling/gravity-circle.png", tone: "debuff",
       description: `${unit.name}：失去引力 ${unit.gravityStacks}/4 层；累计实际恢复 300 HP 消除 1 层（当前 ${unit.gravityHealProgress ?? 0}/300）；达到 4 层时，战斗 DEF 高于 260 改受 800 点真实伤害，否则立即被处决。` });
+    if (unit.bereavementActive && unit.bereavementDefenseBonus > 0)
+      statuses.push({ id: `bereavement-${unit.id}`, name: `${unit.name} · 同伴倒地`, image: unit.asset, tone: "buff",
+        description: `${unit.name} 因${unit.bereavementSourceId === "shin" ? "心" : "能井"}倒地，当前 ATK 翻倍、DEF +${unit.bereavementDefenseBonus}；同伴复活后移除。` });
     if (unit.burnStacks > 0) statuses.push({ id: `burn-${unit.id}`, name: "烧伤", image: "assets/status-burn.svg", tone: "danger",
       description: `${unit.name}：${unit.burnStacks} 层烧伤，每层在完整战斗回合结束时结算持续伤害。` });
     if (unit.bleedStacks > 0) statuses.push({ id: `bleed-${unit.id}`, name: "流血", image: "assets/status-bleed.svg", tone: "danger",
@@ -1796,7 +1800,7 @@ function playEvent(event, finish) {
       updateHealth(ally);
       addLog(`<b>蝎子莱莱</b> 受伤后使 ${ally.name} 恢复 ${heal.amount} HP。`, "log-skill");
     }
-    addLog(`<b>进击巨人</b> 坐标：已损失 HP 20% 追加攻击（${event.power} 基础伤害），实际造成 ${event.actualDamage} 伤害。`, "log-skill");
+    addLog(`<b>进击巨人</b> 坐标：${event.attackKind === "skill" ? "主动技能按最大 HP 10%" : "普通攻击按已损失 HP 20%"}追加攻击（${event.power} 基础伤害），实际造成 ${event.actualDamage} 伤害。`, "log-skill");
     return finish();
   }
   if (event.type === "gravity-main-course-damage") {
@@ -1967,7 +1971,7 @@ function playEvent(event, finish) {
     if (unit) {
       unit.currentHp = event.hpAfter; unit.alive = true;
       const fighter = mountFighter(unit);
-      if (fighter) { fighter.classList.remove("is-dead"); startIdleCycle(fighter, unit); }
+      if (fighter) { fighter.classList.remove("is-dead", "has-shin-noi-fall"); clearSpriteFrame(fighter); startIdleCycle(fighter, unit); }
       updateHealth(unit);
       addLog(`<span class="round-label">R${event.round}</span> <b>${unit.name}</b> 复活，恢复至 ${event.hpAfter} HP。`, "log-skill");
     }
@@ -1977,9 +1981,15 @@ function playEvent(event, finish) {
     const survivor = viewState.characters.find((entry) => entry.id === event.attackerId);
     if (survivor) {
       survivor.atk = event.currentAtk;
+      survivor.def = event.currentDef;
+      survivor.bereavementActive = event.type === "stage3-bereavement";
+      survivor.bereavementDefenseBonus = event.defenseBonus ?? 0;
+      survivor.bereavementSourceId = event.sourceId ?? null;
       if (squadSide === "enemy") renderSquad();
       addLog(`<span class="round-label">R${event.round}</span> <b>${survivor.name}</b>${event.type === "stage3-bereavement"
-        ? `因同伴倒地，ATK 翻倍至 ${event.currentAtk}` : `因同伴复活，ATK 恢复至 ${event.currentAtk}`}。`, "log-skill");
+        ? `因同伴倒地，ATK 翻倍至 ${event.currentAtk}，DEF +${event.defenseBonus}（当前 ${event.currentDef}）`
+        : `因同伴复活，ATK 恢复至 ${event.currentAtk}，DEF 恢复至 ${event.currentDef}`}。`, "log-skill");
+      renderAllyStatusIcons();
     }
     return finish();
   }
@@ -2052,6 +2062,15 @@ function playEvent(event, finish) {
         return;
       }
     }
+    return finish();
+  }
+  if (event.type === "stage3-minion-wipe-stun") {
+    for (const id of event.targetIds) {
+      const unit = viewState.characters.find((entry) => entry.id === id);
+      if (unit?.alive) unit.stunNextAction = true;
+    }
+    renderAllyStatusIcons();
+    addLog(`<span class="round-label">R${event.round}</span> <b>玛奇玛</b> 的四名眷属全部倒下，使玩家阵营存活单位眩晕一次行动。`, "log-enemy");
     return finish();
   }
   if (event.type === "steam-wave") {
@@ -3358,7 +3377,10 @@ function playEvent(event, finish) {
       targetEl.style.setProperty("--death-duration", `${deathDuration}ms`);
       targetEl.classList.add("is-dead");
       const deathFrames = animationFrameNames(target, "death");
-      if (deathFrames.length) startFrameCycle(targetEl, target, "death", deathFrames, deathDuration / deathFrames.length, false);
+      if (["shin", "noi"].includes(target.id)) {
+        targetEl.classList.add("has-shin-noi-fall");
+        showFighterFrame(targetEl, target, "fallen", "down");
+      } else if (deathFrames.length) startFrameCycle(targetEl, target, "death", deathFrames, deathDuration / deathFrames.length, false);
       addLog(`<b>${target.name}</b> 倒下了`, "log-death");
     } else if (!event.dodged && !event.trialDamage?.heraclesAwakened) {
       window.clearTimeout(targetHitTimer);
@@ -3866,6 +3888,7 @@ function renderRoute() {
   const routeMap = getRouteMap(campaign);
   const options = orderRouteOptionsByPosition(routeMap, getRouteOptions(campaign));
   $("#route-progress").textContent = options.some((node) => node.type === "demon") ? "Boss" : `第 ${campaign.step} 步`;
+  $("#route-restart-btn").hidden = campaign.stageId !== 1;
   $("#route-screen").classList.toggle("stage-two", campaign.stageId >= 2);
   $("#route-screen").classList.toggle("stage-three", campaign.stageId === 3);
   $("#route-screen").setAttribute("aria-label", `第${campaign.stageId}大关路线选择`);
@@ -5453,6 +5476,15 @@ characterDialog.addEventListener("click", (event) => {
   }
 });
 restartRunButton.addEventListener("click", restartToCharacterSelection);
+$("#route-restart-btn").addEventListener("click", () => {
+  if (campaign?.status !== "route" || campaign.stageId !== 1) return;
+  $("#route-restart-dialog").showModal();
+});
+$("#route-restart-no").addEventListener("click", () => $("#route-restart-dialog").close());
+$("#route-restart-yes").addEventListener("click", () => {
+  $("#route-restart-dialog").close();
+  if (campaign?.status === "route" && campaign.stageId === 1) restartToCharacterSelection();
+});
 $("#route-map-open").addEventListener("click", openRouteMap);
 $("#shop-map-open").addEventListener("click", openRouteMap);
 $("#shop-leave").addEventListener("click", () => { if (leaveShop(campaign)) renderRoute(); });

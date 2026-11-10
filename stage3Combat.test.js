@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { ELITE_ENEMY_DATA, EVENT_ENEMY_DATA, STAGE_THREE_BOSS_DATA, STAGE_THREE_MINIONS, STARTING_CHARACTERS } from "./characters.js";
 import { executeAttack, getCritChance, initializeBattle, isBattleOver, resolveStageThreeDeaths, simulateBattle, stageThreeRoundStart } from "./battle.js";
 import { getStageThreeNormalEnemyStats, prepareBattle } from "./campaign.js";
@@ -11,13 +12,25 @@ const hero = (id = "hero") => ({ id, name: id, team: "ally", row: "front", hp: 2
   spd: 100, rosterOrder: id === "hero" ? 0 : 1 });
 const elite = (id) => ({ ...ELITE_ENEMY_DATA.find((unit) => unit.id === id), rosterOrder: id === "shin" ? 2 : 3 });
 
-test("all four Makima followers gain 500 HP and 30 DEF in both summon waves", () => {
+test("Shin and Noi have their own transparent fallen frames", () => {
+  for (const id of ["shin", "noi"]) {
+    const unit = elite(id);
+    const fallen = unit.animations.fallen.frames.down;
+    assert.ok(existsSync(new URL(fallen, import.meta.url)), fallen);
+    assert.notEqual(fallen, unit.asset);
+  }
+});
+
+test("Makima follower panels and both summon waves use the updated base HP", () => {
   const expected = {
-    "makima-bomb": [1900, 160], "flamethrower-devil": [2300, 160],
-    "katana-devil": [2700, 180], quanxi: [2500, 130],
+    "makima-bomb": [1900, 160], "flamethrower-devil": [2800, 160],
+    "katana-devil": [2700, 180], quanxi: [2700, 130],
   };
   for (const [id, stats] of Object.entries(expected))
     assert.deepEqual([STAGE_THREE_MINIONS[id].hp, STAGE_THREE_MINIONS[id].def], stats);
+  assert.equal(STAGE_THREE_BOSS_DATA.hp, 4200);
+  assert.deepEqual([elite("shin").hp, elite("shin").atk, elite("shin").def], [2500, 600, 160]);
+  assert.deepEqual([elite("noi").hp, elite("noi").atk, elite("noi").def], [5000, 260, 160]);
   const campaign = createStageThreeTestCampaign({ heroId: "naruto", partnerId: "eren", opponent: "makima" });
   const prepared = prepareBattle(campaign);
   for (const id of ["makima-bomb", "flamethrower-devil"]) {
@@ -69,9 +82,9 @@ test("Makima summons once below half, counts true deaths, controls only partner 
     ...["makima-bomb", "flamethrower-devil"].map((id) => STAGE_THREE_MINIONS[id])], { playerId: "hero" });
   state.round = 2;
   const boss = state.characters.find((unit) => unit.id === "makima");
-  boss.currentHp = 1850;
+  boss.currentHp = 2100;
   assert.equal(resolveStageThreeDeaths(state, []).length, 0);
-  boss.currentHp = 1849;
+  boss.currentHp = 2099;
   const summoned = resolveStageThreeDeaths(state, []);
   assert.deepEqual(summoned.map((event) => event.character.id), ["katana-devil", "quanxi"]);
   assert.equal(resolveStageThreeDeaths(state, []).length, 0);
@@ -93,7 +106,7 @@ test("Makima summons once below half, counts true deaths, controls only partner 
   assert.equal(roundFour.filter((event) => event.type === "stage3-control").length, 0);
   const bang = roundFour.find((event) => event.skillId === "makima-bang");
   assert.equal(bang.round, 4);
-  assert.equal(bang.bangBaseDamage, 160);
+  assert.equal(bang.bangBaseDamage, 320);
   assert.ok(bang.actualDamage > 0);
   for (const id of ["flamethrower-devil", "katana-devil", "quanxi"]) {
     const unit = state.characters.find((entry) => entry.id === id);
@@ -102,8 +115,15 @@ test("Makima summons once below half, counts true deaths, controls only partner 
   const deaths = resolveStageThreeDeaths(state, []);
   assert.equal(deaths.filter((event) => event.type === "stage3-minion-death").length, 3);
   assert.equal(deaths.filter((event) => event.type === "stage3-lifesteal").length, 1);
+  assert.equal(deaths.filter((event) => event.type === "stage3-minion-wipe-stun").length, 1);
+  assert.deepEqual(deaths.find((event) => event.type === "stage3-minion-wipe-stun").targetIds, ["hero", "partner"]);
+  assert.equal(state.characters.find((unit) => unit.id === "hero").stunNextAction, true);
+  assert.equal(state.characters.find((unit) => unit.id === "partner").stunNextAction, true);
   assert.equal(boss.atk, 850);
   assert.equal(boss.lifesteal, .25);
+  assert.equal(resolveStageThreeDeaths(state, []).some((event) => event.type === "stage3-minion-wipe-stun"), false);
+  state.round = 5;
+  assert.equal(stageThreeRoundStart(state, () => .99).find((event) => event.skillId === "makima-bang")?.bangBaseDamage, 850);
 });
 
 test("Makima's dismissed minions do not grant attack, and control never selects a summoned ally", () => {
@@ -153,18 +173,23 @@ test("Shin and Noi revive after four rounds while the survivor has doubled ATK",
   const pending = resolveStageThreeDeaths(state, []);
   assert.equal(pending[0].reviveAtRound, 6);
   assert.equal(noi.atk, elite("noi").atk * 2);
+  assert.equal(noi.def, elite("noi").def + 100);
   assert.equal(noi.bereavementActive, true);
+  assert.equal(noi.bereavementSourceId, "shin");
   assert.equal(resolveStageThreeDeaths(state, []).filter((event) => event.type === "stage3-bereavement").length, 0);
   state.round = 3;
   assert.equal(stageThreeRoundStart(state).some((event) => event.type === "stage3-revive"), false);
   state.round = 5;
   assert.equal(stageThreeRoundStart(state).some((event) => event.type === "stage3-revive"), false);
   state.round = 6;
-  assert.equal(stageThreeRoundStart(state).find((event) => event.type === "stage3-revive").hpAfter, 1400);
+  assert.equal(stageThreeRoundStart(state).find((event) => event.type === "stage3-revive").hpAfter, 1000);
   assert.equal(noi.atk, elite("noi").atk);
+  assert.equal(noi.def, elite("noi").def);
   assert.equal(noi.bereavementActive, false);
-  shin.currentHp = 0; shin.alive = false;
-  resolveStageThreeDeaths(state, []);
+  assert.equal(noi.bereavementSourceId, null);
+  const again = (() => { shin.currentHp = 0; shin.alive = false; return resolveStageThreeDeaths(state, []); })();
+  assert.equal(again.filter((event) => event.type === "stage3-bereavement").length, 1);
+  assert.equal(noi.def, elite("noi").def + 100);
   noi.currentHp = 0; noi.alive = false;
   resolveStageThreeDeaths(state, []);
   assert.equal(shin.reviveAtRound, null);
@@ -177,6 +202,7 @@ test("Shin and Noi revive after four rounds while the survivor has doubled ATK",
   reverseNoi.currentHp = 0; reverseNoi.alive = false;
   resolveStageThreeDeaths(reverse, []);
   assert.equal(reverseShin.atk, elite("shin").atk * 2);
+  assert.equal(reverseShin.def, elite("shin").def + 100);
   const battle = simulateBattle([{ ...hero(), atk: 10000, spd: 1000 }, elite("shin"), elite("noi")], () => .99);
   assert.equal(battle.outcome, "victory");
 });

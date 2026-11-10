@@ -439,7 +439,7 @@ export const ELITE_ENEMY_DATA = [
     periodicPassive: { id: "colossal-steam-wave", name: "蒸汽波", everyRounds: 4, allyDamage: 300, armoredDamage: 100, onlyPeriodicActions: true },
   },
   { id: "shin", name: "心", type: "elite", stageId: 3, eliteEncounterId: "shin-noi", team: "enemy",
-    role: "精英", row: "front", position: "front", hp: 3500, atk: 400, def: 160, spd: 120,
+    role: "精英", row: "front", position: "front", hp: 2500, atk: 600, def: 160, spd: 120,
     attackType: "melee", asset: "assets/stage3-elites/shin_idle.png", visualId: "shin", activeSkills: ["shin-strike"],
     projectileAsset: "assets/stage3-elites/shin_hammer.png", skillAnimationMap: { "shin-strike": "hammerThrow" },
     animations: {
@@ -447,16 +447,18 @@ export const ELITE_ENEMY_DATA = [
       run: { type: "frames", frames: { step: "assets/stage3-elites/shin_idle.png" } },
       meleeAttack: { type: "frames", frames: { punch: "assets/stage3-elites/shin_punch.png" }, impactFrames: ["punch"] },
       hammerThrow: { type: "frames", frames: { charge: "assets/stage3-elites/shin_skill_1.png", throw: "assets/stage3-elites/shin_skill_2.png" } },
+      fallen: { type: "frames", frames: { down: "assets/stage3-elites/shin_fallen.png" } },
     },
     extraPassiveSkillIds: ["stage3-resurrection"] },
   { id: "noi", name: "能井", type: "elite", stageId: 3, eliteEncounterId: "shin-noi", team: "enemy",
-    role: "精英", row: "front", position: "front", hp: 4000, atk: 360, def: 130, spd: 100,
+    role: "精英", row: "front", position: "front", hp: 5000, atk: 260, def: 160, spd: 100,
     attackType: "melee", asset: "assets/stage3-elites/noi_idle.png", visualId: "noi", activeSkills: ["noi-heal"],
     animations: {
       idle: { type: "frames", frames: { idle: "assets/stage3-elites/noi_idle.png" } },
       run: { type: "frames", frames: { step: "assets/stage3-elites/noi_idle.png" } },
       meleeAttack: { type: "frames", frames: { punch: "assets/stage3-elites/noi_punch.png" }, impactFrames: ["punch"] },
       heal: { type: "frames", frames: { cast: "assets/stage3-elites/noi_heal.png" } },
+      fallen: { type: "frames", frames: { down: "assets/stage3-elites/noi_fallen.png" } },
     },
     extraPassiveSkillIds: ["stage3-resurrection"] },
   { id: "falling-devil", name: "下落恶魔", type: "elite", stageId: 3, team: "enemy",
@@ -508,7 +510,7 @@ export const STAGE_TWO_BOSS_DATA = Object.freeze({
 // Stage-three presentation is independent of combat stats and route scaling.
 export const STAGE_THREE_BOSS_DATA = Object.freeze({
   id: "makima", name: "玛奇玛", type: "boss", team: "enemy", role: "支配恶魔",
-  row: "back", position: "back", hp: 3700, atk: 250, def: 180, spd: 160,
+  row: "back", position: "back", hp: 4200, atk: 250, def: 180, spd: 160,
   attackType: "ranged", asset: "assets/stage3-enemies/makima_hover_idle.png", visualId: "makima", stageThreeKind: "makima",
   attackAnimation: "hoverAttack",
   animations: {
@@ -531,7 +533,7 @@ export const STAGE_THREE_MINIONS = Object.freeze({
       boom: { type: "frames", frames: { raise: "assets/stage3-enemies/makima_bomb_boom.png",
         launch: "assets/stage3-enemies/makima_bomb_boom.png" }, durationsMs: [900, 300], loop: false } } },
   "flamethrower-devil": { id: "flamethrower-devil", name: "喷火器恶魔", team: "enemy", row: "front", position: "front",
-    hp: 2300, atk: 120, def: 160, spd: 100, attackType: "melee", stageThreeMinion: true, stageThreeKind: "burn",
+    hp: 2800, atk: 120, def: 160, spd: 100, attackType: "melee", stageThreeMinion: true, stageThreeKind: "burn",
     asset: "assets/stage3-enemies/flamethrower_idle.png", visualId: "flamethrower-devil",
     extraPassiveSkillIds: ["stage3-burn"] },
   "katana-devil": { id: "katana-devil", name: "刀之恶魔", team: "enemy", row: "front", position: "front",
@@ -539,7 +541,7 @@ export const STAGE_THREE_MINIONS = Object.freeze({
     asset: "assets/stage3-enemies/katana_idle.png", visualId: "katana-devil",
     extraPassiveSkillIds: ["stage3-bleed"] },
   quanxi: { id: "quanxi", name: "光熙", team: "enemy", row: "front", position: "front",
-    hp: 2500, atk: 450, def: 130, spd: 300, attackType: "melee", stageThreeMinion: true, stageThreeKind: "quanxi",
+    hp: 2700, atk: 450, def: 130, spd: 300, attackType: "melee", stageThreeMinion: true, stageThreeKind: "quanxi",
     asset: "assets/stage3-enemies/quanxi_idle.png", visualId: "quanxi",
     animations: { meleeAttack: { type: "frames", frames: {
       flash: "assets/stage3-enemies/quanxi_flash.png", strike: "assets/stage3-enemies/quanxi_attack.png",

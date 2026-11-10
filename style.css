@@ -252,7 +252,7 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .distance-portrait[src*="naruto-v2"] { filter: none; }
 .fighter.is-dead { pointer-events: none; }
 .fighter.is-dead .sprite { transform: rotate(74deg) translate(5px, 12px) scale(.82); transform-origin: 50% 88%; filter: saturate(.9); transition: transform .38s cubic-bezier(.2,.8,.3,1), filter .3s; }
-.fighter.has-shin-noi-fall.is-dead .sprite { transform: rotate(86deg) translate(8px, 14px) scale(.82); transform-origin: 50% 88%; }
+.fighter.has-shin-noi-fall.is-dead .sprite { transform: none; animation: none; }
 .fighter.has-shin-noi-fall.is-dead .sprite-wrap::before { display: none; }
 .fighter[data-character="naruto"][data-evolution="2"].has-authored-death.is-dead .sprite { transform: none; animation: none; filter: none; }
 .fighter[data-character="naruto"][data-evolution="2"].has-authored-death.is-dead .sprite-wrap::before { display: none; }
@@ -753,7 +753,13 @@ h2 { margin: 0; color: #3a455c; font-size: 11px; font-weight: 900; }
 .route-map-locked { opacity: .55; filter: grayscale(.6); cursor: default; }
 .route-map-node:disabled { cursor: default; }
 .route-footer { flex: 0 0 auto; }
-.route-header-actions { display: flex; align-items: center; gap: 7px; }
+.route-header-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 7px; }
+.route-restart-dialog { width: min(90vw, 360px); padding: 0; border: 3px solid #42516b; border-radius: 9px; color: #29344d; background: #fff9e9; box-shadow: var(--pixel); }
+.route-restart-dialog::backdrop { background: rgba(8, 17, 28, .68); }
+.route-restart-dialog-inner { padding: 18px; text-align: center; }
+.route-restart-dialog h2 { margin: 0 0 12px; font-size: 17px; }
+.route-restart-dialog p { margin: 0 0 18px; line-height: 1.5; }
+.route-restart-actions { display: flex; justify-content: center; gap: 12px; }
 .map-open-btn { min-height: 30px; padding: 5px 8px; font-size: 9px; }
 .route-screen .route-landscape { flex: 1 1 auto; min-height: 320px; max-height: 510px; }
 .route-screen .route-player { width: 23%; bottom: 24%; }

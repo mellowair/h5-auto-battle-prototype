@@ -47,7 +47,6 @@ export function evolveTrialParty(campaign, evolvingCharacterId = campaign?.playe
     teammate.evolutionAuraSources.push({ sourceId: id, bonuses });
   }
   // A higher maximum HP follows the existing rule: current HP is unchanged.
-  if (id === "eren") state.maxHp += SKILL_DATA["eren-coordinate"].levels[1].maxHpBonus;
   state.currentHp = Math.min(state.currentHp, state.maxHp);
   const formerJourneyLevel = state.skillLevels["journey-west"] ?? 1;
   state.passiveSkillId = config.passive;

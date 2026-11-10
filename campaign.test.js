@@ -31,8 +31,8 @@ test("Eren human-form first-pass stats and skill configurations are explicit", (
   assert.equal(eren.passiveSkillId, "eren-2000-years");
   assert.deepEqual(Object.values(SKILL_DATA["eren-free-will"].levels).map(({ chance, defenseBonus }) => [chance, defenseBonus]), [[0.5, 10], [0.55, 15], [0.6, 20], [0.7, 25]]);
   assert.deepEqual(Object.values(SKILL_DATA["eren-tatakae"].levels).map(({ chance, multiplier, attackFormula, tauntNextRound }) => [chance, multiplier, attackFormula, tauntNextRound]), [
-    [0.3, 1.7, "atk_plus_scaled_def", true], [0.35, 1.9, "atk_plus_scaled_def", true],
-    [0.4, 2.1, "atk_plus_scaled_def", true], [0.5, 2.3, "atk_plus_scaled_def", true],
+    [0.3, 1.7, "scaled_def", true], [0.35, 1.9, "scaled_def", true],
+    [0.4, 2.1, "scaled_def", true], [0.5, 2.3, "scaled_def", true],
   ]);
   assert.equal(SKILL_DATA["eren-2000-years"].levels[1].damageImmune, true);
 });

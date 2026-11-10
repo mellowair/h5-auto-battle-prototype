@@ -140,7 +140,7 @@
       </section>
 
       <section id="route-screen" class="flow-screen route-screen" aria-label="第一大关路线选择" hidden>
-        <header class="flow-header"><div><p class="eyebrow">ACT 01 · EXPEDITION</p><h1>继续前进</h1></div><div class="route-header-actions"><span id="route-progress" class="progress-chip">第 1 步</span><button id="route-map-open" class="control-btn map-open-btn" type="button">查看地图</button></div></header>
+        <header class="flow-header"><div><p class="eyebrow">ACT 01 · EXPEDITION</p><h1>继续前进</h1></div><div class="route-header-actions"><span id="route-progress" class="progress-chip">第 1 步</span><button id="route-map-open" class="control-btn map-open-btn" type="button">查看地图</button><button id="route-restart-btn" class="control-btn map-open-btn" type="button">重新开局</button></div></header>
         <p class="flow-copy" role="status" aria-live="polite">选择一块路牌，踏上下一段旅程。</p>
         <div class="route-landscape">
           <span class="route-hill hill-left"></span><span class="route-hill hill-right"></span>
@@ -190,6 +190,16 @@
         <div class="boss-distance-track" aria-label="前往 Boss 的路线进度"><i id="boss-distance-fill"></i><img id="boss-distance-player" class="distance-portrait" alt=""></div><img class="boss-distance-icon" src="assets/route-signs/demon.png" alt="Boss 路牌">
       </aside>
     </main>
+<dialog id="route-restart-dialog" class="route-restart-dialog" aria-labelledby="route-restart-title">
+  <div class="route-restart-dialog-inner">
+    <h2 id="route-restart-title">重新开局</h2>
+    <p>你是否确认重新开始下一世，我的英雄。</p>
+    <div class="route-restart-actions">
+      <button id="route-restart-no" class="control-btn" type="button">否</button>
+      <button id="route-restart-yes" class="control-btn primary" type="button">是</button>
+    </div>
+  </div>
+</dialog>
 <dialog id="route-map-dialog" class="route-map-dialog" aria-labelledby="route-map-title">
   <div class="route-map-dialog-inner">
     <header class="route-map-dialog-header"><div><span class="detail-eyebrow">ACT 01 · ROUTE MAP</span><h2 id="route-map-title">探索地图</h2></div><button id="route-map-close" class="detail-close" type="button" aria-label="关闭地图">×</button></header>

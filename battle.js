@@ -50,7 +50,8 @@ export function initializeBattle(config = CHARACTER_DATA, options = {}) {
       ...(character.phaseSkills ? { borosPhase: 1, borosEnteredRound: 0, borosLastGrowthRound: 0, meteorCasts: 0 } : {}),
       ...(character.id === "eren" ? { freeWillDefenseStacks: 0 } : {}),
       ...(character.elitePassiveId === "toji-heavenly-restriction" ? { fasterActions: 0, tojiFatigued: false, tojiRestPending: false, tojiResting: false } : {}),
-      ...(["shin", "noi"].includes(character.id) ? { bereavementActive: false, bereavementAttackBonus: 0 } : {}),
+      ...(["shin", "noi"].includes(character.id) ? { bereavementActive: false, bereavementAttackBonus: 0,
+        bereavementDefenseBonus: 0, bereavementSourceId: null } : {}),
       ...(character.elitePassiveId === "killer-queen" ? { hpSnapshots: [], bitesDustNextAvailableRound: 1 } : {}),
       ...(character.id === "armored-titan" ? { armorReductionStartRound: null, armorReductionUntilRound: null } : {}),
       ...(character.periodicPassive?.id === "colossal-steam-wave" ? { lastSteamRound: 0 } : {}),
@@ -69,7 +70,7 @@ export function initializeBattle(config = CHARACTER_DATA, options = {}) {
     c0: c0Boss ? { bossId: c0Boss.id, damagePerRound: c0Boss.c0DamagePerRound, completedRounds: 0, detonated: false, currentRound: 0, playerActionDone: false, bossActionDone: false } : null,
     bombs: [], nextBombId: 1,
     makima: characters.some((unit) => unit.id === "makima") ? { controlledOnce: false, controlledId: null, controlEndsAtRound: null, secondWave: false,
-      deadMinions: [], nextBangRound: 4, lastBangRound: 0 } : null,
+      deadMinions: [], minionWipeStunUsed: false, nextBangRound: 4, lastBangRound: 0 } : null,
     gravityHealEvents: [],
     random: Math.random,
   };
@@ -407,14 +408,22 @@ function syncShinNoiBereavement(state, events) {
     if (active && !unit.bereavementActive) {
       unit.bereavementAttackBonus = unit.atk;
       unit.atk += unit.bereavementAttackBonus;
+      unit.bereavementDefenseBonus = 100;
+      unit.bereavementSourceId = partner.id;
+      unit.def += unit.bereavementDefenseBonus;
       unit.bereavementActive = true;
       events.push({ type: "stage3-bereavement", round: state.round, attackerId: unit.id,
-        attackBonus: unit.bereavementAttackBonus, currentAtk: unit.atk });
+        sourceId: partner.id, attackBonus: unit.bereavementAttackBonus,
+        defenseBonus: unit.bereavementDefenseBonus, currentAtk: unit.atk, currentDef: unit.def });
     } else if (!active && unit.bereavementActive) {
       unit.atk -= unit.bereavementAttackBonus;
+      unit.def -= unit.bereavementDefenseBonus;
       unit.bereavementAttackBonus = 0;
+      unit.bereavementDefenseBonus = 0;
+      unit.bereavementSourceId = null;
       unit.bereavementActive = false;
-      events.push({ type: "stage3-bereavement-end", round: state.round, attackerId: unit.id, currentAtk: unit.atk });
+      events.push({ type: "stage3-bereavement-end", round: state.round, attackerId: unit.id,
+        currentAtk: unit.atk, currentDef: unit.def });
     }
   }
 }
@@ -437,6 +446,13 @@ export function resolveStageThreeDeaths(state, events = []) {
       if (state.makima.deadMinions.length === 4) {
         makima.lifesteal = (makima.lifesteal ?? 0) + .25;
         events.push({ type: "stage3-lifesteal", round: state.round, attackerId: makima.id, lifesteal: .25 });
+        if (!state.makima.minionWipeStunUsed) {
+          state.makima.minionWipeStunUsed = true;
+          const targets = state.characters.filter((entry) => entry.team !== makima.team && entry.alive && entry.currentHp > 0);
+          for (const target of targets) target.stunNextAction = true;
+          events.push({ type: "stage3-minion-wipe-stun", round: state.round, attackerId: makima.id,
+            targetIds: targets.map((target) => target.id) });
+        }
       }
       state.makima.nextBangRound = Math.min(state.makima.nextBangRound,
         state.round + Math.max(1, 5 - state.makima.deadMinions.length));
@@ -546,7 +562,7 @@ export function stageThreeRoundStart(state, random = Math.random) {
     state.makima.lastBangRound = state.round;
     state.makima.nextBangRound = state.round + Math.max(1, 5 - state.makima.deadMinions.length);
     if (target) {
-      const baseDamage = Math.max(1, Math.floor(makima.atk * state.round / 10));
+      const baseDamage = Math.max(1, Math.floor(makima.atk * state.round / 5));
       let damage = calculateDamage({ atk: baseDamage }, { def: combatDefense(target, state.round) });
       damage = applyTojiExhaustion(target, applyNormalDamageReduction(target, damage));
       const absorbed = Math.min(damage, target.shieldHp ?? 0);
@@ -822,6 +838,8 @@ export function executeAttack(state, attacker, target, random = Math.random, att
     ? attacker.atk + attacker.def + currentDefenseBonus
     : skill?.attackFormula === "atk_plus_scaled_def"
       ? attacker.atk + (attacker.def + currentDefenseBonus) * skill.defenseScale
+    : skill?.attackFormula === "scaled_def"
+      ? (attacker.def + currentDefenseBonus) * skill.defenseScale
     : skill?.attackFormula === "atk_plus_spd" ? attacker.atk + attacker.spd
     : skill?.attackFormula === "atk_plus_current_hp_fraction" ? attacker.atk + Math.floor(attacker.currentHp * skill.hpFraction) : attacker.atk;
   if (attacker.normalPassiveId === "lubu" && state.round === 1 && isNormalAttack) skillAttackPower *= 2;
@@ -1096,9 +1114,12 @@ function resolveTrueDamageSkill(state, attacker, target, skill, amount) {
     summonerId: summoner?.id ?? null, summonerHealedAmount, summonerHp: summoner?.currentHp ?? null };
 }
 
-function resolveAttackTitanHpDamage(state, attacker, target) {
+function resolveAttackTitanHpDamage(state, attacker, target, attackKind = "normal") {
   if (!target?.alive || target.currentHp <= 0) return null;
-  const power = Math.floor((attacker.maxHp - attacker.currentHp) * SKILL_DATA["eren-coordinate"].levels[1].missingHpDamageRatio);
+  const rule = SKILL_DATA["eren-coordinate"].levels[1];
+  const power = attackKind === "skill"
+    ? Math.floor(attacker.maxHp * rule.skillMaxHpDamageRatio)
+    : Math.floor((attacker.maxHp - attacker.currentHp) * rule.missingHpDamageRatio);
   if (power <= 0) return null;
   const before = target.currentHp;
   let damage = calculateDamage({ atk: power }, { def: combatDefense(target, state.round) });
@@ -1122,7 +1143,7 @@ function resolveAttackTitanHpDamage(state, attacker, target) {
   const targetDied = handleDeath(target);
   const scorpionHeals = healScorpionAllies(state, target, actualDamage);
   return { type: "attack-titan-hp-damage", attackerId: attacker.id, targetId: target.id,
-    round: state.round, hpSnapshot: attacker.currentHp, power, actualDamage, shieldAbsorbed,
+    round: state.round, hpSnapshot: attacker.currentHp, attackKind, power, actualDamage, shieldAbsorbed,
     targetShield: target.shieldHp, targetHp: target.currentHp, targetDied, trialDamage, scorpionHeals };
 }
 
@@ -1485,7 +1506,8 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
         } else {
           const victim = chooseTarget(state, attacker, random);
           if (victim) {
-            const trueDamage = selectedSkill.trueDamage;
+            const summoner = state.characters.find((unit) => unit.id === attacker.summonerId);
+            const trueDamage = Math.floor(selectedSkill.trueDamageBase + Math.max(0, summoner?.atk ?? 0) * selectedSkill.summonerAttackRatio);
             const hit = resolveTrueDamageSkill(state, attacker, victim, selectedSkill, trueDamage);
             hit.round = state.round;
             hit.wukongTeleportAttack = true;
@@ -1590,12 +1612,8 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
         let hpDamageEvent = null;
         if (attacker.id === "eren" && attacker.evolutionPhase === 2 && event.type === "attack" &&
             event.actualDamage > 0 && !event.dodged) {
-          hpDamageEvent = resolveAttackTitanHpDamage(state, attacker, struck);
+          hpDamageEvent = resolveAttackTitanHpDamage(state, attacker, struck, event.skilled ? "skill" : "normal");
           if (hpDamageEvent) events.push(hpDamageEvent);
-          if (event.extraTrueDamage?.actualDamage > 0 && struck.alive) {
-            const trueDamageCoordinate = resolveAttackTitanHpDamage(state, attacker, struck);
-            if (trueDamageCoordinate) events.push(trueDamageCoordinate);
-          }
         }
         resolveStageThreeDeaths(state, events);
         if (event.type === "attack" && event.actualDamage > 0 && attacker.alive &&
@@ -1683,7 +1701,7 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
             events.push(splash);
             if (attacker.id === "eren" && attacker.evolutionPhase === 2 && splash.actualDamage > 0 && !splash.dodged) {
               const splashTarget = state.characters.find((unit) => unit.id === splash.targetId);
-              const hpDamage = resolveAttackTitanHpDamage(state, attacker, splashTarget);
+              const hpDamage = resolveAttackTitanHpDamage(state, attacker, splashTarget, "skill");
               if (hpDamage) events.push(hpDamage);
             }
             if (splash.targetDied) {
