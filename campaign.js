@@ -1,5 +1,6 @@
 import { ADVENTURE_EVENTS, CAMPAIGN_BATTLES, CHARACTER_DATA, DEIDARA_ANIMATIONS, ELITE_ENEMY_DATA, EVENT_ENEMY_DATA, NORMAL_ENEMY_APPEARANCES, STAGE_TWO_BOSS_DATA, STAGE_TWO_NORMAL_ENEMY_TIERS, STAGE_THREE_BOSS_DATA, STAGE_THREE_MINIONS, STAGE_THREE_NORMAL_ENEMY_TIERS, STARTING_CHARACTERS, TRIAL_ENEMY_DATA } from "./characters.js";
 import { evolvedBattlePresentation } from "./evolvedVisuals.js";
+import { fragmentCount, GUN_DEVIL, HIDDEN_BOSS_RULES } from "./hiddenBoss.js";
 import { buyShopItem, essenceRewardForBattle, generateShopInventory, previewShopItem } from "./shop.js";
 import { SKILL_DATA, TREASURE_DATA } from "./skills.js";
 import { createSeededRandom, generateRouteMap, ROUTE_MAP_FINAL_STEP } from "./routeMap.js";
@@ -8,7 +9,7 @@ import {
   advanceTemporaryEffectsAfterBattle, applyAdventurePartyOutcome, applyBattleStatReward, chooseAdventureEventId, completeAdventureBattle, createAdventureEventResult,
   canDeclineNewSkill, createBattleRewardOffer, createRunCharacterState, getAvailableAdventureEventIds, getCampfireOptions, getSkillAtLevel,
   getTemporaryCombatModifiers, getTemporaryEffects, getTreasureCombatModifiers, getUnlearnedActiveSkills, getUpgradeableSkills, getSkillTrainingChoices, grantGiantSpinalFluid, grantEliteSukunaFinger, grantGunDevilFragment, grantAdventureSpecialReward, grantQuinque, claimTreasure, learnActiveSkill, upgradeActiveSkill,
-  createStatUpgradeChoices, applyStatUpgrade, healRunCharacter, resolveAdventureEvent, resolveCampfire, startAdventureBattle, upgradePassiveSkill,
+  createStatUpgradeChoices, applyStatUpgrade, healRunCharacter, hasStoneMask, resolveAdventureEvent, resolveCampfire, startAdventureBattle, upgradePassiveSkill,
 } from "./progression.js";
 import { ATTRIBUTE_UPGRADES } from "./skills.js";
 import { TRIAL_TASKS, TRIAL_RULES, createTrialState, startTrialTask, completeTrialTask, pickTrialEnemies, odinWeakestPointStat } from "./trial.js";
@@ -121,11 +122,11 @@ function encounterFor(campaign, type, node, forcedEncounterId = null) {
   if (campaign.stageId >= 2) {
     const random = createSeededRandom(`stage2-normal:${campaign.routeMap.seed}:${node.id}`);
     const frontPool = campaign.stageId === 3
-      ? ["bull_king", "headless_knight", "anubis", "loki", "medusa", "shiji"]
+      ? ["bull_king", "headless_knight", "anubis"]
       : ["lubu", "dementor", "deep_sea_king"];
     const backPool = campaign.stageId === 3 ? ["shiji", "loki", "medusa"] : ["jack", "teruhashi", "gollum"];
     const pick = (pool) => pool[Math.floor(random() * pool.length)];
-    const single = campaign.stageStep <= 4;
+    const single = campaign.stageId === 2 && campaign.stageStep <= 4;
     const useFront = !single || random() < .5;
     const useBack = !single || !useFront;
     const enemies = [...(useFront ? ["guard"] : []), ...(useBack ? ["mage"] : [])];
@@ -243,6 +244,7 @@ export function createCampaign(random = Math.random, options = {}) {
     rewardBattleId: null, rewardPhase: null, rewardBattleType: null, stageTransition: null, stageTwoReward: null,
     essence: 0, essenceHistory: [], lastEssenceReward: null, activeShop: null, shopHistory: [], shopMedicines: [],
     chapter3Entered: false, chapter3FirstEncounterAssigned: false, trialOffered: false,
+    hiddenBoss: { unlocked: false, storyShown: false, resolved: false, makimaCleared: false },
     trialAccepted: false, trialDeclined: false, trialCompleted: false, evolutionPending: false,
     trialFailurePenaltyApplied: false, trial: null, trialBattle: null, evolutionRewards: null,
   };
@@ -313,7 +315,7 @@ export function prepareBattle(campaign) {
   const battleStartEffects = [];
   const routeStep = campaign.stageId >= 2 ? campaign.stageStep ?? battle.stageStep : battle.step;
   const routeGrowth = getRouteEnemyGrowth(battle.type, routeStep, campaign.stageId);
-  const battleId = campaign.trialBattle?.id ?? (campaign.eventBattleSourceId
+  const battleId = campaign.currentBattle?.hiddenBoss ? campaign.currentBattle.id : campaign.trialBattle?.id ?? (campaign.eventBattleSourceId
     ? `event:${campaign.eventBattleSourceId}` : campaign.activeNode?.id ?? `step-${campaign.step}-battle`);
   const allies = campaign.partyIds.map((id, index) => {
     const template = STARTING_CHARACTERS.find((entry) => entry.id === id);
@@ -378,11 +380,13 @@ export function prepareBattle(campaign) {
       }
     }
     if (state.divinePunishment?.battlesLeft > 0) ally.healingBlocked = true;
+    ally.stoneMaskHealingBlocked = hasStoneMask(state);
     return ally;
   });
   campaign.nextAttackMultiplier = 1;
   const enemies = battle.enemies.map((enemyId) => {
     const template = enemyTemplates.get(enemyId) ?? ELITE_ENEMY_DATA.find((entry) => entry.id === enemyId) ??
+      (enemyId === GUN_DEVIL.id ? GUN_DEVIL : null) ??
       (enemyId === STAGE_TWO_BOSS_DATA.id ? STAGE_TWO_BOSS_DATA : null) ??
       (enemyId === STAGE_THREE_BOSS_DATA.id ? STAGE_THREE_BOSS_DATA : null) ?? EVENT_ENEMY_DATA[enemyId] ?? TRIAL_ENEMY_DATA[enemyId];
     if (!template) throw new RangeError(`Unknown battle enemy: ${enemyId}`);
@@ -542,13 +546,15 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
   campaign.playerHp = Math.max(0, Math.min(campaign.playerMaxHp, playerHp));
   for (const id of campaign.partyIds) {
     const state = campaign.partyStates?.[id] ?? (id === campaign.playerId ? campaign.runCharacterState : null);
-    const finished = finalCharacters?.find((character) => character.id === id && character.team === "ally");
+    const finished = finalCharacters?.find((character) => character.id === id &&
+      (character.originalTeam === "ally" || (!character.originalTeam && character.team === "ally")));
     if (state) {
+      if (campaign.currentBattle?.hiddenBoss && finished?.spinalSwordConverted) continue;
       const finalHp = finished?.currentHp ?? (id === campaign.playerId ? campaign.playerHp : state.currentHp);
       const restoredOdinHp = finalHp > 0 && Number.isFinite(finished?.odinMimirHpBefore) &&
         Number.isFinite(finished?.odinMimirBattleStartHp)
         ? finished.odinMimirHpBefore + finalHp - finished.odinMimirBattleStartHp : finalHp;
-      state.currentHp = Math.max(0, Math.min(state.maxHp, restoredOdinHp));
+      state.currentHp = Math.max(0, Math.min(state.maxHp, hasStoneMask(state) ? Math.min(finalHp, restoredOdinHp) : restoredOdinHp));
     }
   }
   const completedRounds = battleEvents.findLast((event) => event?.type === "battle-end")?.round ?? 1;
@@ -576,7 +582,7 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
         const state = campaign.partyStates[id];
         if (!state) continue;
         const before = state.currentHp;
-        state.currentHp = Math.min(state.maxHp, before + Math.floor(state.maxHp * .25));
+        state.currentHp = hasStoneMask(state) ? before : Math.min(state.maxHp, before + Math.floor(state.maxHp * .25));
         campaign.lastBattleRecovery.push({ characterId: id, kind: "trial_quarter_heal", restored: state.currentHp - before, currentHp: state.currentHp });
       }
     }
@@ -590,18 +596,34 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
     campaign.status = "settlement";
     return { status: "settlement", next: "defeat" };
   }
+  if (campaign.currentBattle?.hiddenBoss) {
+    campaign.hiddenBoss ??= { unlocked: true, storyShown: true, resolved: false, makimaCleared: false };
+    campaign.playerHp = campaign.runCharacterState.currentHp;
+    campaign.completedBattles += 1;
+    if (!campaign.hiddenBoss?.rewarded) {
+      campaign.essence = (campaign.essence ?? 0) + HIDDEN_BOSS_RULES.rewardEssence;
+      campaign.lastEssenceReward = { amount: HIDDEN_BOSS_RULES.rewardEssence, reason: "hidden_boss" };
+      campaign.essenceHistory ??= [];
+      campaign.essenceHistory.push({ battleId: campaign.currentBattle.id, stageId: campaign.stageId,
+        amount: HIDDEN_BOSS_RULES.rewardEssence, reason: "hidden_boss" });
+      campaign.hiddenBoss.rewarded = true;
+    }
+    campaign.settlementNext = "hidden_boss_win";
+    campaign.status = "settlement";
+    return { status: "settlement", next: "hidden_boss_win" };
+  }
   // Victory is already fixed by the precomputed battle outcome. Rejoin fallen
   // allies first, then apply treasure healing; neither can rescue a lost fight.
   if (campaign.stageId >= 2 && campaign.partyIds.length > 1) for (const id of campaign.partyIds) {
     const state = campaign.partyStates[id];
-    if (state?.currentHp === 0) {
+    if (state?.currentHp === 0 && !hasStoneMask(state)) {
       state.currentHp = Math.max(1, Math.floor(state.maxHp * .05));
       campaign.lastBattleRecovery.push({ characterId: id, kind: "revive", restored: state.currentHp, currentHp: state.currentHp });
     }
   }
   for (const id of campaign.partyIds) {
     const state = campaign.partyStates[id];
-    if (!state || state.currentHp <= 0 || !state.permanentEffects?.some((effect) => effect.id === "angel_breath")) continue;
+    if (!state || state.currentHp <= 0 || hasStoneMask(state) || !state.permanentEffects?.some((effect) => effect.id === "angel_breath")) continue;
     const before = state.currentHp;
     state.currentHp = Math.min(state.maxHp, before + Math.floor(state.maxHp * TREASURE_DATA.angel_breath.battleEndHealRatio));
     campaign.lastBattleRecovery.push({ characterId: id, kind: "angel_breath", restored: state.currentHp - before, currentHp: state.currentHp });
@@ -671,6 +693,32 @@ export function completeSettlement(campaign) {
     campaign.history.push({ id: campaign.activeNode.id, step: campaign.step, stageId: campaign.stageId, type: campaign.activeNode.type, resolution: campaign.activeNode.resolution, status: "completed" });
     campaign.activeNode = null;
   }
+  if (next === "hidden_boss_win") {
+    campaign.hiddenBoss.resolved = true;
+    campaign.currentBattle = null;
+    campaign.status = campaign.hiddenBoss.makimaCleared || campaign.devBattleOnly ? "victory" : "route";
+    if (campaign.status === "route") generateRouteOptions(campaign);
+    return campaign.status;
+  }
+  if (next === "victory" && campaign.stageId === 3 && campaign.currentBattle?.enemies?.includes("makima") &&
+      !campaign.devBattleOnly) {
+    campaign.hiddenBoss ??= { unlocked: false, storyShown: false, resolved: false, makimaCleared: false };
+    campaign.hiddenBoss.makimaCleared = true;
+    if (!campaign.hiddenBoss.resolved && !campaign.hiddenBoss.storyShown) {
+      const missing = Math.max(0, HIDDEN_BOSS_RULES.fragmentGoal - fragmentCount(campaign));
+      for (let index = 0; index < missing; index += 1) {
+        const effect = grantGunDevilFragment(campaign.runCharacterState, `makima-hidden-boss:${index + 1}`, campaign.stageId);
+        if (effect) effect.sourceLabel = "玛奇玛战后补足";
+      }
+      campaign.playerHp = campaign.runCharacterState.currentHp;
+      campaign.playerMaxHp = campaign.runCharacterState.maxHp;
+      campaign.hiddenBoss.unlocked = true;
+      campaign.hiddenBoss.storyShown = true;
+      campaign.status = "hidden_boss_intro";
+      campaign.currentBattle = null;
+      return campaign.status;
+    }
+  }
   if (next === "victory" && campaign.stageId === 2 && campaign.currentBattle?.type === "boss" && !campaign.devBattleOnly) {
     campaign.step += 1;
     campaign.stageTransition = { phase: "stage2_skill", memberIndex: 0, statIndex: 0 };
@@ -682,6 +730,61 @@ export function completeSettlement(campaign) {
     campaign.status = "stage_transition";
   } else campaign.status = next;
   return campaign.status;
+}
+
+export function queueHiddenBossIntro(campaign) {
+  if (!campaign?.playerId || campaign.status !== "route" || campaign.devBattleOnly) return false;
+  campaign.hiddenBoss ??= { unlocked: false, storyShown: false, resolved: false, makimaCleared: false };
+  if (campaign.hiddenBoss.storyShown || campaign.hiddenBoss.resolved ||
+      fragmentCount(campaign) < HIDDEN_BOSS_RULES.fragmentGoal) return false;
+  campaign.hiddenBoss.unlocked = true;
+  campaign.hiddenBoss.storyShown = true;
+  campaign.status = "hidden_boss_intro";
+  return true;
+}
+
+export function deferHiddenBossChallenge(campaign) {
+  if (campaign?.status !== "hidden_boss_intro" || campaign.stageId <= 3 ||
+      !campaign.hiddenBoss?.unlocked || campaign.hiddenBoss.attempted) return false;
+  campaign.hiddenBoss.deferred = true;
+  campaign.status = "route";
+  return true;
+}
+
+export function resumeHiddenBossAtCampfire(campaign) {
+  if (campaign?.stageId <= 3 || campaign?.status !== "event" ||
+      campaign.activeEventType !== "campfire" || !campaign.hiddenBoss?.deferred ||
+      campaign.hiddenBoss.resolved || campaign.eventResolved) return false;
+  if (campaign.activeNode) {
+    campaign.activeNode.status = "completed";
+    campaign.activeNode.resolution = "hidden-boss";
+    campaign.history.push({ id: campaign.activeNode.id, step: campaign.step, stageId: campaign.stageId,
+      type: campaign.activeNode.type, resolution: "hidden-boss", status: "completed" });
+    campaign.activeNode = null;
+  }
+  campaign.hiddenBoss.deferred = false;
+  campaign.status = "hidden_boss_intro";
+  return true;
+}
+
+export function beginHiddenBossChallenge(campaign) {
+  if (campaign?.status !== "hidden_boss_intro" || !campaign.hiddenBoss?.unlocked || campaign.hiddenBoss.resolved) return false;
+  for (const id of campaign.partyIds) {
+    const state = campaign.partyStates?.[id];
+    if (state && !hasStoneMask(state)) state.currentHp = Math.min(state.maxHp,
+      state.currentHp + Math.floor(state.maxHp * HIDDEN_BOSS_RULES.entryHealFraction));
+  }
+  campaign.playerHp = campaign.runCharacterState.currentHp;
+  campaign.playerMaxHp = campaign.runCharacterState.maxHp;
+  campaign.hiddenBoss.attempted = true;
+  campaign.hiddenBoss.deferred = false;
+  campaign.currentBattle = { id: `hidden-boss:${campaign.routeMap.seed}`, type: "boss", hiddenBoss: true,
+    number: ++campaign.battleNumber, step: campaign.step, stageStep: campaign.stageStep,
+    title: "枪之恶魔 → 战争恶魔·夜", location: "枪魔领域", enemies: [GUN_DEVIL.id] };
+  campaign.activeNode = null;
+  campaign.combatLaunched = false;
+  campaign.status = "combat";
+  return true;
 }
 
 function finishRewardAndAdvance(campaign) {
@@ -1114,7 +1217,8 @@ export function resolveCampaignEvent(campaign, choiceId = null, skillId = null) 
       : seaRecipientId ? campaign.partyStates[seaRecipientId]
       : ["scroll", "old_scroll_2"].includes(record?.eventId) && record.data.recipientId
         ? campaign.partyStates[record.data.recipientId] : campaign.runCharacterState;
-    result = resolveAdventureEvent(campaign.runCharacterState, campaign.activeNode.id, choiceId, campaign.random, recipient);
+    result = resolveAdventureEvent(campaign.runCharacterState, campaign.activeNode.id, choiceId, campaign.random,
+      recipient, campaign.partyIds.map((id) => campaign.partyStates[id]));
   }
   if (!result) return false;
   campaign.pendingEvent = campaign.runCharacterState.eventResults[campaign.activeNode.id] ?? campaign.pendingEvent;
@@ -1422,7 +1526,7 @@ export function restorePartyHealthForStage(campaign, nextStageId) {
     campaign.lastFullHealStageId === nextStageId) return false;
   for (const characterId of campaign.partyIds ?? []) {
     const state = campaign.partyStates?.[characterId];
-    if (state) state.currentHp = state.maxHp;
+    if (state && !hasStoneMask(state)) state.currentHp = state.maxHp;
   }
   campaign.playerHp = campaign.partyStates?.[campaign.playerId]?.currentHp ?? campaign.playerHp;
   campaign.playerMaxHp = campaign.partyStates?.[campaign.playerId]?.maxHp ?? campaign.playerMaxHp;
@@ -1541,7 +1645,7 @@ function applyTrialFailurePenalty(campaign) {
     }
     state.maxHp = Math.max(1, penalizedMaxHp - (divine?.reduction ?? 0));
     state.spd = Math.max(0, Math.floor(state.spd * (1 - TRIAL_RULES.failureSpeedFraction)));
-    state.currentHp = Math.max(0, Math.min(state.maxHp, campaign.trial.entryHp?.[id] ?? state.currentHp));
+    state.currentHp = Math.max(0, Math.min(state.maxHp, hasStoneMask(state) ? state.currentHp : campaign.trial.entryHp?.[id] ?? state.currentHp));
     state.trialFailurePenalty = { maxHpFraction: TRIAL_RULES.failureMaxHpFraction, speedFraction: TRIAL_RULES.failureSpeedFraction };
   }
   campaign.trialFailurePenaltyApplied = true;
@@ -1574,7 +1678,7 @@ export function settleTrialBattle(campaign, outcome) {
         state.divinePunishment = null;
       }
       const before = state.currentHp;
-      state.currentHp = Math.min(state.maxHp, before + Math.max(1, Math.floor(state.maxHp * .5)));
+      state.currentHp = hasStoneMask(state) ? before : Math.min(state.maxHp, before + Math.max(1, Math.floor(state.maxHp * .5)));
       campaign.lastBattleRecovery.push({ characterId: id, kind: "trial_failure_heal", restored: state.currentHp - before, currentHp: state.currentHp });
     }
     campaign.trial.divinePunishmentBattlesLeft = 0;

@@ -5,10 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#8ed9f1">
     <title>闪烁</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=20261111-hidden-boss">
   </head>
   <body>
     <main class="game-shell">
+      <section id="hidden-boss-intro-screen" class="flow-screen hidden-boss-intro-screen" aria-label="隐藏首领剧情" hidden>
+        <p class="hidden-boss-story">碎片在颤动，似乎指引着你</p>
+        <div class="hidden-boss-choices">
+          <button id="hidden-boss-enter" class="primary-button" type="button">即刻前往</button>
+          <button id="hidden-boss-defer" class="control-btn" type="button" hidden>再等等，稍后我会在篝火处决定</button>
+        </div>
+      </section>
       <aside class="music-controls" aria-label="背景音乐">
         <label for="music-track">音乐</label>
         <select id="music-track" aria-label="选择背景音乐" disabled><option>暂无音乐</option></select>
@@ -140,7 +147,7 @@
       </section>
 
       <section id="route-screen" class="flow-screen route-screen" aria-label="第一大关路线选择" hidden>
-        <header class="flow-header"><div><p class="eyebrow">ACT 01 · EXPEDITION</p><h1>继续前进</h1></div><div class="route-header-actions"><span id="route-progress" class="progress-chip">第 1 步</span><button id="route-map-open" class="control-btn map-open-btn" type="button">查看地图</button><button id="route-restart-btn" class="control-btn map-open-btn" type="button">重新开局</button></div></header>
+        <header class="flow-header"><div><p class="eyebrow">ACT 01 · EXPEDITION</p><h1>继续前进</h1></div><div class="route-header-actions"><span id="route-progress" class="progress-chip">第 1 步</span></div></header>
         <p class="flow-copy" role="status" aria-live="polite">选择一块路牌，踏上下一段旅程。</p>
         <div class="route-landscape">
           <span class="route-hill hill-left"></span><span class="route-hill hill-right"></span>
@@ -151,7 +158,7 @@
           <div id="route-signs" class="route-signs" aria-label="选择下一地点"></div>
           <div class="route-ground" aria-hidden="true"></div>
         </div>
-        <div class="route-footer"><span>队伍生命</span><b id="route-health">1200 / 1200</b><button id="route-partner-link" class="route-partner-link" type="button" hidden>查看伙伴</button></div>
+        <div class="route-footer"><div class="route-health-group"><span>队伍生命</span><b id="route-health">1200 / 1200</b><button id="route-partner-link" class="route-partner-link" type="button" hidden>查看伙伴</button></div><div class="route-footer-actions"><button id="route-map-open" class="control-btn map-open-btn" type="button">查看地图</button><button id="route-restart-btn" class="control-btn map-open-btn" type="button">重新开局</button></div></div>
       </section>
 
       <section id="shop-screen" class="flow-screen shop-screen" aria-label="商店" hidden>
@@ -237,6 +244,6 @@
         <div id="character-detail" class="character-detail"></div>
       </div>
     </dialog>
-    <script type="module" src="app.js"></script>
+    <script type="module" src="app.js?v=20261111-hidden-boss"></script>
   </body>
 </html>

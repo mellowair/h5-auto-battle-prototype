@@ -21,6 +21,12 @@ function ensureRunState(state) {
   state.battleStartPassiveChecks ??= {};
   state.temporaryEffects ??= [];
   state.permanentEffects ??= [];
+  for (const effect of state.permanentEffects) {
+    if (effect.id === "stone_mask" && effect.lifesteal >= .4) {
+      effect.lifesteal *= .25 / .4;
+      effect.description = TREASURE_DATA.stone_mask.description;
+    }
+  }
   state.eventSeries ??= {};
   state.nextBattleSkillGuarantee ??= null;
   state.fallRockCount ??= Math.min(ADVENTURE_EVENT_DATA.fall_rock.stages.length,
@@ -45,6 +51,7 @@ function pickThree(random) {
   return pool.slice(0, 3);
 }
 function getMaxHp(state) { return Math.max(1, finite(state.maxHp, finite(state.hp, 1))); }
+export function hasStoneMask(state) { return Boolean(state?.permanentEffects?.some((effect) => effect.id === "stone_mask")); }
 
 export function createRunCharacterState(character, initialSkillId) {
   if (!character?.id) throw new TypeError("character with a stable id is required");
@@ -150,7 +157,7 @@ export function claimTreasure(runState, sourceId, treasureId, recipientState, re
   if (gains.maxHp) recipientState.maxHp = Math.max(1, recipientState.maxHp + gains.maxHp);
   recipientState.currentHp = Math.min(recipientState.currentHp, recipientState.maxHp);
   if (gains.critRateBonus) recipientState.critRate = Math.min(COMBAT_RULES.maxCritChance, recipientState.critRate + gains.critRateBonus);
-  if (treasure.id === "angel_breath" && !(recipientState.divinePunishment?.battlesLeft > 0)) recipientState.currentHp = recipientState.maxHp;
+  if (treasure.id === "angel_breath" && !(recipientState.divinePunishment?.battlesLeft > 0) && !hasStoneMask(recipientState)) recipientState.currentHp = recipientState.maxHp;
   recipientState.permanentEffects.push({ id: treasure.id, name: treasure.name,
     description: specialPreview?.description ?? repeatedTreasureDescription(treasure, multiplier, gains), sourceId, sourceLabel: "王之宝库奇遇", stageId: record.data.stageId ?? 1, acquisitionCount: recipientState.permanentEffects.filter((effect) => effect.id === treasureId).length + 1, ...gains });
   offer.claimed = true;
@@ -176,6 +183,51 @@ function grantGambleTreasure(member, sourceId, treasureId, stageId) {
     description: repeatedTreasureDescription(treasure, multiplier, gains), ...gains };
   member.permanentEffects.push(effect);
   return effect;
+}
+
+function revokeGambleWin(member, sourceId, previous, encounter = 2) {
+  if (!previous.success) return null;
+  if (previous.change.skillId) {
+    const { skillId, skillName, previousLevel, attackGain } = previous.change;
+    const fromLevel = member.skillLevels[skillId] ?? previous.change.level;
+    member.skillLevels[skillId] = Math.max(previousLevel, fromLevel - 1);
+    member.atk = Math.max(0, member.atk - (attackGain ?? 0));
+    const upgradeSource = `${sourceId}:round:${previous.round}`;
+    member.skillHistory = member.skillHistory.filter((entry) =>
+      !(entry.skillId === skillId && entry.sourceId === upgradeSource));
+    member.consumedActions = member.consumedActions.filter((key) =>
+      key !== `skill:${skillId}:${upgradeSource}`);
+    return { encounter, recipientId: member.characterId, round: previous.round, skillId, skillName,
+      fromLevel, toLevel: member.skillLevels[skillId], attackGain: attackGain ?? 0 };
+  }
+  if (previous.change.stat) {
+    const { stat, amount } = previous.change;
+    member[stat] = Math.max(0, member[stat] - amount);
+    return { encounter, recipientId: member.characterId, round: previous.round, stat, amount };
+  }
+  return null;
+}
+
+function revokeFirstGambleGains(firstRecord, member, revokedBy) {
+  if (!firstRecord || firstRecord.data.gainsRevokedBy) return [];
+  const alreadyRevoked = new Set(firstRecord.data.rounds.find((round) => round.round === 3 && !round.success)
+    ?.revoked?.map((entry) => entry.round) ?? []);
+  const revoked = [...firstRecord.data.rounds].reverse()
+    .filter((round) => !alreadyRevoked.has(round.round))
+    .map((round) => revokeGambleWin(member, firstRecord.sourceId, round, 1)).filter(Boolean).reverse();
+  for (const treasure of firstRecord.result?.treasures ?? []) {
+    const index = member.permanentEffects.findIndex((effect) =>
+      effect.id === treasure.id && effect.sourceId === `${firstRecord.sourceId}:${treasure.id}`);
+    if (index < 0) continue;
+    const [effect] = member.permanentEffects.splice(index, 1);
+    for (const stat of ["atk", "def"]) member[stat] = Math.max(0, member[stat] - (effect[stat] ?? 0));
+    member.maxHp = Math.max(1, member.maxHp - (effect.maxHp ?? 0));
+    member.currentHp = Math.min(member.currentHp, member.maxHp);
+    if (effect.critRateBonus) member.critRate = Math.max(0, member.critRate - effect.critRateBonus);
+    revoked.push({ encounter: 1, recipientId: member.characterId, treasureId: effect.id, treasureName: effect.name });
+  }
+  firstRecord.data.gainsRevokedBy = revokedBy;
+  return revoked;
 }
 
 export function getSkillAtLevel(runState, skillId) {
@@ -382,7 +434,7 @@ export function applyStatUpgrade(runState, sourceId, upgradeId) {
 export function healRunCharacter(runState, amount, sourceId) {
   ensureRunState(runState);
   if (!sourceId || !actionAvailable(runState, makeActionKey("heal", sourceId))) return null;
-  const healing = runState.divinePunishment?.battlesLeft > 0 ? 0 : Math.max(0, Math.floor(finite(amount)));
+  const healing = runState.divinePunishment?.battlesLeft > 0 || hasStoneMask(runState) ? 0 : Math.max(0, Math.floor(finite(amount)));
   const before = runState.currentHp;
   runState.currentHp = Math.min(getMaxHp(runState), before + healing);
   recordAction(runState, makeActionKey("heal", sourceId));
@@ -609,10 +661,15 @@ function nextBattleEffect(sourceId, statusId, name, stat, amount) {
 function applySharedEventEffect(runState, sourceId, result) {
   if (result.effect && !runState.temporaryEffects.some((effect) => effect.sourceId === sourceId))
     runState.temporaryEffects.push(copy(result.effect));
-  if (result.healFraction && !(runState.divinePunishment?.battlesLeft > 0)) {
-    const restored = Math.min(runState.maxHp - runState.currentHp, Math.floor(runState.maxHp * result.healFraction));
-    runState.currentHp += restored;
-    result.restored = restored;
+  if (result.healFraction) {
+    if (runState.divinePunishment?.battlesLeft > 0 || hasStoneMask(runState)) {
+      result.restored = 0;
+      result.healBlockedBy = hasStoneMask(runState) ? "stone_mask" : "divine_punishment";
+    } else {
+      const restored = Math.min(runState.maxHp - runState.currentHp, Math.floor(runState.maxHp * result.healFraction));
+      runState.currentHp += restored;
+      result.restored = restored;
+    }
     result.currentHp = runState.currentHp;
   }
   if (result.maxHpGainFraction) {
@@ -624,7 +681,8 @@ function applySharedEventEffect(runState, sourceId, result) {
   if (result.gains) for (const gain of result.gains) runState[gain.stat] += gain.amount;
 }
 
-export function resolveAdventureEvent(runState, sourceId, choiceId = null, random = Math.random, recipientState = runState) {
+export function resolveAdventureEvent(runState, sourceId, choiceId = null, random = Math.random, recipientState = runState,
+  partyStates = [runState, recipientState]) {
   ensureRunState(runState);
   const record = runState.eventResults[sourceId];
   if (!record || record.status !== "pending" || record.containsBattle) return false;
@@ -663,6 +721,10 @@ export function resolveAdventureEvent(runState, sourceId, choiceId = null, rando
       keepPending = true;
       result = { coinPending: true, ...copy(data.pendingGamble) };
     } else if (data.phase === "coin" && choiceId === "gamble_settle" && data.pendingGamble) {
+      const firstGamble = record.eventId === "gamble_2" && data.round === 3 && !data.pendingGamble.success
+        ? Object.values(runState.eventResults).find((entry) => entry.eventId === "gamble" && entry.status === "completed") : null;
+      const firstRecipient = firstGamble && partyStates.find((member) => member.characterId === firstGamble.data.recipientId);
+      if (firstGamble && !firstRecipient) return false;
       const gamble = data.pendingGamble;
       let change;
       if (gamble.type === "skill") {
@@ -695,25 +757,11 @@ export function resolveAdventureEvent(runState, sourceId, choiceId = null, rando
       if (data.round === 3 && !gamble.success) {
         const revoked = [];
         for (const previous of [...data.rounds.slice(0, 2)].reverse()) {
-          if (!previous.success) continue;
-          if (previous.change.skillId) {
-            const { skillId, skillName, previousLevel, attackGain } = previous.change;
-            recipientState.skillLevels[skillId] = previousLevel;
-            recipientState.atk -= attackGain ?? 0;
-            const upgradeSource = `${sourceId}:round:${previous.round}`;
-            recipientState.skillHistory = recipientState.skillHistory.filter((entry) =>
-              !(entry.skillId === skillId && entry.sourceId === upgradeSource));
-            recipientState.consumedActions = recipientState.consumedActions.filter((key) =>
-              key !== `skill:${skillId}:${upgradeSource}`);
-            revoked.push({ round: previous.round, skillId, skillName, fromLevel: previous.change.level,
-              toLevel: previousLevel, attackGain: attackGain ?? 0 });
-          } else if (previous.change.stat) {
-            const { stat, amount } = previous.change;
-            recipientState[stat] -= amount;
-            revoked.push({ round: previous.round, stat, amount });
-          }
+          const gain = revokeGambleWin(recipientState, sourceId, previous);
+          if (gain) revoked.push(gain);
         }
         settled.revoked = revoked.reverse();
+        if (firstGamble) settled.revoked.push(...revokeFirstGambleGains(firstGamble, firstRecipient, sourceId));
       }
       data.pendingGamble = null;
       if (data.round === 3) {
@@ -988,7 +1036,7 @@ export function grantGiantSpinalFluid(member, sourceId, stageId = 1) {
   member.atk += effect.atk;
   member.def += effect.def;
   member.maxHp += effect.maxHp;
-  member.currentHp = Math.min(member.maxHp, hpBefore + effect.maxHp);
+  member.currentHp = hasStoneMask(member) ? hpBefore : Math.min(member.maxHp, hpBefore + effect.maxHp);
   effect.restoredHp = member.currentHp - hpBefore;
   member.permanentEffects.push(effect);
   return effect;
@@ -1012,7 +1060,7 @@ export function grantGunDevilFragment(member, sourceId, stageId = 1) {
   const effect = { ...previewGrowingDrop(member, GUN_DEVIL_FRAGMENT.id, stageId), sourceId, sourceLabel: "恶魔精英战斗奖励" };
   const hpBefore = member.currentHp;
   member.maxHp += effect.maxHp;
-  member.currentHp = Math.min(member.maxHp, hpBefore + effect.maxHp);
+  member.currentHp = hasStoneMask(member) ? hpBefore : Math.min(member.maxHp, hpBefore + effect.maxHp);
   effect.restoredHp = member.currentHp - hpBefore;
   member.permanentEffects.push(effect);
   return effect;

@@ -2,6 +2,7 @@ import { CHARACTER_DATA, COMBAT_RULES, STAGE_THREE_MINIONS } from "./characters.
 import { evaluatePassive } from "./progression.js";
 import { SKILL_DATA } from "./skills.js";
 import { chooseTangSummon, tangSummonStats, tangSummonVisual } from "./tangSummons.js";
+import { GUN_DEVIL, HIDDEN_BOSS_RULES, SPINAL_SWORD_BY_PARTNER, YORU } from "./hiddenBoss.js";
 
 const MAHITO_ATTACK_BONUS = SKILL_DATA["mahito-domain"].levels[1].attackBonusPerRound;
 const GRAVITY_HEAL_PER_LAYER = 300;
@@ -72,6 +73,8 @@ export function initializeBattle(config = CHARACTER_DATA, options = {}) {
     makima: characters.some((unit) => unit.id === "makima") ? { controlledOnce: false, controlledId: null, controlEndsAtRound: null, secondWave: false,
       deadMinions: [], minionWipeStunUsed: false, nextBangRound: 4, lastBangRound: 0 } : null,
     gravityHealEvents: [],
+    hiddenBoss: characters.some((unit) => unit.id === GUN_DEVIL.id)
+      ? { phase: 1, phaseStartedRound: 1, convertedPartnerId: null } : null,
     random: Math.random,
   };
   const fallingDevil = characters.find((unit) => unit.id === "falling-devil" && unit.team === "enemy");
@@ -263,7 +266,7 @@ function applyTrialDamage(state, target, requested, kind = "attack") {
     return { dealt: before - 1, heraclesAwakened: true, heraclesHitsRemaining: 6 };
   }
   let emergencyHeal = 0;
-  if (target.passiveSkillId === "eren-paths" && !target.pathsEmergencyUsed && !target.healingBlocked &&
+  if (target.passiveSkillId === "eren-paths" && !target.pathsEmergencyUsed && !target.healingBlocked && !target.stoneMaskHealingBlocked &&
       target.currentHp < target.maxHp * .2) {
     target.pathsEmergencyUsed = true;
     emergencyHeal = Math.min(target.maxHp - target.currentHp, Math.floor(target.maxHp * .5));
@@ -307,7 +310,7 @@ function healScorpionAllies(state, target, actualDamage) {
   const healed = [];
   if (actualDamage <= 0 || target.trialPassive !== "scorpion_lailai") return healed;
   const amount = Math.floor(actualDamage * .3);
-  for (const ally of state.characters.filter((unit) => unit.team === target.team && unit.alive && unit.currentHp > 0 && !unit.healingBlocked)) {
+  for (const ally of state.characters.filter((unit) => unit.team === target.team && unit.alive && unit.currentHp > 0 && !unit.healingBlocked && !unit.stoneMaskHealingBlocked)) {
     const restored = Math.max(0, Math.min(ally.maxHp - ally.currentHp, amount));
     ally.currentHp += restored;
     if (restored) healed.push({ targetId: ally.id, amount: restored, currentHp: ally.currentHp });
@@ -319,6 +322,45 @@ export function isBattleOver(state) {
   if (state.forcedOutcome) return state.forcedOutcome;
   const livingTeams = new Set(state.characters.filter((c) => c.alive && c.currentHp > 0).map((c) => c.team));
   if (!livingTeams.has("ally")) return "defeat";
+  if (state.hiddenBoss) {
+    const hero = state.characters.find((unit) => unit.id === state.playerId && unit.team === "ally");
+    if (!hero?.alive || hero.currentHp <= 0) return "defeat";
+    if (state.hiddenBoss.phase === 2) {
+      return state.characters.find((unit) => unit.id === YORU.id)?.alive ? null : "victory";
+    }
+    const gun = state.characters.find((unit) => unit.id === GUN_DEVIL.id);
+    if (gun?.alive) return null;
+    const partner = state.characters.find((unit) => unit.originalTeam === "ally" &&
+      unit.id !== state.playerId && !unit.summonerId);
+    const yoruSkillConfig = SKILL_DATA["yoru-gun-summon"];
+    const yoruSkill = { ...yoruSkillConfig, ...yoruSkillConfig.levels[1], level: 1 };
+    const yoru = initializeBattle([{ ...YORU, rosterOrder: 2, skills: [yoruSkill], skill: yoruSkill }]).characters[0];
+    const absorbed = Object.fromEntries(["maxHp", "atk", "def", "spd"].map((stat) =>
+      [stat, Math.floor((partner?.[stat] ?? 0) * .5)]));
+    for (const stat of ["maxHp", "atk", "def", "spd"]) yoru[stat] += absorbed[stat];
+    yoru.hp = yoru.maxHp;
+    yoru.currentHp = yoru.maxHp;
+    const dismissedIds = [];
+    if (partner) {
+      partner.spinalSwordConverted = true;
+      partner.alive = false;
+      partner.currentHp = 0;
+      dismissedIds.push(partner.id);
+      state.hiddenBoss.convertedPartnerId = partner.id;
+      for (const summon of state.characters.filter((unit) => unit.summonerId === partner.id && unit.alive)) {
+        summon.alive = false;
+        summon.currentHp = 0;
+        dismissedIds.push(summon.id);
+      }
+    }
+    state.hiddenBoss.phase = 2;
+    state.hiddenBoss.phaseStartedRound = state.round + 1;
+    state.characters.push(yoru);
+    state.eventSink?.push({ type: "hidden-boss-phase", round: state.round, gunId: gun.id,
+      yoru: { ...yoru }, partnerId: partner?.id ?? null, dismissedIds, absorbed,
+      swordAsset: SPINAL_SWORD_BY_PARTNER[partner?.id] ?? null });
+    return null;
+  }
   const makima = state.characters.find((c) => c.id === "makima");
   if (makima && !makima.alive) return "victory";
   if (!livingTeams.has("enemy")) return "victory";
@@ -778,7 +820,7 @@ export function executeAttack(state, attacker, target, random = Math.random, att
   }
   if (skill?.id === "eren-hardening") {
     attacker.hardeningCasts += 1;
-    const heal = attacker.hardeningCasts % skill.healEveryCasts === 0 && !attacker.healingBlocked
+    const heal = attacker.hardeningCasts % skill.healEveryCasts === 0 && !attacker.healingBlocked && !attacker.stoneMaskHealingBlocked
       ? Math.min(attacker.maxHp - attacker.currentHp, Math.floor(attacker.maxHp * skill.healMaxHpRatio)) : 0;
     attacker.currentHp += heal;
     const applied = attacker.hardeningStacks < skill.maxDefenseStacks ? skill.defenseBonus : 0;
@@ -806,7 +848,7 @@ export function executeAttack(state, attacker, target, random = Math.random, att
   let healedAmount = 0;
   if (skill?.id === "eren-free-will") {
     attacker.freeWillTriggers = (attacker.freeWillTriggers ?? 0) + 1;
-    if (!attacker.healingBlocked && attacker.freeWillTriggers % skill.healEveryTriggers === 0) {
+    if (!attacker.healingBlocked && !attacker.stoneMaskHealingBlocked && attacker.freeWillTriggers % skill.healEveryTriggers === 0) {
       const requested = Math.floor(attacker.maxHp * skill.healMaxHpFraction);
       healedAmount = Math.max(0, Math.min(requested, attacker.maxHp - attacker.currentHp));
       attacker.currentHp += healedAmount;
@@ -870,6 +912,7 @@ export function executeAttack(state, attacker, target, random = Math.random, att
     }
   }
   if (!dodged && target.damageTakenMultiplier > 1) damage = Math.floor(damage * target.damageTakenMultiplier);
+  if (damage > 0 && !dodged && target.bulletHoleStacks > 0) damage = Math.max(1, Math.floor(damage * (1 + target.bulletHoleStacks * .1)));
   if (damage > 0 && target.borosPhase === 1) damage = Math.max(1, Math.floor(damage * .9));
   if (damage > 0 && target.id === "tang" && state.characters.some((unit) => unit.summonerId === "tang" && unit.alive && unit.currentHp > 0))
     damage = Math.max(1, Math.floor(damage * .8));
@@ -893,7 +936,7 @@ export function executeAttack(state, attacker, target, random = Math.random, att
   const actualDamage = trialDamage.emergencyHeal ? trialDamage.dealt : targetHpBefore - target.currentHp;
   let summonerHealedAmount = 0;
   const summoner = attacker.summonerId && state.characters.find((unit) => unit.id === attacker.summonerId);
-  if (summoner?.alive && !summoner.healingBlocked && summoner.passiveSkillId === "tang-flesh" && (summoner.passiveLevel ?? 1) >= 2 && damage > 0) {
+  if (summoner?.alive && !summoner.healingBlocked && !summoner.stoneMaskHealingBlocked && summoner.passiveSkillId === "tang-flesh" && (summoner.passiveLevel ?? 1) >= 2 && damage > 0) {
     summonerHealedAmount = Math.min(summoner.maxHp - summoner.currentHp, Math.floor(actualDamage * .2));
     summoner.currentHp += summonerHealedAmount;
   }
@@ -901,7 +944,7 @@ export function executeAttack(state, attacker, target, random = Math.random, att
   const oneEyeTriggered = damage > 0 && actualDamage > 0 && critical &&
     ["kaneki-one-eye", "kaneki-one-eye-king"].includes(attacker.passiveSkillId);
   let oneEyeHealedAmount = 0;
-  if (oneEyeTriggered && !attacker.healingBlocked) {
+  if (oneEyeTriggered && !attacker.healingBlocked && !attacker.stoneMaskHealingBlocked) {
     const ratio = attacker.passiveSkillId === "kaneki-one-eye-king" ? .3
       : SKILL_DATA["kaneki-one-eye"].levels[attacker.passiveLevel ?? 1].healFromCalculatedDamage;
     oneEyeHealedAmount = Math.max(0, Math.min(attacker.maxHp - attacker.currentHp,
@@ -924,6 +967,8 @@ export function executeAttack(state, attacker, target, random = Math.random, att
     }
   }
   let died = !dodged && handleDeath(target);
+  const bulletHoleStacks = attacker.id === GUN_DEVIL.id && isNormalAttack && !dodged && !died
+    ? (target.bulletHoleStacks = (target.bulletHoleStacks ?? 0) + 1) : null;
   const burnStacksBefore = target.burnStacks ?? 0;
   const bleedStacksBefore = target.bleedStacks ?? 0;
   if (actualDamage > 0 && attacker.trialPassive === "jogo" && target.team !== attacker.team)
@@ -994,7 +1039,7 @@ export function executeAttack(state, attacker, target, random = Math.random, att
   const evolutionHeals = [];
   const tangCompassion = state.characters.find((unit) => unit.team === attacker.team && unit.id === "tang" &&
     unit.alive && unit.passiveSkillId === "tang-compassion" && unit.currentHp < unit.maxHp * .6);
-  if (tangCompassion && actualDamage > 0 && !tangCompassion.healingBlocked) {
+  if (tangCompassion && actualDamage > 0 && !tangCompassion.healingBlocked && !tangCompassion.stoneMaskHealingBlocked) {
     const amount = Math.min(tangCompassion.maxHp - tangCompassion.currentHp, Math.floor(actualDamage * .2));
     tangCompassion.currentHp += amount;
     if (amount) evolutionHeals.push({ targetId: tangCompassion.id, amount, currentHp: tangCompassion.currentHp });
@@ -1066,6 +1111,7 @@ export function executeAttack(state, attacker, target, random = Math.random, att
     targetDef: target.def,
     attackerTeam: attacker.team,
     targetHp: target.currentHp, targetMaxHp: target.maxHp, targetDied: died,
+    bulletHoleStacks,
   };
 }
 
@@ -1103,7 +1149,7 @@ function resolveTrueDamageSkill(state, attacker, target, skill, amount) {
   const targetDied = handleDeath(target);
   const scorpionHeals = healScorpionAllies(state, target, actualDamage);
   const summoner = attacker.summonerId && state.characters.find((unit) => unit.id === attacker.summonerId);
-  const summonerHealedAmount = summoner?.alive && !summoner.healingBlocked && (summoner.passiveLevel ?? 1) >= 2
+  const summonerHealedAmount = summoner?.alive && !summoner.healingBlocked && !summoner.stoneMaskHealingBlocked && (summoner.passiveLevel ?? 1) >= 2
     ? Math.min(summoner.maxHp - summoner.currentHp, Math.floor(actualDamage * .2)) : 0;
   if (summonerHealedAmount) summoner.currentHp += summonerHealedAmount;
   return { type: "attack", attackerId: attacker.id, attackerTeam: attacker.team, targetId: target.id,
@@ -1411,6 +1457,7 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
   const state = initializeBattle(config, options);
   state.random = random;
   const events = state.battleStartEffects.map((effect) => ({ ...effect, attackerId: state.playerId }));
+  if (state.hiddenBoss) state.eventSink = events;
   applyTrialBattleStart(state, events, random);
   const fallingDevil = state.characters.find((unit) => unit.id === "falling-devil" && unit.alive);
   if (fallingDevil) events.push({ type: "gravity-domain", round: 0, attackerId: fallingDevil.id,
@@ -1474,11 +1521,17 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
       }
       if (attacker.id === "tang" && attacker.tangMeditating) continue;
       if (attacker.periodicPassive?.onlyPeriodicActions) continue;
-      const selectedSkill = (attacker.silencedThroughRound ?? 0) >= state.round ? null : triggeredSkill(attacker, random, state.round);
+      const hiddenPhaseRound = state.hiddenBoss && [GUN_DEVIL.id, YORU.id].includes(attacker.id)
+        ? state.round - state.hiddenBoss.phaseStartedRound + 1 : null;
+      const hiddenSkillTurn = hiddenPhaseRound != null && hiddenPhaseRound >= HIDDEN_BOSS_RULES.firstSkillPhaseRound &&
+        (hiddenPhaseRound - HIDDEN_BOSS_RULES.firstSkillPhaseRound) % HIDDEN_BOSS_RULES.skillEveryRounds === 0;
+      const selectedSkill = (attacker.silencedThroughRound ?? 0) >= state.round ? null
+        : hiddenPhaseRound != null ? hiddenSkillTurn ? attacker.skills?.[0] ?? null : null
+          : triggeredSkill(attacker, random, state.round);
       if (selectedSkill?.id === "noi-heal") {
         const healed = [];
         for (const unit of state.characters.filter((entry) => entry.team === attacker.team && entry.alive && entry.currentHp > 0)) {
-          const amount = Math.min(unit.maxHp - unit.currentHp, Math.floor((unit.maxHp - unit.currentHp) * selectedSkill.missingHpRatio));
+          const amount = unit.stoneMaskHealingBlocked ? 0 : Math.min(unit.maxHp - unit.currentHp, Math.floor((unit.maxHp - unit.currentHp) * selectedSkill.missingHpRatio));
           unit.currentHp += amount;
           healed.push({ targetId: unit.id, amount, hpAfter: unit.currentHp });
         }
@@ -1562,9 +1615,11 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
       }
       if (skill?.id === "heracles-nine-heads" && attacker.currentHp < 1000)
         skill = { ...skill, multiplier: skill.multiplier * 2 };
-      const target = skill?.lowestDefenseTarget
+      const target = attacker.id === YORU.id && !skill
+        ? state.characters.find((unit) => unit.id === state.playerId && unit.alive && unit.currentHp > 0)
+        : skill?.lowestDefenseTarget
         ? state.characters.filter((unit) => unit.team !== attacker.team && unit.alive && unit.currentHp > 0)
-          .sort((a, b) => a.def - b.def || a.rosterOrder - b.rosterOrder)[0]
+          .sort((a, b) => combatDefense(a, state.round) - combatDefense(b, state.round) || a.rosterOrder - b.rosterOrder)[0]
         : skill?.id === "odin-gungnir"
         ? (() => { const candidates = state.characters.filter((unit) => unit.team !== attacker.team && unit.alive && unit.currentHp > 0);
           return candidates[Math.floor(Math.min(.999999999999, Math.max(0, Number(random()) || 0)) * candidates.length)]; })()
@@ -1609,6 +1664,21 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
         if (event.jinchurikiTriggered) events.push({ type: "passive-trigger", ...event.jinchurikiTriggered, attackerId: attacker.id });
         if (event.elitePassiveTriggered) events.push({ type: "elite-passive-trigger", ...event.elitePassiveTriggered, attackerId: attacker.id });
         events.push(event);
+        if (struck.id === YORU.id && attacker.id === state.playerId && event.type === "attack" &&
+            event.actualDamage > 0 && struck.alive && attacker.alive && random() < .6) {
+          const reflectedBase = Math.floor(event.actualDamage * .8);
+          let reflected = calculateDamage({ atk: reflectedBase }, { def: combatDefense(attacker, state.round) });
+          if (reflected > 0 && attacker.bulletHoleStacks > 0)
+            reflected = Math.max(1, Math.floor(reflected * (1 + attacker.bulletHoleStacks * .1)));
+          const before = attacker.currentHp;
+          const shieldAbsorbed = Math.min(reflected, attacker.shieldHp ?? 0);
+          attacker.shieldHp = Math.max(0, (attacker.shieldHp ?? 0) - shieldAbsorbed);
+          applyTrialDamage(state, attacker, reflected - shieldAbsorbed, "attached");
+          events.push({ type: "hidden-boss-counter", round: state.round, attackerId: struck.id,
+            targetId: attacker.id, reflectedBase, actualDamage: before - attacker.currentHp,
+            targetHp: attacker.currentHp, targetMaxHp: attacker.maxHp, targetShield: attacker.shieldHp,
+            targetDied: handleDeath(attacker) });
+        }
         let hpDamageEvent = null;
         if (attacker.id === "eren" && attacker.evolutionPhase === 2 && event.type === "attack" &&
             event.actualDamage > 0 && !event.dodged) {

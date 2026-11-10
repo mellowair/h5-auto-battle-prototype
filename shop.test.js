@@ -5,7 +5,7 @@ import { simulateBattle } from "./battle.js";
 import { beginJourney, buyShopItem, chooseRoute, createCampaign, finishBattle, getRouteOptions, getShopRouteOptions, leaveShop, prepareBattle, selectStartingCharacter, startCampaign } from "./campaign.js";
 import { createRunCharacterState, grantGiantSpinalFluid } from "./progression.js";
 import { analyzeRouteMap, generateRouteMap, validateRouteMap } from "./routeMap.js";
-import { essenceRewardForBattle, generateShopInventory, refreshShopPrices } from "./shop.js";
+import { essenceRewardForBattle, generateShopInventory, previewShopItem, refreshShopPrices } from "./shop.js";
 import { SHOP_RULES } from "./shopConfig.js";
 
 function shopFixture(stageId = 3) {
@@ -139,13 +139,16 @@ test("shop purchase assigns the chosen partner and leaves the main character unc
   assert.equal(campaign.activeShop.purchases[0].recipientId, "eren");
 });
 
-test("shop medicine affects only the next battle, does not alter permanent stats, and same-stat bottles do not stack", () => {
+test("shop medicine affects only the next battle and blocks a duplicate purchase for the same character", () => {
   const campaign = shopFixture(1);
   campaign.essence = 10;
   replaceSlot(campaign, "medicine", "medicine_atk_1", 1);
   assert.ok(buyShopItem(campaign, 0));
   campaign.activeShop.slots[1] = { ...campaign.activeShop.slots[0], index: 1, purchased: false };
-  assert.ok(buyShopItem(campaign, 1));
+  assert.equal(previewShopItem(campaign, campaign.activeShop.slots[1]).alreadyOwned, true);
+  assert.equal(buyShopItem(campaign, 1), false);
+  assert.equal(campaign.activeShop.slots[1].purchased, false);
+  assert.equal(campaign.essence, 9);
   const permanentAtk = campaign.runCharacterState.atk;
   campaign.currentBattle = { type: "normal", step: 1, enemies: ["guard"], enemyNames: { guard: "守卫" } };
   campaign.status = "combat";
@@ -153,12 +156,26 @@ test("shop medicine affects only the next battle, does not alter permanent stats
   assert.equal(battle.roster.find((unit) => unit.id === campaign.playerId).atk, permanentAtk + 20);
   assert.equal(campaign.runCharacterState.atk, permanentAtk);
   // The duration is consumed by the actual campaign settlement, not preparation.
-  assert.equal(campaign.shopMedicines.length, 2);
+  assert.equal(campaign.shopMedicines.length, 1);
   assert.equal(finishBattle(campaign, "victory", campaign.playerHp).status, "reward");
   assert.equal(campaign.shopMedicines.length, 0);
   campaign.currentBattle = { type: "normal", step: 2, enemies: ["guard"], enemyNames: { guard: "守卫" } };
   campaign.status = "combat";
   assert.equal(prepareBattle(campaign).roster.find((unit) => unit.id === campaign.playerId).atk, permanentAtk);
+});
+
+test("the same medicine may be bought for a different party member", () => {
+  const campaign = shopFixture(2);
+  campaign.essence = 10;
+  campaign.partyIds.push("eren");
+  campaign.partyStates.eren = createRunCharacterState(STARTING_CHARACTERS.find((entry) => entry.id === "eren"));
+  replaceSlot(campaign, "medicine", "medicine_def_2", 2);
+  assert.ok(buyShopItem(campaign, 0, "naruto"));
+  campaign.activeShop.slots[1] = { ...campaign.activeShop.slots[0], index: 1, purchased: false };
+  assert.equal(previewShopItem(campaign, campaign.activeShop.slots[1], "eren").alreadyOwned, false);
+  assert.ok(buyShopItem(campaign, 1, "eren"));
+  assert.equal(campaign.shopMedicines.length, 2);
+  assert.equal(campaign.essence, 6);
 });
 
 test("generic medicine framework also supports a future two-battle duration", () => {

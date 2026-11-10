@@ -4,7 +4,7 @@ import { STARTING_CHARACTERS } from "./characters.js";
 import { resolveCampaignEvent } from "./campaign.js";
 import { createStageTwoTestCampaign } from "./dev/stage2-config.js";
 import { createAdventureEventResult, createRunCharacterState, getAvailableAdventureEventIds,
-  resolveAdventureEvent } from "./progression.js";
+  resolveAdventureEvent, upgradeActiveSkill } from "./progression.js";
 
 const make = (id) => createRunCharacterState(STARTING_CHARACTERS.find((entry) => entry.id === id));
 const rolls = (...values) => () => values.shift() ?? 0;
@@ -129,13 +129,82 @@ test("campaign keeps the selected partner through coin settlement and marks the 
   assert.equal(resolveCampaignEvent(campaign, "gamble_quit"), false);
 });
 
-const playRound = (run, sourceId, typeRoll, success) => {
-  resolveAdventureEvent(run, sourceId, "gamble_play", rolls(typeRoll, success ? 0 : .99), run);
-  const result = resolveAdventureEvent(run, sourceId, "gamble_settle", () => .4, run);
+const playRound = (run, sourceId, typeRoll, success, recipient = run, party = [run, recipient]) => {
+  resolveAdventureEvent(run, sourceId, "gamble_play", rolls(typeRoll, success ? 0 : .99), recipient, party);
+  const result = resolveAdventureEvent(run, sourceId, "gamble_settle", () => .4, recipient, party);
   if (run.eventResults[sourceId].status === "pending")
-    resolveAdventureEvent(run, sourceId, "gamble_next", () => 0, run);
+    resolveAdventureEvent(run, sourceId, "gamble_next", () => 0, recipient, party);
   return result;
 };
+
+test("second gamble's third-round loss revokes the first recipient's wins without erasing later training", () => {
+  const hero = make("naruto");
+  const partner = make("eren");
+  const initialAtk = partner.atk;
+  const skillId = partner.learnedActiveSkills[0];
+  const initialLevel = partner.skillLevels[skillId];
+  createAdventureEventResult(hero, "first", "gamble", () => 0, [hero, partner], 1);
+  resolveAdventureEvent(hero, "first", "gamble_recipient|eren", () => 0, partner);
+  playRound(hero, "first", .4, true, partner);
+  playRound(hero, "first", 0, true, partner);
+  resolveAdventureEvent(hero, "first", "gamble_quit", () => 0, partner);
+  assert.equal(partner.atk, initialAtk + 20);
+  assert.equal(partner.skillLevels[skillId], initialLevel + 1);
+  assert.ok(upgradeActiveSkill(partner, skillId, "training-between-gambles"));
+
+  createAdventureEventResult(hero, "second", "gamble_2", () => 0, [hero, partner], 2);
+  resolveAdventureEvent(hero, "second", "gamble_recipient|naruto", () => 0, hero);
+  playRound(hero, "second", .4, false, hero, [hero, partner]);
+  playRound(hero, "second", .9, false, hero, [hero, partner]);
+  const final = playRound(hero, "second", .4, false, hero, [hero, partner]);
+  assert.equal(partner.atk, initialAtk);
+  assert.equal(partner.skillLevels[skillId], initialLevel + 1);
+  assert.equal(partner.skillHistory.some((entry) => entry.sourceId === "first:round:2"), false);
+  assert.deepEqual(final.result.settled.revoked.filter((entry) => entry.encounter === 1)
+    .map((entry) => entry.round), [1, 2]);
+  assert.equal(hero.eventResults.first.data.gainsRevokedBy, "second");
+});
+
+test("first gamble's already-revoked rounds stay revoked once while its treasure pair is removed", () => {
+  const hero = make("naruto");
+  createAdventureEventResult(hero, "first", "gamble", () => 0, [hero], 1);
+  resolveAdventureEvent(hero, "first", "gamble_recipient|naruto", () => 0, hero);
+  playRound(hero, "first", .4, true);
+  playRound(hero, "first", .9, true);
+  const first = playRound(hero, "first", .4, false);
+  assert.equal(first.result.settled.revoked.length, 2);
+  assert.equal(first.result.treasures.length, 2);
+  createAdventureEventResult(hero, "second", "gamble_2", () => 0, [hero], 2);
+  resolveAdventureEvent(hero, "second", "gamble_recipient|naruto", () => 0, hero);
+  playRound(hero, "second", .4, false);
+  playRound(hero, "second", .9, false);
+  const final = playRound(hero, "second", .4, false);
+  assert.equal(final.result.settled.revoked.filter((entry) => entry.encounter === 1 && entry.round).length, 0);
+  assert.equal(final.result.settled.revoked.filter((entry) => entry.treasureId).length, 2);
+});
+
+test("second gamble's third-round loss removes first gamble treasure rewards but keeps gambling penalties", () => {
+  const hero = make("naruto");
+  const initial = { atk: hero.atk, def: hero.def, maxHp: hero.maxHp };
+  createAdventureEventResult(hero, "first", "gamble", () => 0, [hero], 1);
+  resolveAdventureEvent(hero, "first", "gamble_recipient|naruto", () => 0, hero);
+  playRound(hero, "first", .4, true);
+  playRound(hero, "first", .9, true);
+  const first = playRound(hero, "first", .4, true);
+  assert.equal(first.result.treasures.length, 2);
+  assert.equal(hero.permanentEffects.filter((effect) => effect.sourceId?.startsWith("first:")).length, 2);
+
+  createAdventureEventResult(hero, "second", "gamble_2", () => 0, [hero], 2);
+  resolveAdventureEvent(hero, "second", "gamble_recipient|naruto", () => 0, hero);
+  playRound(hero, "second", .4, false);
+  playRound(hero, "second", .9, false);
+  const final = playRound(hero, "second", .4, false);
+  assert.equal(hero.permanentEffects.some((effect) => effect.sourceId?.startsWith("first:")), false);
+  assert.equal(final.result.settled.revoked.filter((entry) => entry.treasureId).length, 2);
+  assert.equal(hero.maxHp, initial.maxHp);
+  assert.equal(hero.atk, initial.atk - 20);
+  assert.equal(hero.def, initial.def - 40);
+});
 
 test("third-round loss revokes two earlier stat wins but keeps its penalty and two-win reward", () => {
   const run = make("naruto");

@@ -2,6 +2,18 @@
 // Level-one Naruto values preserve current combat behavior. Other starter entries are first-pass placeholders.
 // Skill tuning can be replaced through this registry without scattering numbers into UI code.
 export const SKILL_DATA = {
+  "gun-devil-bullet-hole": { id: "gun-devil-bullet-hole", name: "弹孔", type: "passive", passive: true,
+    description: "普通攻击命中后施加一层弹孔；每层使目标受到伤害增加 10%，持续至整场隐藏 Boss 战结束。", levels: { 1: {} } },
+  "gun-devil-charged-shot": { id: "gun-devil-charged-shot", name: "蓄力射击", type: "active", triggerType: "on_action",
+    description: "每阶段第 2 回合首次施放，此后每 2 回合一次；瞄准当前 DEF 最低的目标，造成当前 ATK 2.5 倍的基础攻击伤害。",
+    levels: { 1: { multiplier: 2.5, effectType: "damage", attackType: "ranged", lowestDefenseTarget: true } } },
+  "yoru-spinal-sword": { id: "yoru-spinal-sword", name: "脊髓剑", type: "passive", passive: true,
+    description: "将玩家伙伴转化为脊髓剑，并吸收其最大 HP、ATK、DEF、SPD 的 50%。", levels: { 1: {} } },
+  "yoru-tank": { id: "yoru-tank", name: "战车", type: "passive", passive: true,
+    description: "受玩家攻击造成实际伤害后，有 60% 概率反弹本次实际伤害的 80%。", levels: { 1: {} } },
+  "yoru-gun-summon": { id: "yoru-gun-summon", name: "枪之恶魔射击", type: "active", triggerType: "on_action",
+    description: "每阶段第 2 回合首次施放，此后每 2 回合一次；瞄准当前 DEF 最低的目标，造成当前 ATK 2 倍的基础攻击伤害。",
+    levels: { 1: { multiplier: 2, effectType: "damage", attackType: "ranged", lowestDefenseTarget: true } } },
   "iron-bell": { id: "iron-bell", name: "金钟罩铁布衫", type: "passive", passive: true,
     description: "自身防御高于伤害来源时，将本次实际受到伤害的 50% 反弹给伤害来源。", levels: { 1: {} } },
   "falling-gravity-domain": { id: "falling-gravity-domain", name: "重力领域", type: "passive", passive: true,
@@ -412,7 +424,7 @@ export const TREASURE_DATA = Object.freeze({
   sukuna_finger: { id: "sukuna_finger", tier: "small", name: "宿傩手指", image: "assets/treasures/sukuna-finger.png", description: "第一关基础 ATK +30，最大 HP -150；每跨一关及每重复获取一次，ATK 收益各增加基础值的 20%，最大 HP 代价不变。", atk: 30, maxHp: -150 },
   odm_gear: { id: "odm_gear", tier: "small", name: "立体机动装置", image: "assets/treasures/odm-gear-transparent.png", description: "本局闪避率 +5 个百分点，暴击率 +5 个百分点。", dodgeRateBonus: 0.05, critRateBonus: 0.05 },
   angel_breath: { id: "angel_breath", tier: "royal", name: "大天使的气息", image: "assets/treasures/angel-breath.png", description: "立即回满 HP；此后每场战斗结束恢复最大 HP 的 20%。", battleEndHealRatio: 0.20 },
-  stone_mask: { id: "stone_mask", tier: "royal", name: "石鬼面", image: "assets/treasures/stone-mask.png", description: "本局吸血 +40 个百分点，但无法通过篝火恢复 HP。", lifesteal: 0.40, blocksCampfireHeal: true },
+  stone_mask: { id: "stone_mask", tier: "royal", name: "石鬼面", image: "assets/treasures/stone-mask.png", description: "本局吸血 +25 个百分点；持有者只能通过吸血恢复 HP，篝火、治疗和关卡结算均无法回血。", lifesteal: 0.25, blocksCampfireHeal: true },
   nichirin_blade: { id: "nichirin_blade", tier: "royal", name: "日轮刀", image: "assets/treasures/nichirin-blade.png", description: "普通攻击命中后，额外扣除目标攻击前当前 HP 的 8%，无视 DEF。", normalAttackCurrentHpRatio: 0.08 },
 });
 

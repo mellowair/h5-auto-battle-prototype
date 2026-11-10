@@ -1,6 +1,6 @@
 import { createSeededRandom } from "./routeMap.js";
 import { GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT, TREASURE_DATA } from "./skills.js";
-import { grantEliteSukunaFinger, grantGiantSpinalFluid, grantGunDevilFragment, learnActiveSkill, previewGrowingDrop } from "./progression.js";
+import { grantEliteSukunaFinger, grantGiantSpinalFluid, grantGunDevilFragment, hasStoneMask, learnActiveSkill, previewGrowingDrop } from "./progression.js";
 import { SHOP_RULES } from "./shopConfig.js";
 
 export const SHOP_TREASURES = Object.freeze({ ...TREASURE_DATA,
@@ -53,8 +53,10 @@ export function previewShopItem(campaign, slot, recipientId = campaign?.playerId
   if (!slot || !member) return null;
   const item = SHOP_TREASURES[slot.itemId];
   const count = member.permanentEffects?.filter((effect) => effect.id === slot.itemId).length ?? 0;
+  const alreadyOwned = slot.categoryId === "medicine" && (campaign.shopMedicines ?? [])
+    .some((effect) => effect.recipientId === recipientId && effect.id === slot.itemId && effect.battlesLeft > 0);
   const growth = slot.categoryId === "growing" ? previewGrowingDrop(member, slot.itemId, 1) : null;
-  return { ...slot, ownedCount: count, recipientId,
+  return { ...slot, ownedCount: count, alreadyOwned, recipientId,
     expectedGains: growth ? { atk: growth.atk, def: growth.def, maxHp: growth.maxHp } : null,
     fullDescription: growth ? `${item.description} 本次购买预计：${growth.description.replace(/^第 1 关/, "商店")}` : slot.description };
 }
@@ -75,7 +77,7 @@ function grantTreasure(member, slot, sourceId, stageId) {
     member.maxHp = Math.max(1, member.maxHp + (gains.maxHp ?? 0));
     member.currentHp = Math.min(member.currentHp, member.maxHp);
     if (gains.critRateBonus) member.critRate = Math.min(1, member.critRate + gains.critRateBonus);
-    if (item.id === "angel_breath" && !(member.divinePunishment?.battlesLeft > 0)) member.currentHp = member.maxHp;
+    if (item.id === "angel_breath" && !(member.divinePunishment?.battlesLeft > 0) && !hasStoneMask(member)) member.currentHp = member.maxHp;
     effect = { ...item, ...gains, sourceId };
     member.permanentEffects.push(effect);
   }
@@ -91,7 +93,10 @@ export function buyShopItem(campaign, index, recipientId = campaign?.playerId) {
   refreshShopPrices(campaign);
   const slot = campaign.activeShop.slots[index];
   const member = campaign.partyStates?.[recipientId];
-  if (!slot?.available || slot.purchased || !member || !campaign.partyIds.includes(recipientId) || (campaign.essence ?? 0) < slot.price) return false;
+  if (!slot?.available || slot.purchased || !member || !campaign.partyIds.includes(recipientId) ||
+      (slot.categoryId === "medicine" && (campaign.shopMedicines ?? []).some((effect) =>
+        effect.recipientId === recipientId && effect.id === slot.itemId && effect.battlesLeft > 0)) ||
+      (campaign.essence ?? 0) < slot.price) return false;
   const sourceId = `shop:${campaign.stageId}:${campaign.activeShop.nodeId}:${index}`;
   let result;
   if (["common", "growing", "rare"].includes(slot.categoryId)) result = grantTreasure(member, slot, sourceId, campaign.stageId);

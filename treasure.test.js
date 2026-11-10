@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { STARTING_CHARACTERS } from "./characters.js";
 import { executeAttack, getCritChance, getDodgeChance, initializeBattle, simulateBattle } from "./battle.js";
-import { chooseRoute, claimCampaignTreasure, completeLocation, finishBattle, getCampaignTreasureOffer, getRouteOptions, prepareBattle, resolveCampaignEvent, resolveStageTwoCampfire, startCampaignEventBattle } from "./campaign.js";
-import { claimTreasure, createAdventureEventResult, createRunCharacterState, getCampfireOptions, getTreasureCombatModifiers, resolveAdventureEvent, resolveCampfire } from "./progression.js";
+import { chooseRoute, claimCampaignTreasure, completeLocation, finishBattle, getCampaignTreasureOffer, getRouteOptions, prepareBattle, resolveCampaignEvent, resolveStageTwoCampfire, restorePartyHealthForStage, startCampaignEventBattle } from "./campaign.js";
+import { claimTreasure, createAdventureEventResult, createRunCharacterState, getCampfireOptions, getTreasureCombatModifiers, grantGiantSpinalFluid, grantGunDevilFragment, healRunCharacter, resolveAdventureEvent, resolveCampfire } from "./progression.js";
 import { TREASURE_DATA } from "./skills.js";
 import { createStageTwoDirectBattleCampaign, createStageTwoTestCampaign } from "./dev/stage2-config.js";
 
@@ -62,24 +62,24 @@ test("Sukuna finger clamps HP, while ODM gear raises actual dodge and crit chanc
   assert.equal(getCritChance({ critChance: gear.member.critRate }), oldCrit + .05);
 });
 
-test("stone mask gives battle lifesteal but blocks only its holder's campfire healing", () => {
+test("stone mask gives 25% lifesteal but blocks its holder's campfire healing", () => {
   const mask = offerFor("stone_mask", eren);
   mask.member.currentHp = 500;
   assert.ok(claimTreasure(mask.owner, mask.sourceId, "stone_mask", mask.member, mask.member.characterId));
-  assert.equal(getTreasureCombatModifiers(mask.member).lifesteal, .40);
+  assert.equal(getTreasureCombatModifiers(mask.member).lifesteal, .25);
   assert.equal(getCampfireOptions(mask.member)[0].healAmount, 0);
   assert.equal(resolveCampfire(mask.member, "camp-a", "rest").restored, 0);
   assert.equal(mask.member.currentHp, 500);
   mask.owner.currentHp = 500;
   assert.ok(resolveCampfire(mask.owner, "camp-a", "rest").restored > 0);
   const battle = initializeBattle([
-    { id: "holder", team: "ally", row: "front", hp: 1000, currentHp: 500, atk: 100, def: 0, spd: 100, critChance: 0, lifesteal: .40 },
+    { id: "holder", team: "ally", row: "front", hp: 1000, currentHp: 500, atk: 100, def: 0, spd: 100, critChance: 0, lifesteal: .25, stoneMaskHealingBlocked: true },
     { id: "foe", team: "enemy", row: "front", hp: 1000, atk: 10, def: 0, spd: 10, critChance: 0 },
   ]);
   const event = executeAttack(battle, battle.characters[0], battle.characters[1], () => .99);
   assert.equal(event.actualDamage, 100);
-  assert.equal(event.treasureLifesteal, 40);
-  assert.equal(battle.characters[0].currentHp, 540);
+  assert.equal(event.treasureLifesteal, 25);
+  assert.equal(battle.characters[0].currentHp, 525);
 });
 
 test("formal battle roster carries treasure modifiers, and stage-two campfire still heals the unmasked partner", () => {
@@ -90,7 +90,8 @@ test("formal battle roster carries treasure modifiers, and stage-two campfire st
   const main = roster.find((unit) => unit.id === "naruto");
   const partner = roster.find((unit) => unit.id === "eren");
   assert.deepEqual([main.damageReductionBonus, main.dodgeRateBonus, main.normalAttackCurrentHpRatio], [.05, .05, .08]);
-  assert.equal(partner.lifesteal, .40);
+  assert.equal(partner.lifesteal, .25);
+  assert.equal(partner.stoneMaskHealingBlocked, true);
   const rest = createStageTwoTestCampaign({ heroId: "naruto", partnerId: "eren", seed: 72 });
   rest.partyStates.naruto.currentHp = 500;
   rest.partyStates.eren.currentHp = 500;
@@ -103,6 +104,26 @@ test("formal battle roster carries treasure modifiers, and stage-two campfire st
   assert.ok(resolved);
   assert.ok(rest.partyStates.naruto.currentHp > 500);
   assert.equal(rest.partyStates.eren.currentHp, 500);
+});
+
+test("stone mask blocks direct healing, growing treasure healing, angel breath and stage transitions", () => {
+  const holder = createRunCharacterState(eren);
+  holder.currentHp = 500;
+  holder.permanentEffects.push({ id: "stone_mask", lifesteal: .4 });
+  assert.equal(getTreasureCombatModifiers(holder).lifesteal, .25);
+  assert.equal(holder.permanentEffects[0].lifesteal, .25);
+  assert.equal(healRunCharacter(holder, 300, "heal-test").restored, 0);
+  assert.equal(grantGiantSpinalFluid(holder, "fluid-test", 2).restoredHp, 0);
+  assert.equal(grantGunDevilFragment(holder, "fragment-test", 2).restoredHp, 0);
+  const angel = offerFor("angel_breath");
+  assert.ok(claimTreasure(angel.owner, angel.sourceId, "angel_breath", holder, holder.characterId));
+  assert.equal(holder.currentHp, 500);
+  const campaign = createStageTwoTestCampaign({ heroId: "naruto", partnerId: "eren", seed: 74 });
+  campaign.partyStates.eren = holder;
+  campaign.partyStates.naruto.currentHp = 500;
+  assert.equal(restorePartyHealthForStage(campaign, 3), true);
+  assert.equal(holder.currentHp, 500);
+  assert.equal(campaign.partyStates.naruto.currentHp, campaign.partyStates.naruto.maxHp);
 });
 
 test("Nichirin Blade creates a separate DEF-free hit based on pre-attack HP, never on dodge or skills", () => {

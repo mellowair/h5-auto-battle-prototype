@@ -214,8 +214,8 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 @keyframes summon-name-appear { 0%, 60% { opacity: 0; } 100% { opacity: 1; } }
 .fighter-name { position: absolute; z-index: 4; bottom: -12px; left: 50%; transform: translateX(-50%); white-space: nowrap; padding: 2px 8px; color: #29344d; background: #fff6d7; border: 1.5px solid #39465e; border-radius: 4px; box-shadow: 2px 2px 0 rgba(41,52,77,.23); font-size: 11px; font-weight: 900; }
 .sprite-wrap { position: relative; z-index: 2; width: 82px; height: 103px; margin-top: 20px; display: grid; place-items: end center; }
-.clone-protect-effect { position: absolute; z-index: 12; left: 50%; bottom: 10px; width: clamp(170px, 32vw, 255px); max-width: none; height: auto; transform: translateX(-50%); transform-origin: center bottom; image-rendering: pixelated; pointer-events: none; animation: clone-protect-appear var(--clone-protect-duration, 650ms) steps(6, end) both; }
-@keyframes clone-protect-appear { 0% { opacity: 0; scale: .8; } 20%, 68% { opacity: 1; scale: 1; } 100% { opacity: 0; scale: 1.08; } }
+.clone-protect-effect { position: absolute; z-index: 24; bottom: 10px; width: clamp(220px, 42vw, 320px); max-width: none; height: auto; transform: translateX(-50%); transform-origin: center bottom; image-rendering: pixelated; pointer-events: none; animation: clone-protect-appear var(--clone-protect-duration, 1200ms) steps(8, end) both; }
+@keyframes clone-protect-appear { 0% { opacity: 0; transform: translateX(-50%) scale(.88); } 12%, 78% { opacity: 1; transform: translateX(-50%) scale(1); } 100% { opacity: 0; transform: translateX(-50%) scale(1.06); } }
 .fighter:not(.is-dead):not(.is-summoning):not(.is-portal-pending):not(.is-portal-rising):not(.is-melee-rushing):not(.is-punching):not(.is-hit):not(.is-dodging):not(.is-attacking):not(.is-casting):not(.is-kaneki-reactive):not(.is-steam-casting):not(.gravity-lift):not(.gravity-hover):not(.gravity-drop) .sprite-wrap { animation: idle-bob 2.4s steps(2,end) infinite; }
 .fighter.is-steam-casting .sprite-wrap { animation: steam-fall var(--steam-duration, 650ms) steps(5,end) both; transform-origin: center bottom; }
 @keyframes steam-fall { 0%,100% { transform: rotate(0); } 45%,75% { transform: translateX(-12px) rotate(-18deg); } }
@@ -330,7 +330,32 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .fighter[data-character="shin"].is-melee-returning .sprite-visual,
 .fighter[data-character="noi"].is-melee-returning .sprite-visual { transform: scaleX(-1); }
 .eren-warhammer-strike { position: absolute; z-index: 18; object-fit: contain; object-position: center bottom; image-rendering: pixelated; pointer-events: none; }
-.evolution-entrance { position: absolute; inset: 0; z-index: 30; background-position: center; background-size: cover; background-repeat: no-repeat; pointer-events: none; animation: eren-evolution-reveal 1.55s ease-out both; }
+.evolution-entrance { position: absolute; inset: 0; z-index: 30; background-color: #090b10; background-position: center; background-size: contain; background-repeat: no-repeat; image-rendering: pixelated; pointer-events: none; animation: eren-evolution-reveal var(--evolution-entrance-duration, 1550ms) ease-out both; }
+.hidden-boss-intro-screen { position: relative; min-height: min(78dvh, 700px); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 36px; padding: 24px; color: #f2eeee; background: #050506; text-align: center; }
+.hidden-boss-intro-screen[hidden] { display: none; }
+.hidden-boss-story { margin: 0; font-size: clamp(17px, 5vw, 28px); letter-spacing: .12em; line-height: 1.6; }
+.hidden-boss-choices { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+.battle-screen.hidden-boss-battle .arena { background: #111019 url("assets/hidden-boss/gun-background.png") center center / cover no-repeat; }
+.fighter[data-character="gun-devil"], .fighter[data-character="yoru"] { left: 63% !important; }
+.fighter[data-character="gun-devil"].is-dead .sprite { transform: none; filter: none; }
+.fighter.hidden-yoru-walk { animation: hidden-yoru-walk var(--hidden-walk-ms, 1500ms) steps(18, end) both; }
+@keyframes hidden-yoru-walk { from { translate: 45vw 0; } to { translate: 0 0; } }
+.hidden-yoru-entrance { position: absolute; z-index: 31; inset: 0; display: grid; place-items: center; background: #090810dd; pointer-events: none; }
+.hidden-yoru-entrance img { display: block; max-width: min(65%, 290px); max-height: 88%; object-fit: contain; image-rendering: pixelated; }
+.hidden-spinal-sword { position: absolute; z-index: 16; width: clamp(105px, 21vw, 155px); height: auto; transform: translate(-50%, 0) rotate(-7deg); transform-origin: 72% 22%; image-rendering: pixelated; pointer-events: none; transition: left var(--sword-flight-ms, 600ms) ease-in, top var(--sword-flight-ms, 600ms) ease-in, transform var(--sword-flight-ms, 600ms) ease-in; }
+.hidden-boss-projectile, .hidden-boss-projectile-effect { position: absolute; z-index: 19; width: clamp(125px, 25vw, 205px); height: auto; transform: translate(-50%, -50%) scaleX(-1); image-rendering: pixelated; pointer-events: none; transition: left var(--bullet-flight-ms, 1450ms) cubic-bezier(.3,.1,.75,.88), top var(--bullet-flight-ms, 1450ms) cubic-bezier(.3,.1,.75,.88); }
+.hidden-boss-projectile-effect { z-index: 18; opacity: .8; }
+.hidden-boss-projectile-effect { transform: translate(-50%, -50%); }
+.hidden-yoru-summoned-gun { position: absolute; z-index: 2; width: clamp(115px, 24vw, 190px); height: auto; image-rendering: pixelated; pointer-events: none; }
+.hidden-yoru-tank { position: absolute; z-index: 1; width: clamp(140px, 28vw, 220px); height: auto; image-rendering: pixelated; pointer-events: none; }
+@media (max-width: 699px) { .fighter[data-character="gun-devil"], .fighter[data-character="yoru"] { left: 58% !important; } .hidden-spinal-sword { width: 96px; } .hidden-boss-projectile, .hidden-boss-projectile-effect { width: 130px; } .hidden-yoru-summoned-gun { width: 115px; } .hidden-yoru-tank { width: 125px; } }
+@media (max-width: 699px) and (orientation: portrait) {
+  .evolution-entrance { background-size: auto 75%; }
+  .evolution-entrance[data-character="eren"] { background-position: 80% center; }
+  .evolution-entrance[data-character="naruto"] { background-position: 76% center; }
+  .evolution-entrance[data-character="tang"] { background-position: 50% center; }
+  .evolution-entrance[data-character="kaneki"] { background-position: 55% center; }
+}
 @keyframes eren-evolution-reveal { 0% { opacity: 0; } 15%, 65% { opacity: 1; } 100% { opacity: 0; } }
 .fighter[data-character="kaneki"] .sprite-action-frame { transform: scale(var(--action-frame-scale, 1)); transform-origin: center bottom; }
 .fighter[data-character="toji"] .sprite-action-frame { transform: scale(var(--action-frame-scale, 1)); transform-origin: center bottom; }
@@ -776,7 +801,9 @@ h2 { margin: 0; color: #3a455c; font-size: 11px; font-weight: 900; }
 .route-screen .route-signs { bottom: 20%; align-items: end; }
 .route-screen .route-signs-single { justify-content: flex-start; }
 .route-screen .route-sign { flex-basis: 31%; height: clamp(108px, 22vw, 158px); }
-.route-screen .route-footer { display: flex; justify-content: space-between; margin-top: 7px; padding: 7px 9px; color: #7d877b; background: #fffdf5; border: 1px solid #d8ded0; border-radius: 6px; font-size: 9px; }
+.route-screen .route-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 7px; padding: 7px 9px; color: #7d877b; background: #fffdf5; border: 1px solid #d8ded0; border-radius: 6px; font-size: 9px; }
+.route-health-group, .route-footer-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.route-footer-actions { margin-left: auto; }
 .route-screen .route-footer b { display: block; color: #43825b; font: 800 10px Consolas,monospace; }
 .route-map-dialog { width: min(720px, calc(100vw - 22px)); max-width: none; max-height: min(92dvh, 900px); padding: 0; overflow: hidden; color: #35445b; background: #f7f4e8; border: 3px solid #304354; border-radius: 12px; box-shadow: 0 12px 40px #0c182b88; }
 .route-map-dialog::backdrop { background: rgba(14,24,39,.72); }

@@ -9,6 +9,8 @@ export function shouldHideFallenUnit(character, deathRound, currentRound) {
 }
 
 export const CHARACTER_VISUALS = Object.freeze({
+  "gun-devil": { scale: 1.7, offsetX: 0, offsetY: -16, frameWidth: 112, frameHeight: 128 },
+  yoru: { scale: 1.55, offsetX: 0, offsetY: -14, frameWidth: 112, frameHeight: 128 },
   tang: { scale: 1.2, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98,
     animationFrameScales: { skill1: { cast: 1.15 } } },
   "tang-white-horse": { scale: 1, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98,

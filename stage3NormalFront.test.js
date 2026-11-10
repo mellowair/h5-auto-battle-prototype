@@ -8,6 +8,7 @@ import { createStageThreeTestCampaign } from "./dev/stage3-config.js";
 import { CHARACTER_VISUALS, getAnimationFrameFootShift } from "./visualConfig.js";
 
 const frontIds = ["bull_king", "headless_knight", "anubis", "loki", "medusa", "shiji"];
+const routeFrontIds = ["bull_king", "headless_knight", "anubis"];
 const enemy = (appearanceId) => ({ id: "guard", name: NORMAL_ENEMY_APPEARANCES[appearanceId].name,
   team: "enemy", row: "front", hp: 2400, maxHp: 2400, currentHp: 2400,
   atk: 250, def: 140, spd: 75, critChance: 0, normalPassiveId: appearanceId });
@@ -25,7 +26,7 @@ test("stage-three front appearances have deployed art and passive descriptions",
   assert.deepEqual([guard.name, guard.appearanceId, guard.normalPassiveId], ["牛魔王", "bull_king", "bull_king"]);
 });
 
-test("third-stage route encounters draw six front enemies and the corrected back pool", () => {
+test("third-stage route encounters always draw one front and one back enemy from separate pools", () => {
   const seenFront = new Set();
   for (let seed = 1; seed <= 120; seed += 1) {
     const campaign = createStageThreeTestCampaign({ heroId: "naruto", partnerId: "eren", opponent: "route", seed });
@@ -33,10 +34,17 @@ test("third-stage route encounters draw six front enemies and the corrected back
     const encounter = chooseRoute(campaign, node.id).battle;
     const frontId = encounter.enemyAppearanceIds.guard;
     const backId = encounter.enemyAppearanceIds.mage;
-    if (frontId) { assert.ok(frontIds.includes(frontId)); seenFront.add(frontId); }
-    if (backId) assert.ok(["shiji", "loki", "medusa"].includes(backId));
+    assert.deepEqual(encounter.enemies, ["guard", "mage"]);
+    assert.ok(routeFrontIds.includes(frontId));
+    assert.ok(["shiji", "loki", "medusa"].includes(backId));
+    if (seed === 1) {
+      const roster = prepareBattle(campaign).roster;
+      assert.equal(roster.find((unit) => unit.id === "guard").row, "front");
+      assert.equal(roster.find((unit) => unit.id === "mage").row, "back");
+    }
+    seenFront.add(frontId);
   }
-  assert.deepEqual([...seenFront].sort(), [...frontIds].sort());
+  assert.deepEqual([...seenFront].sort(), [...routeFrontIds].sort());
 });
 
 test("stage-three opening stat passives change battle copies once and leave templates untouched", () => {

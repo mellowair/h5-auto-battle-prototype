@@ -1,4 +1,6 @@
 import { ANIMATION_TIMING, CHARACTER_DATA, COMBAT_RULES, STAGE_TWO_NORMAL_PASSIVES, STAGE_THREE_NORMAL_PASSIVES, STARTING_CHARACTERS } from "./characters.js";
+import { beginHiddenBossChallenge, deferHiddenBossChallenge, queueHiddenBossIntro, resumeHiddenBossAtCampfire } from "./campaign.js";
+import { HIDDEN_BOSS_RULES, GUN_DEVIL, SPINAL_SWORD_BY_PARTNER, YORU } from "./hiddenBoss.js";
 import { advanceEventEpilogue, advanceStageTransition, beginJourney, beginStageTwo, beginStageThree, buyShopItem, chooseEvolutionUpgrade, chooseRoute, chooseTrialNode, chooseStartingSkill, claimCampaignEliteDrop, claimCampaignReward, claimCampaignSpecialReward, claimCampaignQuinque, claimCampaignTreasure, claimStageTwoEliteSkill, claimStageTwoEliteSkip, claimStageTwoGiantRecipient, claimStageTwoStatReward, completeLocation, completeSettlement, createCampaign, enterTrialMap, finishBattle, finishTrialResult, getActiveCampfireOptions, getCampaignRewardOffer, getCampaignTreasureOffer, getRouteMap, getRouteOptions, getShopRouteOptions, getStageTransitionChoices, getStageTwoCampfireOptions, leaveShop, prepareBattle, previewShopItem, resolveCampaignEvent, resolveStageTwoCampfire, resolveTrialOffer, resolveTrialWill, selectStartingCharacter, startCampaign, startCampaignEventBattle, STAGE_TWO_STAT_UPGRADES } from "./campaign.js";
 import { getCritChance, getDodgeChance, getSkillDodgeChance, initializeBattle, simulateBattle } from "./battle.js";
 import { canDeclineNewSkill, getSeaBeyondOfferDetails, getSkillAtLevel, getSkillTrainingChoices, getTemporaryCombatModifiers, getTemporaryEffectDisplayRows, getTreasureCombatModifiers, getUnlearnedActiveSkills, previewGrowingDrop } from "./progression.js";
@@ -411,7 +413,7 @@ function describeEventResult(result) {
   if (result.gains?.length && !Number.isFinite(result.hpLoss)) return `${partyPresentation(result.recipientId)?.name ?? "角色"}本局额外获得：${result.gains.map(({ stat, amount }) => `${({ atk: "攻击", def: "防御", spd: "速度" })[stat]} +${amount}`).join("、")}，本次未扣除生命值。`;
   if (result.blessing === "player_damage_increased") return "厄运降临：接下来两场战斗中，你受到的伤害为 1.5 倍。";
   if (result.blessing === "enemy_damage_doubled") return "力量降临：接下来两场战斗中，敌人受到的伤害翻倍。";
-  if (result.effect?.stat || result.healFraction) return `${result.restored ? `立即恢复 ${result.restored} HP；` : ""}${result.effect?.stat ? `下一场战斗${result.effect.stat.toUpperCase()} ${result.effect.amount > 0 ? "+" : ""}${result.effect.amount}。` : ""}`;
+  if (result.effect?.stat || result.healFraction) return `${result.healBlockedBy === "stone_mask" ? "石鬼面使本次治疗无效；" : result.restored ? `立即恢复 ${result.restored} HP；` : ""}${result.effect?.stat ? `下一场战斗${result.effect.stat.toUpperCase()} ${result.effect.amount > 0 ? "+" : ""}${result.effect.amount}。` : ""}`;
   if (result.skipped) return result.exhausted ? "这条道路已无法再带来新力量，你选择离开。" : "你选择离开，没有发生其他变化。";
   if (result.stage && Number.isFinite(result.critRateGain)) {
     if (result.stage === 3) return `暴击率 +${Math.round(result.critRateGain * 100)} 个百分点，当前暴击率 ${(result.critRate * 100).toFixed(1)}%。`;
@@ -1175,6 +1177,28 @@ function renderAllyStatusIcons() {
     syncCannotActVisual(unit);
     if (!unit.alive) continue;
     const statuses = unit.team === "ally" ? allyStatuses : enemyStatuses;
+    if (unit.id === "naruto" && unit.extraPassiveSkillIds?.includes("naruto-chakra-clones")) {
+      const cloneCount = Math.max(0, unit.chakraClones ?? 0);
+      statuses.push({ id: "naruto-chakra-clones", name: `查克拉影分身 ×${cloneCount}`,
+        image: unit.asset, tone: "buff",
+        description: `九尾鸣人本场剩余 ${cloneCount} 个查克拉影分身；队友低于 50% HP 时，每次受伤消耗 1 个分身，使该次伤害降低 30%。` });
+    }
+    if (unit.team === "ally") {
+      const medicineBonuses = (campaign?.shopMedicines ?? [])
+        .filter((effect) => effect.recipientId === unit.id && effect.battlesLeft > 0)
+        .reduce((bonuses, effect) => {
+          for (const stat of ["atk", "def"])
+            bonuses[stat] = Math.max(bonuses[stat] ?? 0, effect.modifiers?.[stat] ?? 0);
+          return bonuses;
+        }, {});
+      for (const [stat, amount] of Object.entries(medicineBonuses)) {
+        if (amount <= 0) continue;
+        const label = stat === "atk" ? "攻击药剂" : "防御药剂";
+        statuses.push({ id: `shop-medicine-${unit.id}-${stat}`, name: `${unit.name} · ${label} +${amount}`,
+          image: "assets/shop/potion.png", tone: "buff",
+          description: `${unit.name}本场战斗 ${stat.toUpperCase()} +${amount}；药剂在战斗结束后失效。` });
+      }
+    }
     const frozen = Number.isInteger(unit.frozenThroughRound) && unit.frozenThroughRound > 0 &&
       unit.frozenThroughRound >= battleStatusState.currentRound;
     if (frozen || unit.stunNextAction || unit.tojiRestPending || unit.tojiResting) {
@@ -1197,6 +1221,9 @@ function renderAllyStatusIcons() {
     if (unit.gravityStacks > 0) statuses.push({ id: `gravity-${unit.id}`, name: `失去引力 ×${unit.gravityStacks}`,
       image: "assets/stage3-elites/falling/gravity-circle.png", tone: "debuff",
       description: `${unit.name}：失去引力 ${unit.gravityStacks}/4 层；累计实际恢复 300 HP 消除 1 层（当前 ${unit.gravityHealProgress ?? 0}/300）；达到 4 层时，战斗 DEF 高于 260 改受 800 点真实伤害，否则立即被处决。` });
+    if (unit.bulletHoleStacks > 0) statuses.push({ id: `bullet-hole-${unit.id}`,
+      name: `${unit.name} · 弹孔 ×${unit.bulletHoleStacks}`, image: "assets/hidden-boss/bullet.png", tone: "debuff",
+      description: `${unit.name} 已有 ${unit.bulletHoleStacks} 层弹孔，受到伤害增加 ${unit.bulletHoleStacks * 10}%；持续至整场隐藏 Boss 战结束。` });
     if (unit.bereavementActive && unit.bereavementDefenseBonus > 0)
       statuses.push({ id: `bereavement-${unit.id}`, name: `${unit.name} · 同伴倒地`, image: unit.asset, tone: "buff",
         description: `${unit.name} 因${unit.bereavementSourceId === "shin" ? "心" : "能井"}倒地，当前 ATK 翻倍、DEF +${unit.bereavementDefenseBonus}；同伴复活后移除。` });
@@ -1601,7 +1628,7 @@ function clearEffects() {
   clearBorosVisuals();
   lastBorosVisualCastId = null;
   lastGilgameshVisualCastId = null;
-  document.querySelectorAll(".colossal-battle-smoke, .gilgamesh-visual, .trial-projectile, .shin-hammer-projectile, .eren-warhammer-strike, .evolution-entrance, .clone-protect-effect, .summon-portal, .arima-weakpoint, .cannot-act-effect, .gravity-circle, .gravity-dish").forEach((node) => node.remove());
+  document.querySelectorAll(".colossal-battle-smoke, .gilgamesh-visual, .trial-projectile, .shin-hammer-projectile, .eren-warhammer-strike, .evolution-entrance, .clone-protect-effect, .summon-portal, .arima-weakpoint, .cannot-act-effect, .gravity-circle, .gravity-dish, .hidden-yoru-entrance, .hidden-spinal-sword, .hidden-boss-projectile, .hidden-boss-projectile-effect, .hidden-yoru-summoned-gun, .hidden-yoru-tank").forEach((node) => node.remove());
   clearAllSpriteFrameCycles();
   timer = null;
   effectTimer = null;
@@ -1670,6 +1697,214 @@ function clearEffects() {
   renderAllyStatusIcons();
 }
 
+function hiddenBossAfter(ms, callback) {
+  const token = generation;
+  timer = window.setTimeout(() => {
+    timer = null;
+    if (token !== generation) return;
+    if (playbackPaused) pausedContinuation = callback;
+    else callback();
+  }, playbackDelay(ms));
+}
+
+function playHiddenBossPhase(event, finish) {
+  const arena = document.querySelector(".arena");
+  const gun = document.querySelector('[data-character="gun-devil"]');
+  if (!arena || !gun) return finish();
+  addLog("<b>枪之恶魔</b> 倒下了……但战斗尚未结束。", "log-enemy");
+  hiddenBossAfter(HIDDEN_BOSS_RULES.gunDeathHoldMs, () => {
+    gun.remove();
+    const yoru = { ...event.yoru };
+    viewState.characters.push(yoru);
+    for (const id of event.dismissedIds ?? []) {
+      const unit = viewState.characters.find((item) => item.id === id);
+      if (unit) { unit.alive = false; unit.currentHp = 0; unit.spinalSwordConverted = id === event.partnerId; }
+    }
+    buildHealthRows(viewState.characters.filter((unit) => unit.id !== "gun-devil" &&
+      !(event.dismissedIds ?? []).includes(unit.id)));
+    const fighter = document.querySelector('[data-character="yoru"]');
+    if (!fighter) return finish();
+    fighter.classList.add("hidden-yoru-walk");
+    fighter.style.setProperty("--hidden-walk-ms", `${playbackDelay(HIDDEN_BOSS_RULES.yoruWalkMs)}ms`);
+    startFrameCycle(fighter, yoru, "walk", ["first", "second"], 220, true);
+    addLog("<b>战争恶魔·夜</b> 从战场右侧走来。", "log-enemy");
+    hiddenBossAfter(HIDDEN_BOSS_RULES.yoruWalkMs, () => {
+      fighter.classList.remove("hidden-yoru-walk");
+      fighter.style.removeProperty("--hidden-walk-ms");
+      clearSpriteFrame(fighter);
+      startIdleCycle(fighter, yoru);
+      const entrance = document.createElement("div");
+      entrance.className = "hidden-yoru-entrance";
+      const art = document.createElement("img");
+      art.src = yoru.entranceAsset;
+      art.alt = "战争恶魔·夜登场";
+      entrance.append(art);
+      arena.append(entrance);
+      hiddenBossAfter(HIDDEN_BOSS_RULES.yoruEntranceHoldMs, () => {
+        entrance.remove();
+        showFighterFrame(fighter, yoru, "pointUp", "point");
+        if (event.swordAsset) {
+          const sword = document.createElement("img");
+          sword.className = "hidden-spinal-sword";
+          sword.src = event.swordAsset;
+          sword.alt = "脊髓剑";
+          sword.style.left = "69%";
+          sword.style.top = "10%";
+          arena.append(sword);
+        }
+        renderAllyStatusIcons();
+        addLog(`<b>脊髓剑</b>：${event.partnerId ? partyPresentation(event.partnerId)?.name ?? event.partnerId : "无伙伴"}退出本场战斗；夜吸收最大 HP +${event.absorbed.maxHp}、ATK +${event.absorbed.atk}、DEF +${event.absorbed.def}、SPD +${event.absorbed.spd}。`, "log-enemy");
+        hiddenBossAfter(560, () => { clearSpriteFrame(fighter); startIdleCycle(fighter, yoru); finish(); });
+      });
+    });
+  });
+}
+
+function playHiddenBossAttack(event, finish) {
+  const attacker = viewState.characters.find((unit) => unit.id === event.attackerId);
+  const target = viewState.characters.find((unit) => unit.id === event.targetId);
+  const sourceEl = attacker && document.querySelector(`[data-character="${attacker.id}"]`);
+  const targetEl = target && document.querySelector(`[data-character="${target.id}"]`);
+  const arena = document.querySelector(".arena");
+  if (!attacker || !target || !sourceEl || !targetEl || !arena) return finish();
+  const arenaRect = arena.getBoundingClientRect();
+  const targetRect = targetEl.getBoundingClientRect();
+  const targetPoint = { x: targetRect.left - arenaRect.left + targetRect.width / 2,
+    y: targetRect.top - arenaRect.top + targetRect.height * .5 };
+  const commit = () => {
+    target.currentHp = event.targetHp;
+    target.maxHp = event.targetMaxHp ?? target.maxHp;
+    target.shieldHp = event.targetShield ?? target.shieldHp;
+    target.alive = !event.targetDied;
+    if (event.bulletHoleStacks) target.bulletHoleStacks = event.bulletHoleStacks;
+    attacker.currentHp = event.attackerHp ?? attacker.currentHp;
+    updateHealth(target);
+    updateHealth(attacker);
+    renderAllyStatusIcons();
+    const number = targetEl.querySelector(".damage-number");
+    if (number) {
+      number.textContent = event.dodged ? "闪避" : event.actualDamage > 0 ? `-${event.actualDamage}`
+        : event.shieldAbsorbed > 0 ? `护盾 -${event.shieldAbsorbed}` : "免疫";
+      number.classList.remove("pop"); void number.offsetWidth; number.classList.add("pop");
+    }
+    const burst = targetEl.querySelector(".impact-burst");
+    if (burst && !event.dodged) { burst.classList.remove("play"); void burst.offsetWidth; burst.classList.add("play"); }
+    if (event.targetDied) {
+      targetEl.classList.add("is-dead");
+      const deathFrames = animationFrameNames(target, "death");
+      if (deathFrames.length) startFrameCycle(targetEl, target, "death", deathFrames, 500 / deathFrames.length, false);
+    }
+    if (event.trialDamage?.cloneSpent) {
+      const naruto = viewState.characters.find((unit) => unit.id === "naruto" && unit.team === target.team);
+      if (naruto) naruto.chakraClones = event.trialDamage.clonesRemaining;
+    }
+    addLog(`<span class="round-label">R${event.round}</span> <b>${attacker.name}</b> ${event.skilled ? event.skillName : "普通攻击"} → <b>${target.name}</b> ${event.dodged ? "闪避" : `造成 ${event.actualDamage} 点伤害`}${event.bulletHoleStacks ? `；弹孔 ×${event.bulletHoleStacks}` : ""}`, "log-enemy");
+  };
+  const idle = () => { clearSpriteFrame(sourceEl); if (attacker.alive) startIdleCycle(sourceEl, attacker); finish(); };
+  if (attacker.id === YORU.id && !event.skilled) {
+    showFighterFrame(sourceEl, attacker, "pointUp", "point");
+    const sword = arena.querySelector(".hidden-spinal-sword");
+    if (!sword) return hiddenBossAfter(420, () => { commit(); idle(); });
+    const home = { left: sword.style.left, top: sword.style.top };
+    hiddenBossAfter(380, () => {
+      sword.style.setProperty("--sword-flight-ms", `${playbackDelay(HIDDEN_BOSS_RULES.swordFlightMs)}ms`);
+      sword.style.left = `${targetPoint.x + 30}px`;
+      sword.style.top = `${targetPoint.y - 85}px`;
+      hiddenBossAfter(HIDDEN_BOSS_RULES.swordFlightMs, () => {
+        commit();
+        sword.style.setProperty("--sword-flight-ms", `${playbackDelay(HIDDEN_BOSS_RULES.swordReturnMs)}ms`);
+        sword.style.left = home.left;
+        sword.style.top = home.top;
+        hiddenBossAfter(HIDDEN_BOSS_RULES.swordReturnMs, idle);
+      });
+    });
+    return;
+  }
+  if (attacker.id === GUN_DEVIL.id && !event.skilled) {
+    showFighterFrame(sourceEl, attacker, "normalAttack", "fire");
+    hiddenBossAfter(450, () => { commit(); hiddenBossAfter(220, idle); });
+    return;
+  }
+  const fire = (projectileSource) => {
+    const sourceRect = projectileSource.getBoundingClientRect();
+    const sourcePoint = { x: sourceRect.left - arenaRect.left + sourceRect.width * .22,
+      y: sourceRect.top - arenaRect.top + sourceRect.height * .3 };
+    const bullet = document.createElement("img");
+    bullet.className = "hidden-boss-projectile";
+    bullet.src = attacker.projectileAsset;
+    bullet.alt = "";
+    const effect = document.createElement("img");
+    effect.className = "hidden-boss-projectile-effect";
+    effect.src = attacker.projectileEffectAsset;
+    effect.alt = "";
+    const duration = attacker.id === GUN_DEVIL.id ? HIDDEN_BOSS_RULES.gunBulletFlightMs : HIDDEN_BOSS_RULES.yoruBulletFlightMs;
+    for (const image of [effect, bullet]) {
+      image.style.left = `${sourcePoint.x}px`;
+      image.style.top = `${sourcePoint.y}px`;
+      image.style.setProperty("--bullet-flight-ms", `${playbackDelay(duration)}ms`);
+      arena.append(image);
+      void image.offsetWidth;
+      image.style.left = `${targetPoint.x}px`;
+      image.style.top = `${targetPoint.y}px`;
+    }
+    hiddenBossAfter(duration, () => {
+      bullet.remove(); effect.remove(); commit();
+      arena.querySelector(".hidden-yoru-summoned-gun")?.remove();
+      hiddenBossAfter(300, idle);
+    });
+  };
+  if (attacker.id === GUN_DEVIL.id) {
+    showFighterFrame(sourceEl, attacker, "charge", "charge");
+    hiddenBossAfter(700, () => {
+      showFighterFrame(sourceEl, attacker, "charge", "fire");
+      hiddenBossAfter(300, () => fire(sourceEl.querySelector(".sprite-action-frame.is-current") ?? sourceEl.querySelector(".sprite")));
+    });
+  } else {
+    showFighterFrame(sourceEl, attacker, "pointUp", "point");
+    hiddenBossAfter(450, () => {
+      showFighterFrame(sourceEl, attacker, "pointAtTarget", "point");
+      hiddenBossAfter(400, () => {
+        const shadow = document.createElement("img");
+        shadow.className = "hidden-yoru-summoned-gun";
+        shadow.src = attacker.summonedGunAsset;
+        shadow.alt = "";
+        const rect = sourceEl.getBoundingClientRect();
+        shadow.style.left = `${rect.left - arenaRect.left - 95}px`;
+        shadow.style.top = `${rect.top - arenaRect.top - 25}px`;
+        arena.append(shadow);
+        hiddenBossAfter(320, () => fire(shadow));
+      });
+    });
+  }
+}
+
+function playHiddenBossCounter(event, finish) {
+  const yoru = viewState.characters.find((unit) => unit.id === YORU.id);
+  const target = viewState.characters.find((unit) => unit.id === event.targetId);
+  const fighter = document.querySelector('[data-character="yoru"]');
+  const arena = document.querySelector(".arena");
+  if (!yoru || !target || !fighter || !arena) return finish();
+  const tank = document.createElement("img");
+  tank.className = "hidden-yoru-tank";
+  tank.src = yoru.tankAssets?.[0];
+  tank.alt = "";
+  const arenaRect = arena.getBoundingClientRect();
+  const fighterRect = fighter.getBoundingClientRect();
+  tank.style.left = `${fighterRect.left - arenaRect.left + 15}px`;
+  tank.style.top = `${fighterRect.top - arenaRect.top - 25}px`;
+  arena.append(tank);
+  hiddenBossAfter(250, () => {
+    tank.src = yoru.tankAssets?.[1] ?? tank.src;
+    target.currentHp = event.targetHp;
+    target.shieldHp = event.targetShield;
+    target.alive = !event.targetDied;
+    updateHealth(target);
+    if (event.targetDied) document.querySelector(`[data-character="${target.id}"]`)?.classList.add("is-dead");
+    addLog(`<b>战车</b> 格挡反击：按夜实际承伤的 80% 反弹，${target.name}受到 ${event.actualDamage} 点伤害。`, "log-enemy");
+    hiddenBossAfter(HIDDEN_BOSS_RULES.tankShowMs, () => { tank.remove(); finish(); });
+  });
+}
+
 function playEvent(event, finish) {
   if (Number.isFinite(event.round) && event.round !== battleStatusState.currentRound) {
     battleStatusState.currentRound = event.round;
@@ -1686,6 +1921,10 @@ function playEvent(event, finish) {
     renderAllyStatusIcons();
     viewState?.characters?.forEach((character) => { if (Number.isInteger(character.weaknessRound)) updateHealth(character); });
   }
+  if (event.type === "hidden-boss-phase") return playHiddenBossPhase(event, finish);
+  if (event.type === "hidden-boss-counter") return playHiddenBossCounter(event, finish);
+  if (event.type === "attack" && [GUN_DEVIL.id, YORU.id].includes(event.attackerId))
+    return playHiddenBossAttack(event, finish);
   if (event.type === "gravity-domain") {
     for (const entry of event.targets) {
       const target = viewState.characters.find((unit) => unit.id === entry.targetId);
@@ -2498,7 +2737,7 @@ function playEvent(event, finish) {
     return;
   }
   if (event.type === "battle-end") {
-    document.querySelectorAll(".colossal-battle-smoke, .gilgamesh-visual").forEach((node) => node.remove());
+    document.querySelectorAll(".colossal-battle-smoke, .gilgamesh-visual, .hidden-spinal-sword, .hidden-yoru-tank, .hidden-yoru-summoned-gun, .hidden-boss-projectile, .hidden-boss-projectile-effect").forEach((node) => node.remove());
     const win = event.outcome === "victory";
     const player = pendingResult.finalCharacters.find((character) => character.team === "ally");
     const speedBeforeSettlement = campaign.runCharacterState?.spd ?? 0;
@@ -2555,6 +2794,8 @@ function playEvent(event, finish) {
       else {
         completeSettlement(campaign);
         if (campaign.status === "stage_transition") renderStageTransition();
+        else if (campaign.status === "hidden_boss_intro") renderHiddenBossIntro();
+        else if (campaign.status === "route") renderRoute();
         else renderEnding();
       }
     };
@@ -2595,6 +2836,7 @@ function playEvent(event, finish) {
   if (event.type === "evolution-clone-gain") {
     const actor = viewState.characters.find((unit) => unit.id === event.attackerId);
     if (actor) actor.chakraClones = event.count;
+    renderAllyStatusIcons();
     addLog(`<b>${actor?.name ?? "鸣人"}</b> 获得 ${event.gained ?? 1} 个影分身，当前 ${event.count} 个。`, "log-skill");
     return finish();
   }
@@ -3067,6 +3309,8 @@ function playEvent(event, finish) {
   }
 
   let birdProjectile = null;
+  let cloneProtectionEffect = null;
+  const cloneProtectionMs = event.trialDamage?.cloneSpent ? Math.max(850, scaled(1200)) : 0;
   if (isDeidaraBirdSkill) {
     birdProjectileTimer = window.setTimeout(() => {
       birdProjectileTimer = null;
@@ -3079,14 +3323,25 @@ function playEvent(event, finish) {
     if (event.trialDamage?.cloneSpent) {
       const protector = viewState.characters.find((unit) => unit.id === "naruto" && unit.team === target.team);
       if (protector) protector.chakraClones = event.trialDamage.clonesRemaining;
+      renderAllyStatusIcons();
       if (protector?.passiveProtectionAsset) {
         const protection = document.createElement("img");
         protection.className = "clone-protect-effect";
         protection.src = new URL(`./${protector.passiveProtectionAsset}`, import.meta.url).href;
         protection.alt = "";
         protection.setAttribute("aria-hidden", "true");
-        protection.style.setProperty("--clone-protect-duration", `${scaled(650)}ms`);
-        targetEl.append(protection);
+        protection.style.setProperty("--clone-protect-duration", `${cloneProtectionMs}ms`);
+        const arena = document.querySelector(".arena");
+        if (arena) {
+          const targetRect = targetEl.getBoundingClientRect();
+          const arenaRect = arena.getBoundingClientRect();
+          protection.style.bottom = `${arenaRect.bottom - targetRect.bottom + 10}px`;
+          arena.append(protection);
+          const halfWidth = protection.offsetWidth / 2 + 4;
+          const targetCenter = targetRect.left - arenaRect.left + targetRect.width / 2;
+          protection.style.left = `${Math.max(halfWidth, Math.min(arenaRect.width - halfWidth, targetCenter))}px`;
+          cloneProtectionEffect = protection;
+        }
       }
     }
     if (kiraStand) scheduleBorosVisual(() => { kiraStand?.remove(); kiraStand = null; }, scaled(130));
@@ -3350,7 +3605,7 @@ function playEvent(event, finish) {
       event.burnStacksApplied > 0 ? `<span class="skill-name">灼烧 +${event.burnStacksApplied} 层（共 ${event.burnStacks} 层）</span>` : "",
       event.bleedStacksApplied > 0 ? `<span class="skill-name">流血 +${event.bleedStacksApplied} 层（共 ${event.bleedStacks} 层）</span>` : "",
       event.stunApplied ? '<span class="skill-name">下一次行动眩晕</span>' : "",
-      event.trialDamage?.cloneSpent ? `<span class="skill-name">查克拉影分身保护：伤害减半，剩余 ${event.trialDamage.clonesRemaining} 个</span>` : "",
+      event.trialDamage?.cloneSpent ? `<span class="skill-name">查克拉影分身保护：伤害降低 30%，剩余 ${event.trialDamage.clonesRemaining} 个</span>` : "",
       event.arimaWeaknessRevealed ? '<span class="skill-name">弱点洞察：后续攻击无视该目标 80% 防御</span>' : "",
       event.attackGuard && target.id === "arima" ? '<span class="skill-name">库因克格挡：伤害减半</span>' : "",
       event.arimaCritAwakened ? '<span class="skill-name">濒危暴击：暴击率 +30 个百分点</span>' : "",
@@ -3411,10 +3666,10 @@ function playEvent(event, finish) {
     ? scaled(target.animationTiming?.thousandSevenMs ?? 1000) : 0;
   const delay = Math.max(duration + eventGap, impactDelay + reactiveHoldMs + eventGap,
     event.trialDamage?.heraclesAwakened ? impactDelay + scaled(4000) + eventGap : 0,
-    event.trialDamage?.cloneSpent ? impactDelay + scaled(650) : 0,
+    event.trialDamage?.cloneSpent ? impactDelay + cloneProtectionMs + eventGap : 0,
     event.targetDied && target.id === "six_ear" ? impactDelay + 1000 : 0);
   timer = window.setTimeout(() => {
-    targetEl.querySelectorAll(".clone-protect-effect").forEach((node) => node.remove());
+    cloneProtectionEffect?.remove();
     if (birdProjectileTimer) window.clearTimeout(birdProjectileTimer);
     birdProjectileTimer = null;
     birdProjectile?.remove();
@@ -3607,6 +3862,7 @@ function playEnemyEntrance(entrance, token, onComplete) {
 
 function beginBattle() {
   if (battleStartPhase !== "idle" || playback || !campaign || campaign.status !== "combat") return false;
+  $("#battle-screen").classList.toggle("hidden-boss-battle", Boolean(campaign.currentBattle?.hiddenBoss));
   $("#battle-screen").classList.toggle("stage-two", campaign.stageId >= 2);
   $("#battle-screen").classList.toggle("stage-three", campaign.stageId === 3);
   $("#battle-screen").classList.toggle("trial-battle", Boolean(campaign.trialBattle));
@@ -3669,7 +3925,9 @@ function beginBattle() {
   }
   $("#arena-location").textContent = prepared.battle.location;
   $("#boss-warning").hidden = prepared.battle.type !== "boss";
-  if (prepared.battle.type === "boss") $("#boss-warning-text").textContent = campaign.stageId === 3
+  if (prepared.battle.type === "boss") $("#boss-warning-text").textContent = prepared.battle.hiddenBoss
+    ? "⚠️ 枪之恶魔与战争恶魔·夜将连续作战。"
+    : campaign.stageId === 3
     ? "⚠️ 玛奇玛正在召集眷属。"
     : campaign.stageId === 2 ? "⚠️ 龙级灾难：波罗斯！注意他的三阶段形态变化！"
     : "艺术就是爆炸！要尽快击败迪达拉！";
@@ -3747,11 +4005,23 @@ function beginBattle() {
   const entranceActors = prepared.roster.filter((actor) => actor.team === "ally" && actor.evolutionPhase === 2 &&
     actor.entranceBackground && !shownEntrances.includes(actor.id) && !(actor.id === "eren" && campaign.evolutionEntranceShown));
   const evolutionEntrance = entranceActors.length ? new Promise((resolve) => {
-    const showNext = (index) => {
+    const showNext = async (index) => {
       if (index >= entranceActors.length || token !== generation) { resolve(); return; }
       const actor = entranceActors[index];
+      await new Promise((ready) => {
+        const image = new Image();
+        const decoded = () => Promise.resolve(image.decode?.()).catch(() => {}).then(ready);
+        image.onload = decoded;
+        image.onerror = ready;
+        image.src = actor.entranceBackground;
+        if (image.complete) decoded();
+      });
+      if (token !== generation) { resolve(); return; }
       const overlay = document.createElement("div");
       overlay.className = "evolution-entrance";
+      overlay.dataset.character = actor.id;
+      const entranceDuration = window.matchMedia("(max-width: 699px)").matches ? 2500 : 1550;
+      overlay.style.setProperty("--evolution-entrance-duration", `${entranceDuration}ms`);
       overlay.style.backgroundImage = `url("${actor.entranceBackground}")`;
       document.querySelector(".arena")?.append(overlay);
       window.setTimeout(() => {
@@ -3761,12 +4031,12 @@ function beginBattle() {
         campaign.evolutionEntranceShownIds.push(actor.id);
         if (actor.id === "eren") campaign.evolutionEntranceShown = true;
         showNext(index + 1);
-      }, 1550);
+      }, entranceDuration);
     };
     showNext(0);
   }) : Promise.resolve();
   const entrance = restoredBattle?.result ? null : getEnemyEntrance(prepared.battle, prepared.roster);
-  const actionAssets = prepared.roster.flatMap((actor) => [actor.summonAuraAsset,
+  const actionAssets = prepared.roster.flatMap((actor) => [actor.summonAuraAsset, actor.passiveProtectionAsset,
     ...(actor.id === "gilgamesh"
       ? [actor.animations?.enuma?.frames?.raise, actor.skillVisualTimelines?.enuma?.effect]
       : actor.id === "kira" ? [actor.animations?.meleeAttack?.frames?.punch_1, actor.animations?.meleeAttack?.frames?.stand, actor.animations?.skill1?.frames?.cast]
@@ -3777,12 +4047,16 @@ function beginBattle() {
         actor.animations?.gravity?.frames?.charge, actor.animations?.gravity?.frames?.release,
         actor.animations?.execution?.frames?.cast, actor.gravityCircleAsset, actor.dishAsset]
       : actor.id === "armored-titan" ? [actor.animations?.skill1?.frames?.hold] : [])]).filter(Boolean);
+  if (prepared.battle.hiddenBoss) actionAssets.push(...Object.values(YORU.animations).flatMap((animation) =>
+    Object.values(animation.frames ?? {})), YORU.entranceAsset, ...YORU.tankAssets,
+    YORU.summonedGunAsset, ...Object.values(SPINAL_SWORD_BY_PARTNER));
   const actionReady = Promise.all(actionAssets.map((src) => new Promise((resolve) => {
     const image = new Image();
-    image.onload = resolve;
+    const decoded = () => Promise.resolve(image.decode?.()).catch(() => {}).then(resolve);
+    image.onload = decoded;
     image.onerror = resolve;
     image.src = src;
-    if (image.complete) resolve();
+    if (image.complete) decoded();
   })));
   const startAfterAssets = () => Promise.all([actionReady, evolutionEntrance]).then(() => { if (token === generation) startFight(); });
   if (entrance) {
@@ -3883,8 +4157,22 @@ function renderEvolutionReward() {
     }, "ACT 03 · EVOLUTION");
 }
 
+function renderHiddenBossIntro() {
+  if (campaign?.status !== "hidden_boss_intro") return;
+  $("#hidden-boss-defer").hidden = campaign.stageId <= 3;
+  $("#hidden-boss-enter").onclick = () => {
+    if (!beginHiddenBossChallenge(campaign)) return;
+    beginBattle();
+  };
+  $("#hidden-boss-defer").onclick = () => {
+    if (deferHiddenBossChallenge(campaign)) renderRoute();
+  };
+  setScreen("hidden-boss-intro-screen");
+}
+
 function renderRoute() {
   if (!campaign || campaign.status !== "route") return;
+  if (queueHiddenBossIntro(campaign)) return renderHiddenBossIntro();
   const routeMap = getRouteMap(campaign);
   const options = orderRouteOptionsByPosition(routeMap, getRouteOptions(campaign));
   $("#route-progress").textContent = options.some((node) => node.type === "demon") ? "Boss" : `第 ${campaign.step} 步`;
@@ -4027,8 +4315,10 @@ function chooseShopRecipient() {
       recipients.querySelectorAll(".shop-recipient-choice").forEach((button) => button.classList.toggle("is-selected", button === choice));
       const preview = previewShopItem(campaign, slot, id);
       $("#shop-detail-description").textContent = preview?.fullDescription ?? slot.description;
-      $("#shop-detail-price").textContent = `◆ ${slot.price} 精华 · 此角色已有 ${preview?.ownedCount ?? 0} 件`;
-      $("#shop-detail-buy").disabled = false;
+      $("#shop-detail-price").textContent = preview?.alreadyOwned ? "该角色已拥有此药剂" :
+        slot.categoryId === "medicine" ? `◆ ${slot.price} 精华` : `◆ ${slot.price} 精华 · 此角色已有 ${preview?.ownedCount ?? 0} 件`;
+      $("#shop-detail-buy").disabled = Boolean(preview?.alreadyOwned);
+      $("#shop-detail-buy").textContent = preview?.alreadyOwned ? "已拥有" : "确认购买";
     });
     recipients.append(choice);
   }
@@ -4039,8 +4329,9 @@ function chooseShopRecipient() {
 function purchaseShopSlot(index) {
   if (!selectedShopRecipientId) return false;
   const result = buyShopItem(campaign, index, selectedShopRecipientId);
-  $("#shop-feedback").textContent = result ? `购买成功：${campaign.activeShop.slots[index].name}交给${partyPresentation(selectedShopRecipientId)?.name ?? selectedShopRecipientId}，精华 -${campaign.activeShop.slots[index].price}。` : "购买未完成，请查看余额或角色是否已学会该技能。";
-  if (!result) $("#shop-detail-description").textContent = "购买未完成：请确认精华足够，且该角色尚未学会这本技能书。";
+  const alreadyOwned = !result && previewShopItem(campaign, campaign.activeShop.slots[index], selectedShopRecipientId)?.alreadyOwned;
+  $("#shop-feedback").textContent = result ? `购买成功：${campaign.activeShop.slots[index].name}交给${partyPresentation(selectedShopRecipientId)?.name ?? selectedShopRecipientId}，精华 -${campaign.activeShop.slots[index].price}。` : alreadyOwned ? "该角色已拥有此药剂。" : "购买未完成，请查看余额或角色是否已学会该技能。";
+  if (!result) $("#shop-detail-description").textContent = alreadyOwned ? "该角色已拥有此药剂，请选择其他角色。" : "购买未完成：请确认精华足够，且该角色尚未学会这本技能书。";
   if (result) { $("#shop-detail-dialog").close(); renderShop(); }
   return result;
 }
@@ -4231,9 +4522,9 @@ function renderEnding() {
   $("#ending-screen").classList.toggle("is-victory", won);
   $("#ending-screen").classList.toggle("is-defeat", !won);
   $("#ending-mark").textContent = won ? "★" : "…";
-  $("#ending-title").textContent = won ? (campaign.stageId === 3 ? "第三大关通关！" : campaign.stageId === 2 ? "第二大关通关！" : "第一大关通关！") : "本局挑战结束";
+  $("#ending-title").textContent = won ? (campaign.hiddenBoss?.resolved ? "隐藏首领挑战完成！" : campaign.stageId === 3 ? "第三大关通关！" : campaign.stageId === 2 ? "第二大关通关！" : "第一大关通关！") : "本局挑战结束";
   $("#ending-copy").textContent = won
-    ? (campaign.stageId === 3 ? "你击败了玛奇玛，完成了第三大关。" : campaign.stageId === 2 ? "你击败了波罗斯，完成了第二大关。" : "你战胜了遗迹首领，完成了第一大关。")
+    ? (campaign.hiddenBoss?.resolved ? "你击败了枪之恶魔与战争恶魔·夜，获得 20 点精华。" : campaign.stageId === 3 ? "你击败了玛奇玛，完成了第三大关。" : campaign.stageId === 2 ? "你击败了波罗斯，完成了第二大关。" : "你战胜了遗迹首领，完成了第一大关。")
     : (partyPresentation(campaign.playerId)?.name ?? "角色") + "倒下了，旅程止步于第 " + campaign.step + " 步。";
   $("#ending-count").textContent = "路线已走 " + campaign.history.length + " 步 · 完成战斗 " + campaign.completedBattles + " · 最终生命 " + campaign.playerHp + " / " + campaign.playerMaxHp;
   if (localStageTwoTest && campaign.devBattleOnly) {
@@ -4820,9 +5111,13 @@ function gambleRoundText(result) {
     : Number.isFinite(change.hpLoss) ? `损失 ${change.hpLoss} HP，剩余 ${change.currentHp}/${change.maxHp} HP`
       : `${change.stat.toUpperCase()} ${change.amount >= 0 ? "+" : ""}${change.amount}，当前 ${change.value}`;
   const revoked = change && result.settled.revoked?.length
-    ? `额外撤销：${result.settled.revoked.map((entry) => entry.skillId
-      ? `第 ${entry.round} 轮「${entry.skillName}」Lv.${entry.fromLevel} → Lv.${entry.toLevel}${entry.attackGain ? `、ATK -${entry.attackGain}` : ""}`
-      : `第 ${entry.round} 轮 ${entry.stat.toUpperCase()} +${entry.amount}`).join("；")}。此前及本轮负面效果保留。`
+    ? `额外撤销：${result.settled.revoked.map((entry) => {
+      const source = entry.encounter === 1 ? `第一次豪赌（${partyPresentation(entry.recipientId)?.name ?? entry.recipientId}）` : "";
+      if (entry.treasureId) return `${source}获得的「${entry.treasureName}」`;
+      return entry.skillId
+        ? `${source}第 ${entry.round} 轮「${entry.skillName}」Lv.${entry.fromLevel} → Lv.${entry.toLevel}${entry.attackGain ? `、ATK -${entry.attackGain}` : ""}`
+        : `${source}第 ${entry.round} 轮 ${entry.stat.toUpperCase()} +${entry.amount}`;
+    }).join("；")}。此前及本轮赌博的负面效果保留。`
     : "";
   return `第 ${round} 轮 · ${label}：${success ? "正面，成功" : "反面，失败"}。${outcome}。${revoked}`;
 }
@@ -4928,10 +5223,17 @@ function renderCampfire() {
       return options[0].blockedBy ? `${character.name}受石鬼面影响，无法通过篝火恢复` : `${character.name} +${options[0].healAmount} HP`;
     }).join("；");
     const canUpgrade = members.some(({ options }) => options[1].enabled);
+    const deferredBoss = campaign.stageId > 3 && campaign.hiddenBoss?.deferred && !campaign.hiddenBoss.resolved;
     renderDecisionScreen("第二关篝火", "休息治疗全队，或每名队员分别获得一次技能训练机会。", [
       decisionChoice("rest", "全队休息", healText),
       decisionChoice("skill_upgrade", "全队技能升级", "每名符合条件的队员各升级一次。", !canUpgrade),
+      ...(deferredBoss ? [decisionChoice("hidden_boss", "查看枪魔碎片", "前往隐藏首领挑战。")]: []),
     ], "确认", (id) => {
+      if (id === "hidden_boss") {
+        if (!resumeHiddenBossAtCampfire(campaign)) return false;
+        renderHiddenBossIntro();
+        return true;
+      }
       if (id === "rest") {
         const result = resolveStageTwoCampfire(campaign, "rest");
         if (!result) return false;
@@ -5073,7 +5375,9 @@ function renderAdventureEvent() {
     }
     else if (record.data.phase === "choice") {
       choices.push(decisionChoice("gamble_play", ["赌一把", "再赌一把", "最后一搏"][record.data.round - 1],
-        record.data.round === 3 ? "失败将额外失去前两轮获得的全部加成，且保留所有负面效果。" : ""));
+        record.data.round === 3 ? record.eventId === "gamble_2"
+          ? "失败将额外失去本次前两轮及第一次豪赌获得的收益（包括宝物），赌博造成的负面效果保留。"
+          : "失败将额外失去前两轮获得的全部加成，且保留所有负面效果。" : ""));
       choices.push(decisionChoice("gamble_quit", record.data.round === 3 ? "点到为止" : "不赌为妙", ""));
     }
   } else if (record.eventId === "kings_treasury") {
@@ -5350,6 +5654,7 @@ function initializeGame() {
       campaign.essenceHistory ??= [];
       campaign.shopHistory ??= [];
       campaign.shopMedicines ??= [];
+      campaign.hiddenBoss ??= { unlocked: false, storyShown: false, resolved: false, makimaCleared: false };
       campaign.random = Math.random;
       campaign.partyStates ??= {};
       campaign.partyStates[campaign.playerId] = campaign.runCharacterState;
@@ -5378,6 +5683,7 @@ function initializeGame() {
         beginBattle();
       } else if (campaign.status === "stage_transition") renderStageTransition();
       else if (campaign.status === "route") renderRoute();
+      else if (campaign.status === "hidden_boss_intro") renderHiddenBossIntro();
       else if (campaign.status === "shop") renderShop();
       else if (campaign.status === "trial_intro") renderTrialIntro();
       else if (campaign.status === "trial_route") renderTrialMap();
