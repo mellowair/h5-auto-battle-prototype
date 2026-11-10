@@ -410,7 +410,7 @@ export const GUN_DEVIL_FRAGMENT = Object.freeze({
 export const TREASURE_DATA = Object.freeze({
   magic_conch: { id: "magic_conch", tier: "small", name: "神奇海螺", image: "assets/treasures/magic-conch.png", description: "本局可减免的战斗伤害减免 +5 个百分点。", damageReduction: 0.05 },
   sukuna_finger: { id: "sukuna_finger", tier: "small", name: "宿傩手指", image: "assets/treasures/sukuna-finger.png", description: "第一关基础 ATK +30，最大 HP -150；每跨一关及每重复获取一次，ATK 收益各增加基础值的 20%，最大 HP 代价不变。", atk: 30, maxHp: -150 },
-  odm_gear: { id: "odm_gear", tier: "small", name: "立体机动装置", image: "assets/treasures/odm-gear.png", description: "本局闪避率 +5 个百分点，暴击率 +5 个百分点。", dodgeRateBonus: 0.05, critRateBonus: 0.05 },
+  odm_gear: { id: "odm_gear", tier: "small", name: "立体机动装置", image: "assets/treasures/odm-gear-transparent.png", description: "本局闪避率 +5 个百分点，暴击率 +5 个百分点。", dodgeRateBonus: 0.05, critRateBonus: 0.05 },
   angel_breath: { id: "angel_breath", tier: "royal", name: "大天使的气息", image: "assets/treasures/angel-breath.png", description: "立即回满 HP；此后每场战斗结束恢复最大 HP 的 20%。", battleEndHealRatio: 0.20 },
   stone_mask: { id: "stone_mask", tier: "royal", name: "石鬼面", image: "assets/treasures/stone-mask.png", description: "本局吸血 +40 个百分点，但无法通过篝火恢复 HP。", lifesteal: 0.40, blocksCampfireHeal: true },
   nichirin_blade: { id: "nichirin_blade", tier: "royal", name: "日轮刀", image: "assets/treasures/nichirin-blade.png", description: "普通攻击命中后，额外扣除目标攻击前当前 HP 的 8%，无视 DEF。", normalAttackCurrentHpRatio: 0.08 },
