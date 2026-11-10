@@ -156,7 +156,6 @@
 
       <section id="shop-screen" class="flow-screen shop-screen" aria-label="商店" hidden>
         <header class="flow-header"><div><p class="eyebrow">ROUTE SHOP</p><h1>旅途商店</h1></div><button id="shop-map-open" class="control-btn map-open-btn" type="button">查看地图</button></header>
-        <p class="flow-copy">点击商品查看详情；购买后可继续浏览，每个栏位只能购买一次。</p>
         <p class="shop-balance">◆ 当前精华 ×<b id="shop-essence">0</b></p>
         <div id="shop-slots" class="shop-slots" aria-label="五件商店商品"></div>
         <p id="shop-feedback" class="shop-feedback" role="status" aria-live="polite"></p>
@@ -216,7 +215,7 @@
   <div class="shop-detail-inner"><button id="shop-detail-close" class="detail-close" type="button" aria-label="关闭商品详情">×</button>
     <img id="shop-detail-image" class="shop-detail-image" alt=""><h2 id="shop-detail-title"></h2>
     <p id="shop-detail-category"></p><p id="shop-detail-description"></p><p id="shop-detail-price"></p>
-    <div id="shop-detail-recipients"></div><button id="shop-detail-buy" class="control-btn primary" type="button">购买</button>
+    <div id="shop-detail-recipients" hidden></div><button id="shop-detail-buy" class="control-btn primary" type="button">购买</button>
   </div>
 </dialog>
 <dialog id="character-dialog" class="character-dialog" aria-labelledby="character-dialog-title">

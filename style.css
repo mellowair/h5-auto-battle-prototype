@@ -29,26 +29,36 @@ button { font: inherit; }
 .music-controls button:disabled, .music-controls select:disabled { opacity: .65; cursor: default; }
 .essence-hud { margin-left: auto; padding: 4px 7px; color: #ffe9a4; background: #35435b; border: 2px solid #b99459; border-radius: 4px; white-space: nowrap; image-rendering: pixelated; }
 .essence-hud[hidden] { display: none; }
-.shop-screen { min-height: 540px; padding: 18px; color: #f8e9c4; background: linear-gradient(#142437cc, #142437e8), repeating-linear-gradient(0deg, #68523a 0 18px, #574333 18px 36px); border: 4px solid #9d7950; box-shadow: inset 0 0 0 6px #293747; }
-.shop-screen .flow-copy { color: #f8e9c4; }
-.shop-balance { display: inline-block; padding: 6px 12px; background: #34435a; border: 2px solid #c8a461; border-radius: 4px; font-weight: bold; }
-.shop-slots { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; margin: 14px 0; }
-.shop-slot { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; padding: 8px 4px; color: #304052; background: #f2e8cf; border: 3px solid #ba945d; border-radius: 5px; text-align: center; }
-.shop-slot img { width: 58px; height: 58px; object-fit: contain; image-rendering: pixelated; }
-.shop-slot .shop-view { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%; min-height: 96px; border: 0; color: inherit; background: transparent; cursor: pointer; font: inherit; font-weight: 800; }
-.shop-slot .shop-view span { overflow-wrap: anywhere; }
-.shop-slot small { min-height: 30px; font-size: 9px; line-height: 1.3; }
-.shop-slot .control-btn { width: 100%; min-width: 0; padding: 5px 2px; font-size: 10px; }
-.shop-feedback { min-height: 1.5em; color: #ffe9a4; }
-.shop-leave { display: block; margin: 8px auto 0; }
+.shop-screen { padding: 10px; color: #f8e9c4; background: #2d1c25; border: 4px solid #9d7950; box-shadow: inset 0 0 0 4px #452d35; }
+.shop-screen .flow-header { margin-bottom: 3px; }
+.shop-screen .flow-header h1 { margin: 0; color: #fff0cd; }
+.shop-screen .eyebrow { margin: 0; color: #e7b878; }
+.shop-balance { display: inline-block; margin: 2px 0 5px; padding: 4px 9px; background: #49323a; border: 2px solid #d7a568; border-radius: 4px; font-weight: bold; }
+.shop-slots { position: relative; width: 100%; aspect-ratio: 1672 / 940; background: #8e2e31 url("assets/shop/shop-background.png") center / 100% 100% no-repeat; image-rendering: pixelated; overflow: hidden; }
+.shop-slot { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; width: clamp(48px, 12%, 76px); min-height: 54px; padding: 2px; border: 0; color: #fff1c9; background: transparent; cursor: pointer; transform: translate(-50%, -50%); filter: drop-shadow(2px 3px 1px #2c1725); }
+.shop-slot:nth-child(1) { left: 25%; top: 35%; }
+.shop-slot:nth-child(2) { left: 50%; top: 28%; }
+.shop-slot:nth-child(3) { left: 75%; top: 35%; }
+.shop-slot:nth-child(4) { left: 37%; top: 66%; }
+.shop-slot:nth-child(5) { left: 63%; top: 66%; }
+.shop-slot img { display: block; width: min(100%, 66px); height: clamp(37px, 8vw, 64px); object-fit: contain; image-rendering: pixelated; }
+.shop-slot-price { display: block; min-width: 45px; padding: 1px 3px; color: #ffe5a5; background: #402934; border: 1px solid #d8a45d; font-size: 10px; font-weight: 900; line-height: 1.2; text-align: center; white-space: nowrap; }
+.shop-slot:hover, .shop-slot:focus-visible { scale: 1.08; outline: 2px solid #ffe5a5; outline-offset: 2px; }
+.shop-slot.is-purchased img { opacity: .42; }
+.shop-feedback { min-height: 1.2em; margin: 4px 0; color: #ffe9a4; font-size: 11px; }
+.shop-leave { display: block; margin: 4px auto 0; }
 .shop-detail-dialog { width: min(430px, calc(100vw - 28px)); max-height: 85dvh; padding: 0; color: #334456; background: #f7edd7; border: 4px solid #a47b4b; border-radius: 6px; }
 .shop-detail-dialog::backdrop { background: #0b172dbb; }
 .shop-detail-inner { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px; text-align: center; }
 .shop-detail-inner .detail-close { align-self: flex-end; }
 .shop-detail-image { width: 96px; height: 96px; object-fit: contain; image-rendering: pixelated; }
 .shop-detail-inner p { margin: 3px; }
-.shop-detail-inner select { max-width: 100%; padding: 6px; }
-@media (max-width: 580px) { .shop-slots { grid-template-columns: repeat(2, minmax(0, 1fr)); } .shop-slot { min-height: 190px; } .shop-screen { padding: 10px; } }
+.shop-detail-inner #shop-detail-recipients { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; width: 100%; }
+.shop-detail-inner #shop-detail-recipients[hidden] { display: none; }
+.shop-detail-inner #shop-detail-recipients strong { flex-basis: 100%; }
+.shop-recipient-choice { padding: 7px 12px; color: #3c3035; background: #f1dfb8; border: 2px solid #ae8058; cursor: pointer; }
+.shop-recipient-choice.is-selected { color: #fff4d5; background: #82503f; border-color: #e3a855; }
+@media (max-width: 580px) { .shop-screen { padding: 5px; } .shop-slot { width: 48px; min-height: 50px; } .shop-slot img { height: 36px; } .shop-slot-price { font-size: 9px; min-width: 42px; } }
 .topbar { display: flex; align-items: center; gap: 10px; min-height: 46px; }
 .brand-mark { width: 37px; height: 37px; display: grid; place-items: center; background: #f6a33f; border: 2px solid var(--navy); box-shadow: 2px 2px 0 var(--navy); color: #fff9dc; font-weight: 900; font-size: 20px; transform: rotate(-3deg); }
 .battle-screen.stage-two .arena, .route-screen.stage-two .route-landscape, .route-map-dialog.stage-two .route-map-scroll { background-image: linear-gradient(rgba(9,14,29,.16), rgba(9,14,29,.28)), url("assets/stage2-golden-tree.png"); background-position: center 56%; }
@@ -242,6 +252,8 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .distance-portrait[src*="naruto-v2"] { filter: none; }
 .fighter.is-dead { pointer-events: none; }
 .fighter.is-dead .sprite { transform: rotate(74deg) translate(5px, 12px) scale(.82); transform-origin: 50% 88%; filter: saturate(.9); transition: transform .38s cubic-bezier(.2,.8,.3,1), filter .3s; }
+.fighter.has-shin-noi-fall.is-dead .sprite { transform: rotate(86deg) translate(8px, 14px) scale(.82); transform-origin: 50% 88%; }
+.fighter.has-shin-noi-fall.is-dead .sprite-wrap::before { display: none; }
 .fighter[data-character="naruto"][data-evolution="2"].has-authored-death.is-dead .sprite { transform: none; animation: none; filter: none; }
 .fighter[data-character="naruto"][data-evolution="2"].has-authored-death.is-dead .sprite-wrap::before { display: none; }
 .fighter.has-action-sprite.is-dead .sprite-action { transform: none; filter: saturate(.9); }
@@ -752,7 +764,9 @@ h2 { margin: 0; color: #3a455c; font-size: 11px; font-weight: 900; }
 .route-screen .route-party .route-player { position: relative; left: auto; bottom: auto; width: 82px; transform: none; }
 .route-screen .route-party.has-partner .route-player { width: 72px; }
 .route-screen .route-party .route-player img { height: 112px; }
-.route-screen.stage-two .route-party [data-character-detail="eren"] img { transform: translateY(4px) scale(1.35); transform-origin: center bottom; }
+.route-screen .route-party.has-evolved-eren.has-partner { gap: clamp(40px, 10vw, 52px); }
+.route-screen.stage-two .route-party [data-character-detail="eren"][data-evolution="2"] img { transform: translateY(8px) scale(2.1); transform-origin: center bottom; }
+.route-screen.stage-two .route-party [data-character-detail="eren"][data-evolution="2"] > span { position: relative; z-index: 4; transform: translateY(-38px); }
 .route-screen .route-signs { bottom: 20%; align-items: end; }
 .route-screen .route-signs-single { justify-content: flex-start; }
 .route-screen .route-sign { flex-basis: 31%; height: clamp(108px, 22vw, 158px); }

@@ -3,6 +3,11 @@
 // a 160x176 source can use a 160x176 frame without changing the PNG.
 // Optional animationOffsets: { skill1: { offsetX: 4, offsetY: 0 } } applies
 // only while that animation is visible and resets when its frame is cleared.
+export function shouldHideFallenUnit(character, deathRound, currentRound) {
+  return Boolean((character?.summonerId || character?.stageThreeMinion) && !character.alive &&
+    Number.isInteger(deathRound) && Number.isInteger(currentRound) && currentRound - deathRound > 3);
+}
+
 export const CHARACTER_VISUALS = Object.freeze({
   tang: { scale: 1.2, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98,
     animationFrameScales: { skill1: { cast: 1.15 } } },

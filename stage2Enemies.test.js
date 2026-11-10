@@ -97,9 +97,9 @@ test("Boros thresholds are strict, phases never reverse, and crossing both thres
   assert.equal(changeBorosPhase(state, boss).phase, 2);
   boss.currentHp = 5000;
   assert.equal(changeBorosPhase(state, boss), null);
-  boss.currentHp = 1601;
+  boss.currentHp = 2001;
   assert.equal(changeBorosPhase(state, boss), null);
-  boss.currentHp = 1600;
+  boss.currentHp = 2000;
   assert.deepEqual(changeBorosPhase(state, boss), { phase: 3, atk: 630, def: 120, spd: 250, lifesteal: .1 });
   assert.equal(changeBorosPhase(state, boss), null);
   assert.deepEqual([boss.atk, boss.def, boss.spd], [630, 120, 250]);

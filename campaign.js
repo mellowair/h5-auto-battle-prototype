@@ -521,14 +521,12 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
   }
   for (const event of battleEvents) {
     if (event?.type !== "normal-passive-gollum") continue;
-    for (const { targetId } of event.targets ?? []) {
-      if (!campaign.partyIds.includes(targetId)) continue;
-      const state = campaign.partyStates?.[targetId];
-      if (!state) continue;
-      state.atk = Math.max(0, state.atk - 5);
-      state.def = Math.max(0, state.def - 5);
-      state.spd = Math.max(0, state.spd - 5);
-    }
+    const stolen = Math.min(Math.max(0, campaign.essence ?? 0), event.amount ?? 5);
+    campaign.essence = Math.max(0, (campaign.essence ?? 0) - stolen);
+    campaign.essenceHistory ??= [];
+    campaign.essenceHistory.push({ battleId: campaign.currentBattle?.id, stageId: campaign.stageId,
+      amount: -stolen, reason: "gollum" });
+    event.stolen = stolen;
   }
   for (const event of battleEvents) {
     if (event?.type !== "ah-fu-escape" || !campaign.partyIds.includes(event.targetId) || event.amount <= 0) continue;

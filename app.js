@@ -4,12 +4,13 @@ import { getCritChance, getDodgeChance, getSkillDodgeChance, initializeBattle, s
 import { canDeclineNewSkill, getSeaBeyondOfferDetails, getSkillAtLevel, getSkillTrainingChoices, getTemporaryCombatModifiers, getTemporaryEffectDisplayRows, getTreasureCombatModifiers, getUnlearnedActiveSkills, previewGrowingDrop } from "./progression.js";
 import { ATTRIBUTE_UPGRADES, ELITE_BONUS_REWARDS, GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT, SKILL_DATA, TREASURE_DATA } from "./skills.js";
 import { orderRouteOptionsByPosition, shortestRemainingRouteLength, ROUTE_MAP_FINAL_STEP } from "./routeMap.js";
-import { getAnimationFrameFootShift, getAnimationFrameVisualScale, getAnimationVisualOffset, getBorosBeamGeometry, getCharacterVisual, getGravityLiftPixels } from "./visualConfig.js";
+import { getAnimationFrameFootShift, getAnimationFrameVisualScale, getAnimationVisualOffset, getBorosBeamGeometry, getCharacterVisual, getGravityLiftPixels, shouldHideFallenUnit } from "./visualConfig.js";
 import { battlePlaybackMultiplier, isAutoSpeedActive } from "./battlePlaybackSpeed.js";
 import { createMusicController, musicTracks } from "./music.js";
 import { createEntranceCompletion, ENEMY_ENTRANCE_DURATION_MS, getEnemyEntrance } from "./enemyEntrance.js";
 import { TANG_SUMMON_WEIGHTS } from "./tangSummons.js";
 import { TRIAL_TASKS } from "./trial.js";
+import { refreshShopPrices } from "./shop.js";
 import { evolvedBattlePresentation } from "./evolvedVisuals.js";
 import { evolutionDisplayName } from "./evolution.js";
 
@@ -990,6 +991,7 @@ function mountFighter(character) {
   if (character.mimicSourceId) fighter.dataset.mimic = character.mimicSourceId;
   else delete fighter.dataset.mimic;
   fighter.hidden = false;
+  delete fighter.dataset.deathRound;
   fighter.classList.toggle("is-dead", !character.alive || character.currentHp <= 0);
   fighter.dataset.deathPose = character.deathPose || "default";
   fighter.classList.toggle("is-deidara", character.name === "迪达拉");
@@ -1095,6 +1097,21 @@ function updateHealth(character) {
   row.classList.toggle("is-dead", !character.alive);
   const fighter = document.querySelector(`[data-character="${character.id}"]`);
   fighter?.classList.toggle("is-dead", !character.alive);
+  if (fighter && (character.summonerId || character.stageThreeMinion)) {
+    if (!character.alive) fighter.dataset.deathRound ??= String(battleStatusState.currentRound);
+    else { delete fighter.dataset.deathRound; fighter.hidden = false; }
+  }
+  if (fighter && ["shin", "noi"].includes(character.id)) {
+    if (!character.alive && !fighter.classList.contains("has-shin-noi-fall")) {
+      clearSpriteFrame(fighter);
+      fighter.classList.remove("is-melee-running", "is-melee-returning", "is-melee-rushing", "is-attacking", "is-casting");
+      fighter.querySelector(".sprite").src = character.asset;
+      fighter.classList.add("has-shin-noi-fall");
+    } else if (character.alive && fighter.classList.contains("has-shin-noi-fall")) {
+      fighter.classList.remove("has-shin-noi-fall");
+      startIdleCycle(fighter, character);
+    }
+  }
   // The evolved Naruto death pose also covers damage-over-time and other
   // non-attack deaths, whose event handlers do not play a death animation.
   const narutoDeathAsset = character.id === "naruto" && character.evolutionPhase === 2
@@ -1115,6 +1132,14 @@ function updateHealth(character) {
   }
   if (!character.alive) fighter?.querySelector(".cannot-act-effect")?.remove();
   if (squadSide === "enemy" || character.tangSummonKind) renderSquad();
+}
+
+function hideExpiredFallenUnits() {
+  for (const character of viewState?.characters ?? []) {
+    const fighter = document.querySelector(`[data-character="${character.id}"]`);
+    if (fighter?.dataset.deathRound != null && shouldHideFallenUnit(character,
+      Number(fighter.dataset.deathRound), battleStatusState.currentRound)) fighter.hidden = true;
+  }
 }
 
 function syncCannotActVisual(unit) {
@@ -1644,6 +1669,7 @@ function clearEffects() {
 function playEvent(event, finish) {
   if (Number.isFinite(event.round) && event.round !== battleStatusState.currentRound) {
     battleStatusState.currentRound = event.round;
+    hideExpiredFallenUnits();
     viewState?.characters?.forEach((character) => {
       if ((character.wukongDefenseBuffUntilRound ?? -1) < event.round) character.wukongDefenseBuff = 0;
     });
@@ -1770,7 +1796,7 @@ function playEvent(event, finish) {
       updateHealth(ally);
       addLog(`<b>蝎子莱莱</b> 受伤后使 ${ally.name} 恢复 ${heal.amount} HP。`, "log-skill");
     }
-    addLog(`<b>进击巨人</b> 坐标：已损失 HP 40% 追加攻击（${event.power} 基础伤害），实际造成 ${event.actualDamage} 伤害。`, "log-skill");
+    addLog(`<b>进击巨人</b> 坐标：已损失 HP 20% 追加攻击（${event.power} 基础伤害），实际造成 ${event.actualDamage} 伤害。`, "log-skill");
     return finish();
   }
   if (event.type === "gravity-main-course-damage") {
@@ -1896,13 +1922,7 @@ function playEvent(event, finish) {
     return finish();
   }
   if (event.type === "normal-passive-gollum") {
-    for (const change of event.targets) {
-      const target = viewState.characters.find((unit) => unit.id === change.targetId);
-      if (!target) continue;
-      Object.assign(target, change);
-      updateHealth(target);
-    }
-    addLog(`<b>咕噜</b> 存活 5 回合：我方每名角色 ATK、DEF、SPD 永久 -5。`, "log-enemy");
+    addLog(`<b>咕噜</b> 存活 5 回合：偷取 ${Math.min(campaign?.essence ?? 0, event.amount ?? 5)} 点精华。`, "log-enemy");
     return finish();
   }
   if (event.type === "giant-overrun") {
@@ -3865,16 +3885,20 @@ function renderRoute() {
   const hero = partyPresentation(campaign.playerId);
   $("#route-player-img").src = Object.values(hero.animations?.idle?.frames ?? {})[0] ?? hero.asset;
   $("#route-player-name").textContent = hero.name;
+  $("#route-party .route-player").dataset.evolution = String(campaign.partyStates[campaign.playerId]?.evolution?.phase ?? 1);
   const partnerId = campaign.partyIds.find((id) => id !== campaign.playerId);
   const routePartner = $("#route-partner");
   const partner = campaign.stageId >= 2 && partnerId
     ? partyPresentation(partnerId) : null;
   $("#route-party").classList.toggle("has-partner", Boolean(partner));
+  $("#route-party").classList.toggle("has-evolved-eren", campaign.partyIds.some((id) =>
+    id === "eren" && campaign.partyStates[id]?.evolution?.phase === 2));
   routePartner.hidden = !partner;
   if (partner) {
     $("#route-partner-img").src = Object.values(partner.animations?.idle?.frames ?? {})[0] ?? partner.asset;
     $("#route-partner-name").textContent = partner.name;
     routePartner.dataset.characterDetail = partner.id;
+    routePartner.dataset.evolution = String(campaign.partyStates[partnerId]?.evolution?.phase ?? 1);
     routePartner.setAttribute("aria-label", `查看${partner.name}的属性和技能`);
   }
   const partnerButton = $("#route-partner-link");
@@ -3915,38 +3939,32 @@ function renderRoute() {
 }
 
 let selectedShopSlot = null;
+let selectedShopRecipientId = null;
+let shopChoosingRecipient = false;
 function shopCategoryLabel(id) {
   return ({ common: "普通宝物", growing: "可累积宝物", rare: "稀有宝物", medicine: "临时药物", book: "技能书" })[id] ?? id;
 }
 function renderShop() {
   if (campaign?.status !== "shop" || !campaign.activeShop) return;
+  refreshShopPrices(campaign);
   $("#shop-essence").textContent = String(campaign.essence ?? 0);
   $("#essence-count").textContent = String(campaign.essence ?? 0);
   const slots = $("#shop-slots");
   slots.replaceChildren();
   for (const slot of campaign.activeShop.slots) {
-    const card = document.createElement("article");
-    card.className = "shop-slot";
     const view = document.createElement("button");
-    view.type = "button"; view.className = "shop-view";
+    view.type = "button"; view.className = "shop-slot shop-view";
+    if (slot.purchased) view.classList.add("is-purchased");
+    view.setAttribute("aria-label", `${slot.name}，${slot.price} 精华${slot.purchased ? "，已购买" : ""}，查看详情`);
     const image = document.createElement("img");
-    image.src = slot.image ?? "assets/shop/skill-book.svg";
-    image.alt = slot.name;
-    const name = document.createElement("span"); name.textContent = slot.name;
-    view.append(image, name);
+    image.src = slot.image ?? "assets/shop/skill-book.png";
+    image.alt = "";
+    const price = document.createElement("span");
+    price.className = "shop-slot-price";
+    price.textContent = slot.purchased ? "已售" : `◆ ${slot.price}`;
+    view.append(image, price);
     view.addEventListener("click", () => openShopDetail(slot.index));
-    card.addEventListener("click", (event) => { if (!event.target.closest("button")) openShopDetail(slot.index); });
-    const effect = document.createElement("small"); effect.textContent = slot.description;
-    if (slot.placeholderArt) {
-      const artNote = document.createElement("small"); artNote.textContent = "临时图标";
-      card.append(artNote);
-    }
-    const price = document.createElement("b"); price.textContent = `◆ ${slot.price}`;
-    const buy = document.createElement("button"); buy.type = "button"; buy.className = "control-btn";
-    buy.textContent = slot.purchased ? "已购买" : !slot.available ? "待配置" : campaign.essence < slot.price ? "精华不足" : "购买";
-    buy.disabled = slot.purchased || !slot.available || campaign.essence < slot.price;
-    buy.addEventListener("click", () => purchaseShopSlot(slot.index));
-    card.append(view, effect, price, buy); slots.append(card);
+    slots.append(view);
   }
   setScreen("shop-screen");
 }
@@ -3954,34 +3972,52 @@ function openShopDetail(index) {
   const slot = campaign?.activeShop?.slots[index];
   if (!slot) return;
   selectedShopSlot = index;
-  const preview = previewShopItem(campaign, slot);
+  selectedShopRecipientId = null;
+  shopChoosingRecipient = false;
   $("#shop-detail-title").textContent = slot.name;
-  $("#shop-detail-image").src = slot.image ?? "assets/shop/skill-book.svg";
+  $("#shop-detail-image").src = slot.image ?? "assets/shop/skill-book.png";
   $("#shop-detail-image").alt = slot.name;
   $("#shop-detail-category").textContent = shopCategoryLabel(slot.categoryId);
-  $("#shop-detail-description").textContent = preview?.fullDescription ?? slot.description;
-  $("#shop-detail-price").textContent = `◆ ${slot.price} 精华 · 已有 ${preview?.ownedCount ?? 0} 件`;
-  const recipients = $("#shop-detail-recipients"); recipients.replaceChildren();
-  const selector = document.createElement("select"); selector.id = "shop-recipient";
-  for (const id of campaign.partyIds) {
-    const option = document.createElement("option"); option.value = id;
-    option.textContent = partyPresentation(id)?.name ?? id; selector.append(option);
-  }
-  selector.addEventListener("change", () => {
-    const updated = previewShopItem(campaign, slot, selector.value);
-    $("#shop-detail-description").textContent = updated?.fullDescription ?? slot.description;
-    $("#shop-detail-price").textContent = `◆ ${slot.price} 精华 · 已有 ${updated?.ownedCount ?? 0} 件`;
-  });
-  recipients.append(selector);
+  $("#shop-detail-description").textContent = slot.description;
+  $("#shop-detail-price").textContent = `◆ ${slot.price} 精华`;
+  const recipients = $("#shop-detail-recipients");
+  recipients.replaceChildren(); recipients.hidden = true;
   const buy = $("#shop-detail-buy");
   buy.disabled = !slot.available || slot.purchased || campaign.essence < slot.price;
   buy.textContent = slot.purchased ? "已购买" : !slot.available ? "待配置" : campaign.essence < slot.price ? "精华不足" : "购买";
   $("#shop-detail-dialog").showModal();
 }
+function chooseShopRecipient() {
+  const slot = campaign?.activeShop?.slots[selectedShopSlot];
+  if (!slot || shopChoosingRecipient) return;
+  shopChoosingRecipient = true;
+  const recipients = $("#shop-detail-recipients");
+  const prompt = document.createElement("strong");
+  prompt.textContent = "选择获得角色";
+  recipients.append(prompt);
+  for (const id of campaign.partyIds) {
+    const choice = document.createElement("button");
+    choice.type = "button"; choice.className = "shop-recipient-choice";
+    choice.textContent = partyPresentation(id)?.name ?? id;
+    choice.addEventListener("click", () => {
+      selectedShopRecipientId = id;
+      recipients.querySelectorAll(".shop-recipient-choice").forEach((button) => button.classList.toggle("is-selected", button === choice));
+      const preview = previewShopItem(campaign, slot, id);
+      $("#shop-detail-description").textContent = preview?.fullDescription ?? slot.description;
+      $("#shop-detail-price").textContent = `◆ ${slot.price} 精华 · 此角色已有 ${preview?.ownedCount ?? 0} 件`;
+      $("#shop-detail-buy").disabled = false;
+    });
+    recipients.append(choice);
+  }
+  recipients.hidden = false;
+  $("#shop-detail-buy").textContent = "确认购买";
+  $("#shop-detail-buy").disabled = true;
+}
 function purchaseShopSlot(index) {
-  const recipientId = $("#shop-recipient")?.value ?? campaign?.playerId;
-  const result = buyShopItem(campaign, index, recipientId);
-  $("#shop-feedback").textContent = result ? `购买成功：${campaign.activeShop.slots[index].name}，精华 -${campaign.activeShop.slots[index].price}。` : "购买未完成，请查看余额或角色是否已学会该技能。";
+  if (!selectedShopRecipientId) return false;
+  const result = buyShopItem(campaign, index, selectedShopRecipientId);
+  $("#shop-feedback").textContent = result ? `购买成功：${campaign.activeShop.slots[index].name}交给${partyPresentation(selectedShopRecipientId)?.name ?? selectedShopRecipientId}，精华 -${campaign.activeShop.slots[index].price}。` : "购买未完成，请查看余额或角色是否已学会该技能。";
+  if (!result) $("#shop-detail-description").textContent = "购买未完成：请确认精华足够，且该角色尚未学会这本技能书。";
   if (result) { $("#shop-detail-dialog").close(); renderShop(); }
   return result;
 }
@@ -5421,7 +5457,11 @@ $("#route-map-open").addEventListener("click", openRouteMap);
 $("#shop-map-open").addEventListener("click", openRouteMap);
 $("#shop-leave").addEventListener("click", () => { if (leaveShop(campaign)) renderRoute(); });
 $("#shop-detail-close").addEventListener("click", () => $("#shop-detail-dialog").close());
-$("#shop-detail-buy").addEventListener("click", () => { if (selectedShopSlot != null) purchaseShopSlot(selectedShopSlot); });
+$("#shop-detail-buy").addEventListener("click", () => {
+  if (selectedShopSlot == null) return;
+  if (!shopChoosingRecipient) chooseShopRecipient();
+  else purchaseShopSlot(selectedShopSlot);
+});
 $("#route-map-close").addEventListener("click", () => $("#route-map-dialog").close());
 logToggle.addEventListener("click", toggleBattleLog);
 log.addEventListener("click", () => {

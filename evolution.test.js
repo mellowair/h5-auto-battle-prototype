@@ -236,7 +236,7 @@ test("Attack Titan coordinate adds damage from missing HP after landed normal at
   const primary = result.events.find((event) => event.type === "attack" && event.attackerId === "eren");
   const extra = result.events.find((event) => event.type === "attack-titan-hp-damage");
   assert.ok(primary.actualDamage > 0);
-  assert.deepEqual([extra.hpSnapshot, extra.power, extra.actualDamage], [500, 200, 200]);
+  assert.deepEqual([extra.hpSnapshot, extra.power, extra.actualDamage], [500, 100, 100]);
   assert.equal(result.events.indexOf(extra), result.events.indexOf(primary) + 1);
 });
 

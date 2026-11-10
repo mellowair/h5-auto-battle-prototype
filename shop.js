@@ -18,6 +18,18 @@ export function essenceRewardForBattle(battle) {
 
 function draw(random, items) { return items[Math.min(items.length - 1, Math.floor(random() * items.length))]; }
 
+export function refreshShopPrices(campaign) {
+  for (const slot of campaign?.activeShop?.slots ?? []) {
+    const category = SHOP_RULES.categories.find((entry) => entry.id === slot.categoryId);
+    if (category) slot.price = category.id === "medicine"
+      ? SHOP_RULES.medicinePriceByStage[campaign.stageId] : category.price;
+    const item = SHOP_TREASURES[slot.itemId] ?? SHOP_RULES.medicines.find((entry) => entry.id === slot.itemId)
+      ?? SHOP_RULES.books.find((entry) => entry.id === slot.itemId);
+    if (item?.image) slot.image = item.image;
+    if (item) slot.placeholderArt = false;
+  }
+}
+
 export function generateShopInventory(seed, stageId) {
   const random = createSeededRandom(`shop:${seed}`);
   const categories = SHOP_RULES.categories;
@@ -76,6 +88,7 @@ function grantTreasure(member, slot, sourceId, stageId) {
 
 export function buyShopItem(campaign, index, recipientId = campaign?.playerId) {
   if (campaign?.status !== "shop" || !campaign.activeShop || campaign.activeShop.nodeId !== campaign.activeNode?.id) return false;
+  refreshShopPrices(campaign);
   const slot = campaign.activeShop.slots[index];
   const member = campaign.partyStates?.[recipientId];
   if (!slot?.available || slot.purchased || !member || !campaign.partyIds.includes(recipientId) || (campaign.essence ?? 0) < slot.price) return false;

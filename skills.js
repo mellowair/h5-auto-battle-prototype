@@ -44,8 +44,8 @@ export const SKILL_DATA = {
   "eren-paths": { id: "eren-paths", name: "道路", type: "passive", passive: true, maxLevel: 1,
     description: "每场首次受到伤害免疫；首次生命低于 20% 时恢复 50% 最大 HP。", levels: { 1: { immuneHits: 1, emergencyHealRatio: .5, emergencyThreshold: .2 } } },
   "eren-coordinate": { id: "eren-coordinate", name: "坐标", type: "passive", passive: true, maxLevel: 1,
-    description: "最大 HP +1000；每次造成伤害时，追加自身已损失 HP 40% 为基础的普通伤害，不消耗 HP。",
-    levels: { 1: { maxHpBonus: 1000, missingHpDamageRatio: .4 } } },
+    description: "最大 HP +500；每次造成伤害时，追加自身已损失 HP 20% 为基础的普通伤害，不消耗 HP。",
+    levels: { 1: { maxHpBonus: 500, missingHpDamageRatio: .2 } } },
   "eren-hardening": { id: "eren-hardening", name: "硬质化", type: "active", triggerType: "on_action", maxLevel: 4,
     description: "增加本场防御，受到攻击时反伤；每第 3 次释放恢复最大 HP 的 10%；高等级可嘲讽。",
     levels: Object.fromEntries([[.5,10,.8,false],[.6,15,.8,false],[.6,20,1,false],[.7,25,1,true]].map(([chance,defenseBonus,reflectMultiplier,taunt], index) =>

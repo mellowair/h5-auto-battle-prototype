@@ -12,14 +12,14 @@ const ally = (id, spd = 100, def = 100) => ({ id, name: id, team: "ally", row: "
   hp: 30000, currentHp: 30000, atk: 1, def, spd, critChance: 0, normalDodgeRate: 0 });
 
 test("falling devil joins the stage-three elite registry with all eight real art files", () => {
-  assert.deepEqual([devil.stageId, devil.row, devil.hp, devil.atk, devil.def, devil.spd], [3, "back", 5300, 250, 130, 140]);
+  assert.deepEqual([devil.stageId, devil.row, devil.hp, devil.atk, devil.def, devil.spd], [3, "back", 6000, 250, 130, 140]);
   for (const path of [devil.asset, devil.gravityCircleAsset, devil.dishAsset,
     ...Object.values(devil.animations).flatMap((animation) => Object.values(animation.frames))])
     assert.ok(existsSync(new URL(`./${path}`, import.meta.url)), path);
   const campaign = createStageThreeTestCampaign({ heroId: "naruto", partnerId: "eren", opponent: "falling-devil" });
   const enemy = prepareBattle(campaign).roster.find((unit) => unit.id === "falling-devil");
   assert.equal(campaign.currentBattle.type, "elite");
-  assert.deepEqual([enemy.maxHp, enemy.atk, enemy.def, enemy.spd], [5300, 250, 130, 140]);
+  assert.deepEqual([enemy.maxHp, enemy.atk, enemy.def, enemy.spd], [6000, 250, 130, 140]);
 });
 
 test("falling devil heals 15% of missing HP once after lifting living opponents", () => {
@@ -30,13 +30,13 @@ test("falling devil heals 15% of missing HP once after lifting living opponents"
   const [fall] = resolveFallingRoundEnd(state);
   assert.equal(fall.type, "gravity-fall");
   assert.equal(fall.hits.length, 2);
-  assert.equal(fall.healedAmount, 645);
-  assert.equal(fall.devilHpAfter, 1645);
-  assert.equal(enemy.currentHp, 1645);
-  enemy.currentHp = 5290;
+  assert.equal(fall.healedAmount, 750);
+  assert.equal(fall.devilHpAfter, 1750);
+  assert.equal(enemy.currentHp, 1750);
+  enemy.currentHp = 5990;
   state.round = 6;
   assert.equal(resolveFallingRoundEnd(state)[0].healedAmount, 1);
-  assert.equal(enemy.currentHp, 5291);
+  assert.equal(enemy.currentHp, 5991);
   state.characters[0].alive = false;
   state.characters[1].alive = false;
   enemy.currentHp = 1000;

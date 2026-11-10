@@ -16,7 +16,7 @@ test("Eren gains Coordinate HP once, heals on every third Hardening, and keeps W
   const originalMaxHp = eren.maxHp;
   const campaign = { trialCompleted: true, evolutionPending: true, playerId: "eren", partyIds: ["eren"], partyStates: { eren } };
   assert.equal(evolveTrialParty(campaign), true);
-  assert.equal(eren.maxHp, Math.floor(originalMaxHp * 1.1) + 1000);
+  assert.equal(eren.maxHp, Math.floor(originalMaxHp * 1.1) + 500);
   assert.deepEqual(eren.extraPassiveSkillIds, ["eren-coordinate"]);
   assert.equal(evolveTrialParty(campaign), false);
   const state = initializeBattle([unit("eren", "ally", { currentHp: 500, def: 100 }), unit("foe", "enemy", { maxHp: 10000, currentHp: 10000 })]);

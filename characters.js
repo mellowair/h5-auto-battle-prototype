@@ -22,7 +22,7 @@ export const STAGE_TWO_NORMAL_PASSIVES = Object.freeze({
   jack: { name: "剪刀穿刺", description: "每第三次普通攻击造成无视防御的真实伤害。" },
   deep_sea_king: { name: "深海护甲", description: "每次普通攻击后，本场战斗 DEF +5。" },
   teruhashi: { name: "心美的注视", description: "每次受到有效攻击后，有 20% 概率眩晕攻击者一次行动。" },
-  gollum: { name: "魔戒诅咒", description: "若 5 回合内未被击败，回合结束时我方全队 ATK、DEF、SPD 本局永久 -5。" },
+  gollum: { name: "魔戒诅咒", description: "若 5 回合内未被击败，第 5 回合结束时偷取玩家最多 5 点精华。" },
 });
 
 export const STAGE_THREE_NORMAL_PASSIVES = Object.freeze({
@@ -460,7 +460,7 @@ export const ELITE_ENEMY_DATA = [
     },
     extraPassiveSkillIds: ["stage3-resurrection"] },
   { id: "falling-devil", name: "下落恶魔", type: "elite", stageId: 3, team: "enemy",
-    role: "机制型精英", row: "back", position: "back", hp: 5300, atk: 250, def: 130, spd: 140,
+    role: "机制型精英", row: "back", position: "back", hp: 6000, atk: 250, def: 130, spd: 140,
     attackType: "ranged", attackAnimation: "magicAttack", asset: "assets/stage3-elites/falling/idle.png", visualId: "falling-devil",
     extraPassiveSkillIds: ["falling-gravity-domain", "falling-weightlessness", "falling-main-course"],
     gravityCircleAsset: "assets/stage3-elites/falling/gravity-circle.png",

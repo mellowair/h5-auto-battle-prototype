@@ -629,7 +629,7 @@ export function expireArmoredShieldAtRoundEnd(state) {
 
 export function changeBorosPhase(state, character) {
   if (!character.phaseSkills || character.currentHp <= 0) return null;
-  const next = character.currentHp <= 1600 ? 3 : character.currentHp <= 4000 ? 2 : 1;
+  const next = character.currentHp <= 2000 ? 3 : character.currentHp <= 4000 ? 2 : 1;
   if (next <= character.borosPhase) return null;
   character.borosPhase = next;
   character.borosEnteredRound = state.round;
@@ -1775,14 +1775,7 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
     outcome = isBattleOver(state);
     if (outcome) break;
     if (state.round === 5 && state.characters.some((unit) => unit.normalPassiveId === "gollum" && unit.alive)) {
-      const targets = state.characters.filter((unit) => unit.team === "ally");
-      for (const unit of targets) {
-        unit.atk = Math.max(0, unit.atk - 5);
-        unit.def = Math.max(0, unit.def - 5);
-        unit.spd = Math.max(0, unit.spd - 5);
-      }
-      events.push({ type: "normal-passive-gollum", round: state.round,
-        targets: targets.map((unit) => ({ targetId: unit.id, atk: unit.atk, def: unit.def, spd: unit.spd })) });
+      events.push({ type: "normal-passive-gollum", round: state.round, amount: 5 });
     }
     events.push(...advanceBorosRound(state));
     const expiredShield = expireArmoredShieldAtRoundEnd(state);

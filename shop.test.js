@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { STARTING_CHARACTERS } from "./characters.js";
 import { simulateBattle } from "./battle.js";
 import { beginJourney, buyShopItem, chooseRoute, createCampaign, finishBattle, getRouteOptions, getShopRouteOptions, leaveShop, prepareBattle, selectStartingCharacter, startCampaign } from "./campaign.js";
-import { grantGiantSpinalFluid } from "./progression.js";
+import { createRunCharacterState, grantGiantSpinalFluid } from "./progression.js";
 import { analyzeRouteMap, generateRouteMap, validateRouteMap } from "./routeMap.js";
-import { essenceRewardForBattle, generateShopInventory } from "./shop.js";
+import { essenceRewardForBattle, generateShopInventory, refreshShopPrices } from "./shop.js";
 import { SHOP_RULES } from "./shopConfig.js";
 
 function shopFixture(stageId = 3) {
@@ -50,6 +50,8 @@ test("five independent slots are deterministic and obey stage medicine prices", 
     assert.equal(a.length, SHOP_RULES.slots);
     assert.ok(a.every((slot) => slot.available && slot.price > 0));
     assert.ok(a.filter((slot) => slot.categoryId === "medicine").every((slot) => slot.price === stageId));
+    for (const [category, price] of [["common", 15], ["growing", 20], ["book", 40], ["rare", 40]])
+      assert.ok(a.filter((slot) => slot.categoryId === category).every((slot) => slot.price === price));
   }
 });
 
@@ -83,25 +85,58 @@ test("shop purchase uses first-stage growth, all-source repeat count, and consum
   const campaign = shopFixture();
   const member = campaign.runCharacterState;
   const slot = replaceSlot(campaign, "growing", "giant_spinal_fluid", 10);
-  campaign.essence = 30;
+  campaign.essence = 60;
   const before = { def: member.def, hp: member.maxHp, currentHp: member.currentHp };
   const first = buyShopItem(campaign, slot.index);
   assert.deepEqual([first.def, first.maxHp, first.stageId], [20, 150, 3]);
   assert.deepEqual([member.def - before.def, member.maxHp - before.hp, member.currentHp - before.currentHp], [20, 150, 150]);
-  assert.equal(campaign.essence, 20);
+  assert.equal(campaign.essence, 40);
   assert.equal(buyShopItem(campaign, slot.index), false);
-  assert.equal(campaign.essence, 20);
+  assert.equal(campaign.essence, 40);
   grantGiantSpinalFluid(member, "event:other", 2);
   const next = { ...slot, index: 1, purchased: false };
   campaign.activeShop.slots[1] = next;
   const secondShop = buyShopItem(campaign, 1);
   assert.deepEqual([secondShop.def, secondShop.maxHp], [28, 210]);
   assert.equal(member.permanentEffects[0].def, 20, "historical benefit stays fixed");
-  assert.equal(campaign.essence, 10);
+  assert.equal(campaign.essence, 20);
   assert.equal(leaveShop(campaign), true);
   assert.equal(leaveShop(campaign), false);
   assert.equal(campaign.shopHistory[0].purchases.length, 2);
   assert.equal(getShopRouteOptions(campaign).length, 0);
+});
+
+test("existing shop stock receives updated prices and official item art", () => {
+  const campaign = shopFixture(2);
+  const samples = [
+    ["common", "magic_conch", 15, "assets/treasures/magic-conch.png"],
+    ["growing", "gun_devil_fragment", 20, "assets/treasures/gun-devil-fragment.png"],
+    ["book", "iron_bell_book", 40, "assets/shop/skill-book.png"],
+    ["rare", "angel_breath", 40, "assets/treasures/angel-breath.png"],
+    ["medicine", "medicine_atk_2", 2, "assets/shop/potion.png"],
+  ];
+  campaign.activeShop.slots = samples.map(([categoryId, itemId], index) => ({
+    index, categoryId, itemId, price: 1, image: "assets/shop/skill-book.svg", available: true, purchased: false,
+  }));
+  refreshShopPrices(campaign);
+  assert.deepEqual(campaign.activeShop.slots.map((slot) => [slot.price, slot.image]),
+    samples.map(([, , price, image]) => [price, image]));
+});
+
+test("shop purchase assigns the chosen partner and leaves the main character unchanged", () => {
+  const campaign = shopFixture(2);
+  const partner = createRunCharacterState(STARTING_CHARACTERS.find((entry) => entry.id === "eren"));
+  campaign.partyIds.push("eren");
+  campaign.partyStates.eren = partner;
+  campaign.essence = 20;
+  replaceSlot(campaign, "growing", "gun_devil_fragment", 10);
+  const mainHp = campaign.runCharacterState.maxHp;
+  const partnerHp = partner.maxHp;
+  assert.ok(buyShopItem(campaign, 0, "eren"));
+  assert.equal(campaign.essence, 0);
+  assert.equal(campaign.runCharacterState.maxHp, mainHp);
+  assert.equal(partner.maxHp, partnerHp + 200);
+  assert.equal(campaign.activeShop.purchases[0].recipientId, "eren");
 });
 
 test("shop medicine affects only the next battle, does not alter permanent stats, and same-stat bottles do not stack", () => {
@@ -143,7 +178,7 @@ test("generic medicine framework also supports a future two-battle duration", ()
 
 test("skill book teaches one passive without replacing the hero's innate passive", () => {
   const campaign = shopFixture();
-  campaign.essence = 20;
+  campaign.essence = 40;
   replaceSlot(campaign, "book", "iron_bell_book", 20);
   const innate = campaign.runCharacterState.passiveSkillId;
   assert.ok(buyShopItem(campaign, 0));
