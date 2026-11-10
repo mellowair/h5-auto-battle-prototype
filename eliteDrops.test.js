@@ -179,6 +179,28 @@ function stageTwoRun() {
   return campaign;
 }
 
+test("Toji grants one stage-scaled Sukuna finger after both stage-two stat rewards", () => {
+  const campaign = stageTwoRun();
+  assert.ok(startStageTwoDirectBattle(campaign, "toji", 4));
+  campaign.devBattleOnly = false;
+  assert.ok(prepareBattle(campaign));
+  assert.equal(finishBattle(campaign, "victory", campaign.playerHp).next, "reward");
+  const offer = getCampaignRewardOffer(campaign);
+  const [heroId, partnerId] = campaign.partyIds;
+  assert.equal(claimStageTwoStatReward(campaign, heroId, offer.choices[0]).phase, "stat");
+  assert.equal(claimStageTwoStatReward(campaign, partnerId, offer.choices[1]).phase, "elite_drop");
+  const member = campaign.partyStates[partnerId];
+  const before = { atk: member.atk, maxHp: member.maxHp, hp: member.currentHp };
+  const claim = claimCampaignEliteDrop(campaign, partnerId);
+  assert.equal(claim.effect.id, "sukuna_finger");
+  assert.equal(claim.effect.sourceLabel, "伏黑甚尔战斗奖励");
+  assert.equal(member.atk, before.atk + 36);
+  assert.equal(member.maxHp, before.maxHp - 150);
+  assert.equal(member.currentHp, Math.min(before.hp, before.maxHp - 150));
+  assert.equal(member.permanentEffects.filter((effect) => effect.id === "sukuna_finger").length, 1);
+  assert.equal(claimCampaignEliteDrop(campaign, partnerId), false);
+});
+
 test("titan duo grants one spinal fluid to chosen party member after both stat rewards", () => {
   const campaign = stageTwoRun();
   assert.ok(startStageTwoDirectBattle(campaign, "titan-duo", 4));

@@ -718,7 +718,7 @@ export function getCampaignRewardOffer(campaign) {
 function eliteDropId(campaign) {
   if (campaign?.currentBattle?.type !== "elite") return null;
   const enemies = campaign.currentBattle.enemies ?? [];
-  if (enemies.includes("mahito")) return "sukuna_finger";
+  if (enemies.includes("mahito") || enemies.includes("toji")) return "sukuna_finger";
   if (enemies.some((id) => id === "bomb-demon" || /devil/i.test(id))) return "gun_devil_fragment";
   if (campaign.stageId === 2 && enemies.includes("armored-titan") && enemies.includes("colossal-titan"))
     return "giant_spinal_fluid";
