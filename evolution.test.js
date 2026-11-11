@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { STARTING_CHARACTERS } from "./characters.js";
 import { createRunCharacterState, getSkillAtLevel, getUpgradeableSkills } from "./progression.js";
 import { chooseEvolutionUpgrade, evolveTrialParty } from "./evolution.js";
-import { executeAttack, initializeBattle, simulateBattle } from "./battle.js";
+import { executeAttack, initializeBattle, simulateBattle, triggeredSkill } from "./battle.js";
 import { SKILL_DATA } from "./skills.js";
 import { TANG_SUMMON_WEIGHTS } from "./tangSummons.js";
 import { evolvedBattlePresentation } from "./evolvedVisuals.js";
@@ -108,6 +108,53 @@ test("hardening caps DEF at four casts; warhammer retains own DEF", () => {
   assert.equal(hit.skillAttackPower, 500);
 });
 
+test("both base and evolved Eren and Naruto roll each action skill independently", () => {
+  for (const [id, firstId, secondId] of [
+    ["eren", "eren-free-will", "eren-tatakae"],
+    ["naruto", "shadow-clone-rush", "rasengan"],
+    ["eren", "eren-hardening", "eren-warhammer"],
+    ["naruto", "naruto-multi-clone", "naruto-giant-rasengan"],
+  ]) {
+    const character = { id, skills: [effect(firstId, 4), effect(secondId, 4)] };
+    const roll = (...values) => { let index = 0; return () => values[index++]; };
+    assert.equal(triggeredSkill(character, roll(.1, .1, .9))?.id, secondId);
+    assert.equal(triggeredSkill(character, roll(.1, .1, .1))?.id, firstId);
+    assert.equal(triggeredSkill(character, roll(.99, .1))?.id, secondId);
+    assert.equal(triggeredSkill(character, roll(.1, .99))?.id, firstId);
+  }
+});
+
+test("future two-skill characters use the same rolls while special triggers stay separate", () => {
+  const character = { id: "future-hero", bitesDustNextAvailableRound: 5, skills: [
+    { id: "first", chance: 1, triggerType: "on_action" },
+    { id: "second", chance: 1, triggerType: "on_action" },
+    { id: "meditation", chance: 1, triggerType: "on_meditation" },
+    { id: "retaliation", chance: 1, triggerType: "on_damage" },
+  ] };
+  const roll = (...values) => { let index = 0; return () => values[index++]; };
+  assert.equal(triggeredSkill(character, roll(0, 0, .9))?.id, "second");
+  assert.equal(triggeredSkill(character, roll(0, 0, .1))?.id, "first");
+  character.skills[0] = { id: "bites-the-dust", chance: 1, triggerType: "on_action" };
+  assert.equal(triggeredSkill(character, roll(0), 4)?.id, "second");
+  assert.equal(triggeredSkill(character, roll(0, 0, .1), 5)?.id, "bites-the-dust");
+});
+
+test("warhammer vulnerability raises incoming HP damage through the next round and then expires", () => {
+  const state = initializeBattle([testUnit("eren", "ally", { evolutionPhase: 2, def: 100, hp: 3000, maxHp: 3000, currentHp: 3000 }),
+    testUnit("foe", "enemy", { atk: 400, hp: 10000, maxHp: 10000, currentHp: 10000 })]);
+  const [eren, foe] = state.characters;
+  state.round = 2;
+  const cast = executeAttack(state, eren, foe, () => .99, { skill: effect("eren-warhammer", 4) });
+  assert.equal(cast.warhammerVulnerableUntilRound, 3);
+  const expectedBase = 200;
+  for (const [round, expected] of [[2, 240], [3, 240], [4, expectedBase]]) {
+    state.round = round;
+    eren.currentHp = eren.maxHp;
+    const hit = executeAttack(state, foe, eren, () => .99, { skill: null });
+    assert.equal(hit.actualDamage, expected);
+  }
+});
+
 test("Kaneki glutton kills raise max HP by 50 at Lv1-3 and 100 at Lv4", () => {
   for (const level of [1, 2, 3]) assert.equal(effect("kaneki-glutton", level).killMaxHpBonus, 50);
   const run = createRunCharacterState(starter("kaneki"));
@@ -131,7 +178,7 @@ test("Naruto starts with two clones, gains one on each Lv4 multi-clone cast, and
       passiveSkillId: "naruto-nine-tails-bond", extraPassiveSkillIds: ["naruto-chakra-clones"],
       skills: [effect("naruto-multi-clone", 4), effect("naruto-giant-rasengan", 4)] }),
     testUnit("foe", "enemy", { hp: 5000, maxHp: 5000, currentHp: 5000, atk: 1, def: 200 })
-  ], () => .5);
+  ], () => .49);
   assert.equal(result.outcome, "victory");
   assert.ok(result.events.some((event) => event.type === "evolution-clone-gain"));
   assert.ok(result.finalCharacters.find((unit) => unit.id === "naruto").chakraClones > 2);

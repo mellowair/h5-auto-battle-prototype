@@ -46,6 +46,7 @@ export function initializeBattle(config = CHARACTER_DATA, options = {}) {
       nineTailsLowHpActive: false, nineTailsLowHpBonus: 0, nineTailsTeammateBonus: 0,
       nineTailsTriggeredIds: [], chakraClones: character.extraPassiveSkillIds?.includes("naruto-chakra-clones") ? 2 : 0,
       giantRasenganCasts: 0, hardeningStacks: 0, hardeningCasts: 0, reflectStartRound: 0, reflectUntilRound: 0,
+      warhammerVulnerableUntilRound: 0,
       meditationDharmaRounds: 0, dharmaAllyAttackBonus: 0, dharmaEnemyAttackPenalty: 0,
       reactiveAttackHits: 0, attackActionHits: 0,
       ...(character.phaseSkills ? { borosPhase: 1, borosEnteredRound: 0, borosLastGrowthRound: 0, meteorCasts: 0 } : {}),
@@ -101,12 +102,17 @@ export function chooseTarget(state, attacker, random = Math.random) {
   return pool.length ? pool[Math.floor(random() * pool.length)] : null;
 }
 
-export function skillTriggers(character, random = Math.random) {
-  const skills = (character.skills?.length ? character.skills : character.skill ? [character.skill] : []).filter((skill) => skill.triggerType !== "on_damage");
-  return skills.some((skill) => random() < skill.chance);
+function actionSkills(character, round = Infinity) {
+  return (character.skills?.length ? character.skills : character.skill ? [character.skill] : [])
+    .filter((skill) => (!skill.triggerType || skill.triggerType === "on_action") &&
+      !(skill.id === "bites-the-dust" && round < (character.bitesDustNextAvailableRound ?? 1)));
 }
 
-function triggeredSkill(character, random, round = 0) {
+export function skillTriggers(character, random = Math.random) {
+  return actionSkills(character).some((skill) => random() < skill.chance);
+}
+
+export function triggeredSkill(character, random, round = 0) {
   if (character.id === "kira" && round <= 4) return null;
   const phaseSkillId = character.phaseSkills?.[character.borosPhase];
   if (character.phaseSkills) {
@@ -114,12 +120,12 @@ function triggeredSkill(character, random, round = 0) {
     const skill = config?.levels?.[1] ? { ...config, ...config.levels[1], level: 1 } : null;
     return skill && random() < skill.chance ? skill : null;
   }
-  const skills = (character.skills?.length ? character.skills : character.skill ? [character.skill] : []).filter((skill) => skill.triggerType !== "on_damage");
-  for (const skill of skills) {
-    if (skill.id === "bites-the-dust" && round < (character.bitesDustNextAvailableRound ?? 1)) continue;
-    if (random() < skill.chance) return skill;
-  }
-  return null;
+  const skills = actionSkills(character, round);
+  // Every action skill rolls once; a random tie break keeps later skills from being suppressed.
+  const ready = skills.filter((skill) => random() < skill.chance);
+  if (ready.length === 0) return null;
+  if (ready.length === 1) return ready[0];
+  return ready[Math.min(ready.length - 1, Math.max(0, Math.floor(random() * ready.length)))];
 }
 
 export function calculateDamage(attacker, target, multiplier = 1) {
@@ -258,6 +264,9 @@ function applyTrialDamage(state, target, requested, kind = "attack") {
       }
     }
   }
+  if (target.id === "eren" && target.evolutionPhase === 2 &&
+      (target.warhammerVulnerableUntilRound ?? 0) >= state.round)
+    amount = Math.floor(amount * 1.2);
   target.currentHp = Math.max(0, before - amount);
   if (target.trialPassive === "heracles" && !target.heraclesTrialsActive && target.currentHp === 0) {
     target.currentHp = 1;
@@ -790,6 +799,8 @@ export function executeAttack(state, attacker, target, random = Math.random, att
     }
   }
   const skill = Object.hasOwn(attackOptions, "skill") ? attackOptions.skill : triggeredSkill(attacker, random, state.round);
+  if (attacker.id === "eren" && attacker.evolutionPhase === 2 && skill?.id === "eren-warhammer")
+    attacker.warhammerVulnerableUntilRound = state.round + 1;
   const isNormalAttack = !skill || skill.normalAttack;
   const deepSeaDefenseGain = attacker.normalPassiveId === "deep_sea_king" && isNormalAttack ? 5 : 0;
   if (attacker.normalPassiveId === "jack" && isNormalAttack)
@@ -1078,6 +1089,7 @@ export function executeAttack(state, attacker, target, random = Math.random, att
     attackType: skill?.attackType || attacker.attackType || "melee",
     skillId: skill?.id ?? null, skillLevel: skill?.level ?? null,
     skillName: skill?.name ?? null,
+    warhammerVulnerableUntilRound: skill?.id === "eren-warhammer" ? attacker.warhammerVulnerableUntilRound : null,
     normalPassiveId: attacker.normalPassiveId ?? null, edwardTrueDamage, deepSeaDefenseGain,
     attackerDef: deepSeaDefenseGain ? attacker.def : null,
     skillCastId: skill ? [state.battleId ?? "battle", state.round, attacker.id].join(":") : null,
@@ -1663,6 +1675,7 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
         events.push(event);
         if (struck.id === YORU.id && attacker.id === state.playerId && event.type === "attack" &&
             event.actualDamage > 0 && struck.alive && attacker.alive && random() < .6) {
+          event.yoruCounterTriggered = true;
           const reflectedBase = Math.floor(event.actualDamage * .8);
           let reflected = calculateDamage({ atk: reflectedBase }, { def: combatDefense(attacker, state.round) });
           if (reflected > 0 && attacker.bulletHoleStacks > 0)

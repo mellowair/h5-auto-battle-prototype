@@ -63,7 +63,7 @@ export const SKILL_DATA = {
     levels: Object.fromEntries([[.5,10,.8,false],[.6,15,.8,false],[.6,20,1,false],[.7,25,1,true]].map(([chance,defenseBonus,reflectMultiplier,taunt], index) =>
       [index + 1, { chance, defenseBonus, reflectMultiplier, maxDefenseStacks: 4, reflectTurns: 2, taunt, healEveryCasts: 3, healMaxHpRatio: .1, effectType: "hardening" }])) },
   "eren-warhammer": { id: "eren-warhammer", name: "战锤之力", type: "active", triggerType: "on_action", maxLevel: 4,
-    description: "以攻击与防御合力攻击，按自身防御忽视目标防御。",
+    description: "以攻击与防御合力攻击，按自身防御忽视目标防御；释放后到下一完整回合结束，受到伤害增加 20%。",
     levels: Object.fromEntries([[.4,1.7,.4],[.5,1.8,.5],[.5,1.9,.6],[.6,1.9,.7]].map(([chance,multiplier,ignoreDefenseFromOwnDef], index) =>
       [index + 1, { chance, multiplier, ignoreDefenseFromOwnDef, attackFormula: "atk_plus_current_def", effectType: "damage", attackType: "melee" }])) },
   "kaneki-one-eye-king": { id: "kaneki-one-eye-king", name: "独眼之王", type: "passive", passive: true, maxLevel: 1,

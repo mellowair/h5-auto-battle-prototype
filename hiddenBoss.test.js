@@ -108,7 +108,10 @@ test("one continuous battle carries bullet holes into Yoru and absorbs partner s
   assert.equal(yoruAttacks[0].round, phases[0].round + 1);
   assert.equal(yoruAttacks[0].skilled, false);
   assert.equal(yoruAttacks[1].skilled, true);
-  assert.ok(result.events.some((event) => event.type === "hidden-boss-counter"));
+  const counterIndex = result.events.findIndex((event) => event.type === "hidden-boss-counter");
+  assert.ok(counterIndex > 0);
+  assert.equal(result.events[counterIndex - 1].targetId, YORU.id);
+  assert.equal(result.events[counterIndex - 1].yoruCounterTriggered, true);
   assert.equal(result.events.filter((event) => event.type === "battle-end").length, 1);
   assert.equal(result.outcome, "victory");
   const partnerHp = campaign.partyStates[campaign.partyIds[1]].currentHp;

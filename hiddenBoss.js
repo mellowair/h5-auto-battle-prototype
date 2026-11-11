@@ -8,13 +8,13 @@ export const HIDDEN_BOSS_RULES = Object.freeze({
   firstSkillPhaseRound: 2,
   skillEveryRounds: 2,
   gunDeathHoldMs: 2000,
-  yoruWalkMs: 2600,
-  yoruEntranceHoldMs: 2500,
+  yoruWalkMs: 3000,
+  yoruEntranceHoldMs: 3000,
   gunBulletFlightMs: 1450,
   gunNormalBulletFlightMs: 700,
   yoruBulletFlightMs: 1250,
-  swordFlightMs: 600,
-  swordReturnMs: 560,
+  swordFlightMs: 900,
+  swordReturnMs: 840,
   tankShowMs: 650,
 });
 

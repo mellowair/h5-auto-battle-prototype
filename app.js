@@ -1188,6 +1188,13 @@ function renderAllyStatusIcons() {
         image: "assets/shop/skill-book.png", tone: "buff",
         description: `${unit.name}的实际战斗 DEF 高于伤害来源时，将本次实际承伤的 50% 反弹给伤害来源。` });
     }
+    if (unit.id === "eren" && unit.evolutionPhase === 2 &&
+        (unit.warhammerVulnerableUntilRound ?? 0) >= battleStatusState.currentRound &&
+        unit.warhammerVulnerableUntilRound > 0) {
+      statuses.push({ id: `warhammer-vulnerable-${unit.id}`, name: `${unit.name} · 战锤易伤`,
+        image: unit.asset, tone: "debuff",
+        description: `释放战锤之力后到第 ${unit.warhammerVulnerableUntilRound} 回合结束，受到的实际伤害增加 20%。` });
+    }
     if (unit.team === "ally") {
       const medicineBonuses = (campaign?.shopMedicines ?? [])
         .filter((effect) => effect.recipientId === unit.id && effect.battlesLeft > 0)
@@ -1634,6 +1641,7 @@ function clearEffects() {
   lastBorosVisualCastId = null;
   lastGilgameshVisualCastId = null;
   document.querySelectorAll(".colossal-battle-smoke, .gilgamesh-visual, .trial-projectile, .shin-hammer-projectile, .eren-warhammer-strike, .evolution-entrance, .clone-protect-effect, .summon-portal, .arima-weakpoint, .cannot-act-effect, .gravity-circle, .gravity-dish, .hidden-yoru-entrance, .hidden-spinal-sword, .hidden-boss-projectile, .hidden-boss-ground-effect, .hidden-yoru-summoned-gun, .hidden-yoru-tank").forEach((node) => node.remove());
+  document.querySelectorAll(".fighter.is-yoru-countering").forEach((node) => node.classList.remove("is-yoru-countering"));
   clearAllSpriteFrameCycles();
   timer = null;
   effectTimer = null;
@@ -1746,8 +1754,8 @@ function playHiddenBossPhase(event, finish) {
       art.alt = "战争恶魔·夜登场";
       entrance.append(art);
       arena.append(entrance);
-      hiddenBossAfter(HIDDEN_BOSS_RULES.yoruEntranceHoldMs, () => {
-        entrance.remove();
+      const swordRevealMs = 560;
+      hiddenBossAfter(HIDDEN_BOSS_RULES.yoruEntranceHoldMs - swordRevealMs, () => {
         showFighterFrame(fighter, yoru, "pointUp", "point");
         if (event.swordAsset) {
           const sword = document.createElement("img");
@@ -1760,7 +1768,14 @@ function playHiddenBossPhase(event, finish) {
         }
         renderAllyStatusIcons();
         addLog(`<b>脊髓剑</b>：${event.partnerId ? partyPresentation(event.partnerId)?.name ?? event.partnerId : "无伙伴"}退出本场战斗；夜吸收最大 HP +${event.absorbed.maxHp}、ATK +${event.absorbed.atk}、DEF +${event.absorbed.def}、SPD +${event.absorbed.spd}。`, "log-enemy");
-        hiddenBossAfter(560, () => { clearSpriteFrame(fighter); startIdleCycle(fighter, yoru); finish(); });
+        entrance.style.setProperty("--hidden-entrance-reveal-ms", `${playbackDelay(swordRevealMs)}ms`);
+        entrance.classList.add("is-revealing");
+        hiddenBossAfter(swordRevealMs, () => {
+          entrance.remove();
+          clearSpriteFrame(fighter);
+          startIdleCycle(fighter, yoru);
+          finish();
+        });
       });
     });
   });
@@ -1810,9 +1825,9 @@ function playHiddenBossAttack(event, finish) {
   if (attacker.id === YORU.id && !event.skilled) {
     showFighterFrame(sourceEl, attacker, "pointUp", "point");
     const sword = arena.querySelector(".hidden-spinal-sword");
-    if (!sword) return hiddenBossAfter(420, () => { commit(); idle(); });
+    if (!sword) return hiddenBossAfter(630, () => { commit(); idle(); });
     const home = { left: sword.style.left, top: sword.style.top };
-    hiddenBossAfter(380, () => {
+    hiddenBossAfter(570, () => {
       sword.style.setProperty("--sword-flight-ms", `${playbackDelay(HIDDEN_BOSS_RULES.swordFlightMs)}ms`);
       sword.style.left = `${targetPoint.x + 30}px`;
       sword.style.top = `${targetPoint.y - 85}px`;
@@ -1828,7 +1843,8 @@ function playHiddenBossAttack(event, finish) {
   }
   const fire = (projectileSource) => {
     const sourceRect = projectileSource.getBoundingClientRect();
-    const shot = hiddenBossShotLayout(sourceRect, targetRect, sourceEl.getBoundingClientRect(), arenaRect,
+    const shot = hiddenBossShotLayout(sourceRect, targetRect,
+      attacker.id === GUN_DEVIL.id ? sourceEl.getBoundingClientRect() : sourceRect, arenaRect,
       attacker.id === GUN_DEVIL.id ? { x: .16, y: .45 } : { x: .16, y: .72 });
     const bullet = document.createElement("img");
     bullet.className = "hidden-boss-projectile";
@@ -1836,6 +1852,7 @@ function playHiddenBossAttack(event, finish) {
     bullet.alt = "";
     const groundEffect = document.createElement("img");
     groundEffect.className = "hidden-boss-ground-effect";
+    if (attacker.id === YORU.id) groundEffect.classList.add("is-yoru-shot");
     groundEffect.src = attacker.projectileEffectAsset;
     groundEffect.alt = "";
     groundEffect.style.left = `${shot.ground.x}px`;
@@ -1877,10 +1894,6 @@ function playHiddenBossAttack(event, finish) {
         shadow.className = "hidden-yoru-summoned-gun";
         shadow.src = attacker.summonedGunAsset;
         shadow.alt = "";
-        const rect = sourceEl.getBoundingClientRect();
-        shadow.style.left = `${rect.left - arenaRect.left + rect.width / 2 -
-          Math.min(30, arenaRect.width * .05)}px`;
-        shadow.style.bottom = `${arenaRect.bottom - rect.bottom + 8}px`;
         arena.append(shadow);
         hiddenBossAfter(320, () => fire(shadow));
       });
@@ -1893,9 +1906,8 @@ function playHiddenBossCounter(event, finish) {
   const target = viewState.characters.find((unit) => unit.id === event.targetId);
   const fighter = document.querySelector('[data-character="yoru"]');
   if (!yoru || !target || !fighter) return finish();
-  showFighterFrame(fighter, yoru, "tank", "first");
-  hiddenBossAfter(250, () => {
-    showFighterFrame(fighter, yoru, "tank", "second");
+  showFighterFrame(fighter, yoru, "tank", "second");
+  hiddenBossAfter(160, () => {
     target.currentHp = event.targetHp;
     target.shieldHp = event.targetShield;
     target.alive = !event.targetDied;
@@ -1903,6 +1915,7 @@ function playHiddenBossCounter(event, finish) {
     if (event.targetDied) document.querySelector(`[data-character="${target.id}"]`)?.classList.add("is-dead");
     addLog(`<b>战车</b> 格挡反击：按夜实际承伤的 80% 反弹，${target.name}受到 ${event.actualDamage} 点伤害。`, "log-enemy");
     hiddenBossAfter(HIDDEN_BOSS_RULES.tankShowMs, () => {
+      fighter.classList.remove("is-yoru-countering");
       clearSpriteFrame(fighter);
       if (yoru.alive) startIdleCycle(fighter, yoru);
       finish();
@@ -2929,24 +2942,35 @@ function playEvent(event, finish) {
   }
   if (event.type !== "attack") return finish();
   if (event.type === "attack" && (event.splash || event.chakraBurst)) {
-    const splashTarget = viewState.characters.find((unit) => unit.id === event.targetId);
-    if (splashTarget) {
-      splashTarget.currentHp = event.targetHp;
-      splashTarget.alive = event.targetHp > 0;
-      updateHealth(splashTarget);
-      const fighter = document.querySelector(`[data-character="${splashTarget.id}"]`);
-      const number = fighter?.querySelector(".damage-number");
-      if (number) { number.textContent = event.dodged ? "闪避" : `-${event.actualDamage}`; number.classList.remove("pop"); void number.offsetWidth; number.classList.add("pop"); }
-      if (event.targetDied) fighter?.classList.add("is-dead");
-      addLog(event.chakraBurst
-        ? `<b>超大玉螺旋丸</b> 追加命中 ${splashTarget.name}，造成 ${event.actualDamage} 点伤害${event.stunApplied ? "并使其眩晕" : ""}。`
-        : `<b>影分身</b> 扩散命中 ${splashTarget.name}${event.dodged ? "，被闪避" : `，造成 ${event.actualDamage} 点伤害`}。`, "log-skill");
-      for (const heal of event.scorpionHeals ?? []) {
-        const ally = viewState.characters.find((unit) => unit.id === heal.targetId);
-        if (ally) { ally.currentHp = heal.currentHp; updateHealth(ally); }
-      }
+    const counterFighter = event.yoruCounterTriggered ? document.querySelector('[data-character="yoru"]') : null;
+    const counterUnit = counterFighter && viewState.characters.find((unit) => unit.id === YORU.id);
+    if (counterFighter && counterUnit) {
+      counterFighter.classList.add("is-yoru-countering");
+      showFighterFrame(counterFighter, counterUnit, "tank", "first");
     }
-    timer = window.setTimeout(() => { timer = null; finish(); }, playbackDelay(220, 120));
+    const applySplash = () => {
+      if (counterFighter && counterUnit) showFighterFrame(counterFighter, counterUnit, "tank", "second");
+      const splashTarget = viewState.characters.find((unit) => unit.id === event.targetId);
+      if (splashTarget) {
+        splashTarget.currentHp = event.targetHp;
+        splashTarget.alive = event.targetHp > 0;
+        updateHealth(splashTarget);
+        const fighter = document.querySelector(`[data-character="${splashTarget.id}"]`);
+        const number = fighter?.querySelector(".damage-number");
+        if (number) { number.textContent = event.dodged ? "闪避" : `-${event.actualDamage}`; number.classList.remove("pop"); void number.offsetWidth; number.classList.add("pop"); }
+        if (event.targetDied) fighter?.classList.add("is-dead");
+        addLog(event.chakraBurst
+          ? `<b>超大玉螺旋丸</b> 追加命中 ${splashTarget.name}，造成 ${event.actualDamage} 点伤害${event.stunApplied ? "并使其眩晕" : ""}。`
+          : `<b>影分身</b> 扩散命中 ${splashTarget.name}${event.dodged ? "，被闪避" : `，造成 ${event.actualDamage} 点伤害`}。`, "log-skill");
+        for (const heal of event.scorpionHeals ?? []) {
+          const ally = viewState.characters.find((unit) => unit.id === heal.targetId);
+          if (ally) { ally.currentHp = heal.currentHp; updateHealth(ally); }
+        }
+      }
+      timer = window.setTimeout(() => { timer = null; finish(); }, playbackDelay(220, 120));
+    };
+    if (counterFighter && counterUnit) timer = window.setTimeout(applySplash, playbackDelay(180));
+    else applySplash();
     return;
   }
   const attacker = viewState.characters.find((c) => c.id === event.attackerId);
@@ -2955,6 +2979,14 @@ function playEvent(event, finish) {
   const sourceEl = document.querySelector(`[data-character="${attacker.id}"]`);
   const targetEl = document.querySelector(`[data-character="${target.id}"]`);
   if (!sourceEl || !targetEl) return finish();
+  if (event.warhammerVulnerableUntilRound) {
+    attacker.warhammerVulnerableUntilRound = event.warhammerVulnerableUntilRound;
+    renderAllyStatusIcons();
+  }
+  if (event.yoruCounterTriggered) {
+    targetEl.classList.add("is-yoru-countering");
+    showFighterFrame(targetEl, target, "tank", "first");
+  }
   const sourceSide = attacker.team === "ally" ? "ally" : "enemy";
   const cloneText = event.skillId === "shadow-clone-rush" ? ` Lv.${event.skillLevel}（${event.skillCloneCount} 个分身，${event.skillMultiplier.toFixed(1)}×）` : "";
   const actionText = event.skilled ? `<span class="skill-name">${event.skillName}${cloneText}</span>` : "普通攻击";
@@ -3460,7 +3492,8 @@ function playEvent(event, finish) {
     damage.classList.remove("pop");
     void damage.offsetWidth;
     damage.classList.add("pop");
-    if (event.dodged) {
+    if (event.yoruCounterTriggered) showFighterFrame(targetEl, target, "tank", "second");
+    else if (event.dodged) {
       targetEl.classList.add("is-dodging");
       const dodgeFrames = animationFrameNames(target, "dodge");
       if (dodgeFrames.length) startFrameCycle(targetEl, target, "dodge", dodgeFrames, scaled(300 / dodgeFrames.length), false);
@@ -3649,7 +3682,7 @@ function playEvent(event, finish) {
         showFighterFrame(targetEl, target, "fallen", "down");
       } else if (deathFrames.length) startFrameCycle(targetEl, target, "death", deathFrames, deathDuration / deathFrames.length, false);
       addLog(`<b>${target.name}</b> 倒下了`, "log-death");
-    } else if (!event.dodged && !event.trialDamage?.heraclesAwakened) {
+    } else if (!event.dodged && !event.trialDamage?.heraclesAwakened && !event.yoruCounterTriggered) {
       window.clearTimeout(targetHitTimer);
       const reactiveMs = event.damageSkillTriggered && (target.mimicSourceId ?? target.id) === "kaneki"
         ? target.animationTiming?.thousandSevenMs ?? 1000 : event.arimaCritAwakened ? 800 : event.attackGuard && target.id === "arima" ? 550 : 380;
@@ -3738,7 +3771,7 @@ function playEvent(event, finish) {
     burst?.classList.remove("melee-impact", "melee-from-right", "makima-impact");
     burst?.style.removeProperty("left");
     burst?.style.removeProperty("top");
-    if (!event.targetDied) {
+    if (!event.targetDied && !event.yoruCounterTriggered) {
       clearSpriteFrame(targetEl);
       startIdleCycle(targetEl, target);
     }

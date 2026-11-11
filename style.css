@@ -217,6 +217,7 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .clone-protect-effect { position: absolute; z-index: 24; bottom: 10px; width: clamp(220px, 42vw, 320px); max-width: none; height: auto; transform: translateX(-50%); transform-origin: center bottom; image-rendering: pixelated; pointer-events: none; animation: clone-protect-appear var(--clone-protect-duration, 1200ms) steps(8, end) both; }
 @keyframes clone-protect-appear { 0% { opacity: 0; transform: translateX(-50%) scale(.88); } 12%, 78% { opacity: 1; transform: translateX(-50%) scale(1); } 100% { opacity: 0; transform: translateX(-50%) scale(1.06); } }
 .fighter:not(.is-dead):not(.is-summoning):not(.is-portal-pending):not(.is-portal-rising):not(.is-melee-rushing):not(.is-punching):not(.is-hit):not(.is-dodging):not(.is-attacking):not(.is-casting):not(.is-kaneki-reactive):not(.is-steam-casting):not(.gravity-lift):not(.gravity-hover):not(.gravity-drop) .sprite-wrap { animation: idle-bob 2.4s steps(2,end) infinite; }
+.fighter.is-yoru-countering .sprite-wrap { animation: none !important; }
 .fighter.is-steam-casting .sprite-wrap { animation: steam-fall var(--steam-duration, 650ms) steps(5,end) both; transform-origin: center bottom; }
 @keyframes steam-fall { 0%,100% { transform: rotate(0); } 45%,75% { transform: translateX(-12px) rotate(-18deg); } }
 .sprite-visual { position: absolute; z-index: 2; bottom: 5px; left: 50%; margin-left: calc(var(--visual-frame-width, 84px) * -.5); display: grid; place-items: end center; width: var(--visual-frame-width, 84px); height: var(--visual-frame-height, 98px); scale: var(--visual-scale, 1); translate: calc(var(--visual-offset-x, 0px) + var(--visual-action-offset-x, 0px)) calc(0px - var(--visual-offset-y, 0px) - var(--visual-stage-foot-offset-y, 0px) - var(--visual-action-offset-y, 0px)); transform-origin: center bottom; }
@@ -341,16 +342,18 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .fighter[data-character="gun-devil"], .fighter[data-character="yoru"] { left: 63% !important; }
 .battle-screen.hidden-boss-battle .fighter[data-character="yoru"] { bottom: calc(12% + 14px); }
 .fighter[data-character="gun-devil"].is-dead .sprite { transform: none; filter: none; }
-.fighter.hidden-yoru-walk { animation: hidden-yoru-walk var(--hidden-walk-ms, 1500ms) steps(18, end) both; }
+.fighter.hidden-yoru-walk { animation: hidden-yoru-walk var(--hidden-walk-ms, 3000ms) linear both; }
 @keyframes hidden-yoru-walk { from { translate: 45vw 0; } to { translate: 0 0; } }
 .hidden-yoru-entrance { position: absolute; z-index: 31; inset: 0; display: grid; place-items: center; background: #090810dd; pointer-events: none; }
+.hidden-yoru-entrance.is-revealing { opacity: 0; transition: opacity var(--hidden-entrance-reveal-ms, 560ms) linear; }
 .hidden-yoru-entrance img { display: block; max-width: min(65%, 290px); max-height: 88%; object-fit: contain; image-rendering: pixelated; }
 .hidden-spinal-sword { position: absolute; z-index: 16; width: clamp(210px, 42vw, 310px); height: auto; transform: translate(-50%, 0) rotate(-7deg); transform-origin: 72% 22%; image-rendering: pixelated; pointer-events: none; transition: left var(--sword-flight-ms, 600ms) ease-in, top var(--sword-flight-ms, 600ms) ease-in, transform var(--sword-flight-ms, 600ms) ease-in; }
 .hidden-boss-projectile { position: absolute; z-index: 19; width: clamp(125px, 25vw, 205px); height: auto; transform: translate(-50%, -50%) scaleX(-1); image-rendering: pixelated; pointer-events: none; transition: left var(--bullet-flight-ms, 1450ms) cubic-bezier(.3,.1,.75,.88); }
 .hidden-boss-ground-effect { position: absolute; z-index: 3; width: clamp(170px, 42vw, 270px); height: auto; transform: translate(-50%, -100%); image-rendering: pixelated; pointer-events: none; animation: hidden-boss-ground-flash var(--ground-effect-ms, 900ms) steps(5, end) both; }
 @keyframes hidden-boss-ground-flash { 0% { opacity: 0; scale: .85; } 18%, 64% { opacity: 1; scale: 1; } 100% { opacity: 0; scale: 1.05; } }
-.hidden-yoru-summoned-gun { position: absolute; z-index: 1; width: clamp(287px, 60vw, 475px); height: auto; transform: translateX(-50%); image-rendering: pixelated; pointer-events: none; }
-@media (max-width: 699px) { .fighter[data-character="gun-devil"], .fighter[data-character="yoru"] { left: 58% !important; } .hidden-spinal-sword { width: 192px; } .hidden-boss-projectile { width: 130px; } .hidden-boss-ground-effect { width: 170px; } .hidden-yoru-summoned-gun { width: 287px; } }
+.hidden-yoru-summoned-gun { position: absolute; z-index: 1; left: 90%; bottom: 24%; width: clamp(80px, 20vw, 125px); height: auto; transform: translateX(-50%); image-rendering: pixelated; pointer-events: none; }
+.hidden-boss-ground-effect.is-yoru-shot { width: clamp(110px, 18vw, 150px); }
+@media (max-width: 699px) { .fighter[data-character="gun-devil"], .fighter[data-character="yoru"] { left: 58% !important; } .hidden-spinal-sword { width: 192px; } .hidden-boss-projectile { width: 130px; } .hidden-boss-ground-effect { width: 170px; } .hidden-yoru-summoned-gun { left: 88%; width: 80px; } .hidden-boss-ground-effect.is-yoru-shot { width: 110px; } }
 @media (max-width: 699px) and (orientation: portrait) {
   .evolution-entrance { background-size: auto 75%; }
   .evolution-entrance[data-character="eren"] { background-position: 80% center; }
