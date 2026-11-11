@@ -52,7 +52,7 @@ export function initializeBattle(config = CHARACTER_DATA, options = {}) {
       ...(character.id === "eren" ? { freeWillDefenseStacks: 0 } : {}),
       ...(character.elitePassiveId === "toji-heavenly-restriction" ? { fasterActions: 0, tojiFatigued: false, tojiRestPending: false, tojiResting: false } : {}),
       ...(["shin", "noi"].includes(character.id) ? { bereavementActive: false, bereavementAttackBonus: 0,
-        bereavementDefenseBonus: 0, bereavementSourceId: null } : {}),
+        bereavementDefenseBonus: 0, bereavementSourceId: null, reviveUsed: false } : {}),
       ...(character.elitePassiveId === "killer-queen" ? { hpSnapshots: [], bitesDustNextAvailableRound: 1 } : {}),
       ...(character.id === "armored-titan" ? { armorReductionStartRound: null, armorReductionUntilRound: null } : {}),
       ...(character.periodicPassive?.id === "colossal-steam-wave" ? { lastSteamRound: 0 } : {}),
@@ -363,6 +363,7 @@ export function isBattleOver(state) {
   }
   const makima = state.characters.find((c) => c.id === "makima");
   if (makima && !makima.alive) return "victory";
+  if (state.characters.some((unit) => ["shin", "noi"].includes(unit.id) && unit.reviveAtRound != null)) return null;
   if (!livingTeams.has("enemy")) return "victory";
   return null;
 }
@@ -441,10 +442,6 @@ function syncShinNoiBereavement(state, events) {
   const shin = state.characters.find((unit) => unit.id === "shin");
   const noi = state.characters.find((unit) => unit.id === "noi");
   if (!shin || !noi) return;
-  if (!shin.alive && !noi.alive) {
-    shin.reviveAtRound = null;
-    noi.reviveAtRound = null;
-  }
   for (const [unit, partner] of [[shin, noi], [noi, shin]]) {
     const active = unit.alive && !partner.alive && partner.reviveAtRound != null;
     if (active && !unit.bereavementActive) {
@@ -508,12 +505,10 @@ export function resolveStageThreeDeaths(state, events = []) {
   for (const id of ["shin", "noi"]) {
     const unit = state.characters.find((entry) => entry.id === id);
     const partner = state.characters.find((entry) => entry.id === (id === "shin" ? "noi" : "shin"));
-    if (unit && partner && !unit.alive && unit.reviveAtRound == null && !unit.reviveDeathProcessed) {
-      unit.reviveDeathProcessed = true;
-      if (partner.alive) {
-        unit.reviveAtRound = state.round + 4;
-        events.push({ type: "stage3-revive-pending", round: state.round, targetId: id, reviveAtRound: unit.reviveAtRound });
-      }
+    if (unit && partner && !unit.alive && !unit.reviveUsed) {
+      unit.reviveUsed = true;
+      unit.reviveAtRound = state.round + 4;
+      events.push({ type: "stage3-revive-pending", round: state.round, targetId: id, reviveAtRound: unit.reviveAtRound });
     }
   }
   syncShinNoiBereavement(state, events);
@@ -550,13 +545,15 @@ function clearSkillBuffs(unit) {
 
 export function stageThreeRoundStart(state, random = Math.random) {
   const events = [];
+  const revived = [];
   for (const unit of state.characters.filter((entry) => ["shin", "noi"].includes(entry.id) && !entry.alive &&
       entry.reviveAtRound != null && entry.reviveAtRound <= state.round)) {
-    const partner = state.characters.find((entry) => entry.id === (unit.id === "shin" ? "noi" : "shin"));
-    if (!partner?.alive) { unit.reviveAtRound = null; continue; }
     unit.currentHp = Math.max(1, Math.floor(unit.maxHp * .4));
-    unit.alive = true; unit.reviveAtRound = null; unit.reviveDeathProcessed = false;
-    syncShinNoiBereavement(state, events);
+    unit.alive = true; unit.reviveAtRound = null;
+    revived.push(unit);
+  }
+  if (revived.length) syncShinNoiBereavement(state, events);
+  for (const unit of revived) {
     events.push({ type: "stage3-revive", round: state.round, targetId: unit.id,
       hpAfter: unit.currentHp, maxHp: unit.maxHp });
   }
@@ -604,7 +601,7 @@ export function stageThreeRoundStart(state, random = Math.random) {
     state.makima.lastBangRound = state.round;
     state.makima.nextBangRound = state.round + Math.max(1, 5 - state.makima.deadMinions.length);
     if (target) {
-      const baseDamage = Math.max(1, Math.floor(makima.atk * state.round / 5));
+      const baseDamage = Math.max(1, Math.floor(makima.atk * state.round / 10));
       let damage = calculateDamage({ atk: baseDamage }, { def: combatDefense(target, state.round) });
       damage = applyTojiExhaustion(target, applyNormalDamageReduction(target, damage));
       const absorbed = Math.min(damage, target.shieldHp ?? 0);

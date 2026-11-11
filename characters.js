@@ -451,7 +451,7 @@ export const ELITE_ENEMY_DATA = [
     },
     extraPassiveSkillIds: ["stage3-resurrection"] },
   { id: "noi", name: "能井", type: "elite", stageId: 3, eliteEncounterId: "shin-noi", team: "enemy",
-    role: "精英", row: "front", position: "front", hp: 5000, atk: 260, def: 160, spd: 100,
+    role: "精英", row: "front", position: "front", hp: 3000, atk: 260, def: 160, spd: 100,
     attackType: "melee", asset: "assets/stage3-elites/noi_idle.png", visualId: "noi", activeSkills: ["noi-heal"],
     animations: {
       idle: { type: "frames", frames: { idle: "assets/stage3-elites/noi_idle.png" } },
@@ -510,7 +510,7 @@ export const STAGE_TWO_BOSS_DATA = Object.freeze({
 // Stage-three presentation is independent of combat stats and route scaling.
 export const STAGE_THREE_BOSS_DATA = Object.freeze({
   id: "makima", name: "玛奇玛", type: "boss", team: "enemy", role: "支配恶魔",
-  row: "back", position: "back", hp: 4200, atk: 250, def: 180, spd: 160,
+  row: "back", position: "back", hp: 3700, atk: 250, def: 160, spd: 160,
   attackType: "ranged", asset: "assets/stage3-enemies/makima_hover_idle.png", visualId: "makima", stageThreeKind: "makima",
   attackAnimation: "hoverAttack",
   animations: {
@@ -526,22 +526,22 @@ export const STAGE_THREE_BOSS_DATA = Object.freeze({
 
 export const STAGE_THREE_MINIONS = Object.freeze({
   "makima-bomb": { id: "makima-bomb", name: "炸弹恶魔", team: "enemy", row: "front", position: "front",
-    hp: 1900, atk: 300, def: 160, spd: 130, attackType: "melee", stageThreeMinion: true,
+    hp: 1900, atk: 300, def: 135, spd: 130, attackType: "melee", stageThreeMinion: true,
     asset: "assets/stage3-enemies/makima_bomb_idle.png", visualId: "makima-bomb", activeSkills: ["bomb-demon-boom"],
     skillAnimationMap: { "bomb-demon-boom": "boom" },
     animations: { idle: { type: "frames", frames: { idle: "assets/stage3-enemies/makima_bomb_idle.png" } },
       boom: { type: "frames", frames: { raise: "assets/stage3-enemies/makima_bomb_boom.png",
         launch: "assets/stage3-enemies/makima_bomb_boom.png" }, durationsMs: [900, 300], loop: false } } },
   "flamethrower-devil": { id: "flamethrower-devil", name: "喷火器恶魔", team: "enemy", row: "front", position: "front",
-    hp: 2800, atk: 120, def: 160, spd: 100, attackType: "melee", stageThreeMinion: true, stageThreeKind: "burn",
+    hp: 2500, atk: 120, def: 135, spd: 100, attackType: "melee", stageThreeMinion: true, stageThreeKind: "burn",
     asset: "assets/stage3-enemies/flamethrower_idle.png", visualId: "flamethrower-devil",
     extraPassiveSkillIds: ["stage3-burn"] },
   "katana-devil": { id: "katana-devil", name: "刀之恶魔", team: "enemy", row: "front", position: "front",
-    hp: 2700, atk: 200, def: 180, spd: 120, attackType: "melee", stageThreeMinion: true, stageThreeKind: "bleed",
+    hp: 2400, atk: 200, def: 155, spd: 120, attackType: "melee", stageThreeMinion: true, stageThreeKind: "bleed",
     asset: "assets/stage3-enemies/katana_idle.png", visualId: "katana-devil",
     extraPassiveSkillIds: ["stage3-bleed"] },
   quanxi: { id: "quanxi", name: "光熙", team: "enemy", row: "front", position: "front",
-    hp: 2700, atk: 450, def: 130, spd: 300, attackType: "melee", stageThreeMinion: true, stageThreeKind: "quanxi",
+    hp: 2400, atk: 450, def: 105, spd: 300, attackType: "melee", stageThreeMinion: true, stageThreeKind: "quanxi",
     asset: "assets/stage3-enemies/quanxi_idle.png", visualId: "quanxi",
     animations: { meleeAttack: { type: "frames", frames: {
       flash: "assets/stage3-enemies/quanxi_flash.png", strike: "assets/stage3-enemies/quanxi_attack.png",

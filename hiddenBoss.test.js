@@ -4,7 +4,7 @@ import { simulateBattle } from "./battle.js";
 import { beginHiddenBossChallenge, completeSettlement, createCampaign, deferHiddenBossChallenge,
   finishBattle, prepareBattle, queueHiddenBossIntro, resumeHiddenBossAtCampfire } from "./campaign.js";
 import { STARTING_CHARACTERS } from "./characters.js";
-import { fragmentCount, GUN_DEVIL, HIDDEN_BOSS_RULES, YORU } from "./hiddenBoss.js";
+import { fragmentCount, GUN_DEVIL, hiddenBossShotLayout, HIDDEN_BOSS_RULES, YORU } from "./hiddenBoss.js";
 import { createRunCharacterState } from "./progression.js";
 
 function campaignAtMakima() {
@@ -22,6 +22,17 @@ function campaignAtMakima() {
   campaign.currentBattle = { id: "makima-test", type: "boss", enemies: ["makima"] };
   return campaign;
 }
+
+test("Gun Devil bullets fly horizontally while the firing effect stays at ground level", () => {
+  const arena = { left: 100, top: 200 };
+  const gunFrame = { left: 440, top: 290, width: 200, height: 220 };
+  const fighter = { left: 470, width: 90, bottom: 615 };
+  const target = { left: 210, width: 90 };
+  const shot = hiddenBossShotLayout(gunFrame, target, fighter, arena, { x: .16, y: .45 });
+  assert.deepEqual(shot.start, { x: 372, y: 189 });
+  assert.deepEqual(shot.end, { x: 155, y: shot.start.y });
+  assert.deepEqual(shot.ground, { x: 415, y: 411 });
+});
 
 test("Makima completion grants only missing fragments and opens the one-choice story", () => {
   const campaign = campaignAtMakima();

@@ -8,9 +8,10 @@ export const HIDDEN_BOSS_RULES = Object.freeze({
   firstSkillPhaseRound: 2,
   skillEveryRounds: 2,
   gunDeathHoldMs: 2000,
-  yoruWalkMs: 1500,
+  yoruWalkMs: 2600,
   yoruEntranceHoldMs: 2500,
   gunBulletFlightMs: 1450,
+  gunNormalBulletFlightMs: 700,
   yoruBulletFlightMs: 1250,
   swordFlightMs: 600,
   swordReturnMs: 560,
@@ -41,6 +42,7 @@ export const YORU = Object.freeze({
   animations: {
     idle: { type: "frames", frames: { idle: asset("yoru-idle") } },
     walk: { type: "frames", frames: { first: asset("yoru-walk-1"), second: asset("yoru-walk-2") } },
+    tank: { type: "frames", frames: { first: asset("yoru-tank-1"), second: asset("yoru-tank-2") } },
     pointUp: { type: "frames", frames: { point: asset("yoru-point-up") } },
     pointAtTarget: { type: "frames", frames: { point: asset("yoru-point-target") } },
   },
@@ -55,6 +57,14 @@ export const SPINAL_SWORD_BY_PARTNER = Object.freeze({
 });
 
 export const HIDDEN_BOSS_BACKGROUND = asset("gun-background");
+
+export function hiddenBossShotLayout(sourceRect, targetRect, fighterRect, arenaRect, muzzleAnchor) {
+  const start = { x: sourceRect.left - arenaRect.left + sourceRect.width * muzzleAnchor.x,
+    y: sourceRect.top - arenaRect.top + sourceRect.height * muzzleAnchor.y };
+  return { start, end: { x: targetRect.left - arenaRect.left + targetRect.width / 2, y: start.y },
+    ground: { x: fighterRect.left - arenaRect.left + fighterRect.width / 2,
+      y: fighterRect.bottom - arenaRect.top - 4 } };
+}
 
 export function fragmentCount(campaign) {
   return (campaign?.partyIds ?? []).reduce((total, id) => total +

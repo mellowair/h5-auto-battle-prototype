@@ -1,6 +1,6 @@
 import { ANIMATION_TIMING, CHARACTER_DATA, COMBAT_RULES, STAGE_TWO_NORMAL_PASSIVES, STAGE_THREE_NORMAL_PASSIVES, STARTING_CHARACTERS } from "./characters.js";
 import { beginHiddenBossChallenge, deferHiddenBossChallenge, queueHiddenBossIntro, resumeHiddenBossAtCampfire } from "./campaign.js";
-import { HIDDEN_BOSS_RULES, GUN_DEVIL, SPINAL_SWORD_BY_PARTNER, YORU } from "./hiddenBoss.js";
+import { HIDDEN_BOSS_RULES, GUN_DEVIL, hiddenBossShotLayout, SPINAL_SWORD_BY_PARTNER, YORU } from "./hiddenBoss.js";
 import { advanceEventEpilogue, advanceStageTransition, beginJourney, beginStageTwo, beginStageThree, buyShopItem, chooseEvolutionUpgrade, chooseRoute, chooseTrialNode, chooseStartingSkill, claimCampaignEliteDrop, claimCampaignReward, claimCampaignSpecialReward, claimCampaignQuinque, claimCampaignTreasure, claimStageTwoEliteSkill, claimStageTwoEliteSkip, claimStageTwoGiantRecipient, claimStageTwoStatReward, completeLocation, completeSettlement, createCampaign, enterTrialMap, finishBattle, finishTrialResult, getActiveCampfireOptions, getCampaignRewardOffer, getCampaignTreasureOffer, getRouteMap, getRouteOptions, getShopRouteOptions, getStageTransitionChoices, getStageTwoCampfireOptions, leaveShop, prepareBattle, previewShopItem, resolveCampaignEvent, resolveStageTwoCampfire, resolveTrialOffer, resolveTrialWill, selectStartingCharacter, startCampaign, startCampaignEventBattle, STAGE_TWO_STAT_UPGRADES } from "./campaign.js";
 import { getCritChance, getDodgeChance, getSkillDodgeChance, initializeBattle, simulateBattle } from "./battle.js";
 import { canDeclineNewSkill, getSeaBeyondOfferDetails, getSkillAtLevel, getSkillTrainingChoices, getTemporaryCombatModifiers, getTemporaryEffectDisplayRows, getTreasureCombatModifiers, getUnlearnedActiveSkills, previewGrowingDrop } from "./progression.js";
@@ -1183,6 +1183,11 @@ function renderAllyStatusIcons() {
         image: unit.asset, tone: "buff",
         description: `九尾鸣人本场剩余 ${cloneCount} 个查克拉影分身；队友低于 50% HP 时，每次受伤消耗 1 个分身，使该次伤害降低 30%。` });
     }
+    if (unit.extraPassiveSkillIds?.includes("iron-bell")) {
+      statuses.push({ id: `iron-bell-${unit.id}`, name: `${unit.name} · 金钟罩铁布衫`,
+        image: "assets/shop/skill-book.png", tone: "buff",
+        description: `${unit.name}的实际战斗 DEF 高于伤害来源时，将本次实际承伤的 50% 反弹给伤害来源。` });
+    }
     if (unit.team === "ally") {
       const medicineBonuses = (campaign?.shopMedicines ?? [])
         .filter((effect) => effect.recipientId === unit.id && effect.battlesLeft > 0)
@@ -1628,7 +1633,7 @@ function clearEffects() {
   clearBorosVisuals();
   lastBorosVisualCastId = null;
   lastGilgameshVisualCastId = null;
-  document.querySelectorAll(".colossal-battle-smoke, .gilgamesh-visual, .trial-projectile, .shin-hammer-projectile, .eren-warhammer-strike, .evolution-entrance, .clone-protect-effect, .summon-portal, .arima-weakpoint, .cannot-act-effect, .gravity-circle, .gravity-dish, .hidden-yoru-entrance, .hidden-spinal-sword, .hidden-boss-projectile, .hidden-boss-projectile-effect, .hidden-yoru-summoned-gun, .hidden-yoru-tank").forEach((node) => node.remove());
+  document.querySelectorAll(".colossal-battle-smoke, .gilgamesh-visual, .trial-projectile, .shin-hammer-projectile, .eren-warhammer-strike, .evolution-entrance, .clone-protect-effect, .summon-portal, .arima-weakpoint, .cannot-act-effect, .gravity-circle, .gravity-dish, .hidden-yoru-entrance, .hidden-spinal-sword, .hidden-boss-projectile, .hidden-boss-ground-effect, .hidden-yoru-summoned-gun, .hidden-yoru-tank").forEach((node) => node.remove());
   clearAllSpriteFrameCycles();
   timer = null;
   effectTimer = null;
@@ -1713,7 +1718,6 @@ function playHiddenBossPhase(event, finish) {
   if (!arena || !gun) return finish();
   addLog("<b>枪之恶魔</b> 倒下了……但战斗尚未结束。", "log-enemy");
   hiddenBossAfter(HIDDEN_BOSS_RULES.gunDeathHoldMs, () => {
-    gun.remove();
     const yoru = { ...event.yoru };
     viewState.characters.push(yoru);
     for (const id of event.dismissedIds ?? []) {
@@ -1722,6 +1726,7 @@ function playHiddenBossPhase(event, finish) {
     }
     buildHealthRows(viewState.characters.filter((unit) => unit.id !== "gun-devil" &&
       !(event.dismissedIds ?? []).includes(unit.id)));
+    gun.hidden = false;
     const fighter = document.querySelector('[data-character="yoru"]');
     if (!fighter) return finish();
     fighter.classList.add("hidden-yoru-walk");
@@ -1729,6 +1734,7 @@ function playHiddenBossPhase(event, finish) {
     startFrameCycle(fighter, yoru, "walk", ["first", "second"], 220, true);
     addLog("<b>战争恶魔·夜</b> 从战场右侧走来。", "log-enemy");
     hiddenBossAfter(HIDDEN_BOSS_RULES.yoruWalkMs, () => {
+      gun.remove();
       fighter.classList.remove("hidden-yoru-walk");
       fighter.style.removeProperty("--hidden-walk-ms");
       clearSpriteFrame(fighter);
@@ -1820,39 +1826,42 @@ function playHiddenBossAttack(event, finish) {
     });
     return;
   }
-  if (attacker.id === GUN_DEVIL.id && !event.skilled) {
-    showFighterFrame(sourceEl, attacker, "normalAttack", "fire");
-    hiddenBossAfter(450, () => { commit(); hiddenBossAfter(220, idle); });
-    return;
-  }
   const fire = (projectileSource) => {
     const sourceRect = projectileSource.getBoundingClientRect();
-    const sourcePoint = { x: sourceRect.left - arenaRect.left + sourceRect.width * .22,
-      y: sourceRect.top - arenaRect.top + sourceRect.height * .3 };
+    const shot = hiddenBossShotLayout(sourceRect, targetRect, sourceEl.getBoundingClientRect(), arenaRect,
+      attacker.id === GUN_DEVIL.id ? { x: .16, y: .45 } : { x: .16, y: .72 });
     const bullet = document.createElement("img");
     bullet.className = "hidden-boss-projectile";
     bullet.src = attacker.projectileAsset;
     bullet.alt = "";
-    const effect = document.createElement("img");
-    effect.className = "hidden-boss-projectile-effect";
-    effect.src = attacker.projectileEffectAsset;
-    effect.alt = "";
-    const duration = attacker.id === GUN_DEVIL.id ? HIDDEN_BOSS_RULES.gunBulletFlightMs : HIDDEN_BOSS_RULES.yoruBulletFlightMs;
-    for (const image of [effect, bullet]) {
-      image.style.left = `${sourcePoint.x}px`;
-      image.style.top = `${sourcePoint.y}px`;
-      image.style.setProperty("--bullet-flight-ms", `${playbackDelay(duration)}ms`);
-      arena.append(image);
-      void image.offsetWidth;
-      image.style.left = `${targetPoint.x}px`;
-      image.style.top = `${targetPoint.y}px`;
-    }
+    const groundEffect = document.createElement("img");
+    groundEffect.className = "hidden-boss-ground-effect";
+    groundEffect.src = attacker.projectileEffectAsset;
+    groundEffect.alt = "";
+    groundEffect.style.left = `${shot.ground.x}px`;
+    groundEffect.style.top = `${shot.ground.y}px`;
+    const duration = attacker.id === GUN_DEVIL.id
+      ? event.skilled ? HIDDEN_BOSS_RULES.gunBulletFlightMs : HIDDEN_BOSS_RULES.gunNormalBulletFlightMs
+      : HIDDEN_BOSS_RULES.yoruBulletFlightMs;
+    groundEffect.style.setProperty("--ground-effect-ms", `${playbackDelay(duration)}ms`);
+    arena.append(groundEffect);
+    bullet.style.left = `${shot.start.x}px`;
+    bullet.style.top = `${shot.start.y}px`;
+    bullet.style.setProperty("--bullet-flight-ms", `${playbackDelay(duration)}ms`);
+    arena.append(bullet);
+    void bullet.offsetWidth;
+    bullet.style.left = `${shot.end.x}px`;
     hiddenBossAfter(duration, () => {
-      bullet.remove(); effect.remove(); commit();
+      bullet.remove(); groundEffect.remove(); commit();
       arena.querySelector(".hidden-yoru-summoned-gun")?.remove();
       hiddenBossAfter(300, idle);
     });
   };
+  if (attacker.id === GUN_DEVIL.id && !event.skilled) {
+    showFighterFrame(sourceEl, attacker, "normalAttack", "fire");
+    hiddenBossAfter(280, () => fire(sourceEl.querySelector(".sprite-action-frame.is-current") ?? sourceEl.querySelector(".sprite")));
+    return;
+  }
   if (attacker.id === GUN_DEVIL.id) {
     showFighterFrame(sourceEl, attacker, "charge", "charge");
     hiddenBossAfter(700, () => {
@@ -1869,8 +1878,9 @@ function playHiddenBossAttack(event, finish) {
         shadow.src = attacker.summonedGunAsset;
         shadow.alt = "";
         const rect = sourceEl.getBoundingClientRect();
-        shadow.style.left = `${rect.left - arenaRect.left - 95}px`;
-        shadow.style.top = `${rect.top - arenaRect.top - 25}px`;
+        shadow.style.left = `${rect.left - arenaRect.left + rect.width / 2 -
+          Math.min(30, arenaRect.width * .05)}px`;
+        shadow.style.bottom = `${arenaRect.bottom - rect.bottom + 8}px`;
         arena.append(shadow);
         hiddenBossAfter(320, () => fire(shadow));
       });
@@ -1882,26 +1892,21 @@ function playHiddenBossCounter(event, finish) {
   const yoru = viewState.characters.find((unit) => unit.id === YORU.id);
   const target = viewState.characters.find((unit) => unit.id === event.targetId);
   const fighter = document.querySelector('[data-character="yoru"]');
-  const arena = document.querySelector(".arena");
-  if (!yoru || !target || !fighter || !arena) return finish();
-  const tank = document.createElement("img");
-  tank.className = "hidden-yoru-tank";
-  tank.src = yoru.tankAssets?.[0];
-  tank.alt = "";
-  const arenaRect = arena.getBoundingClientRect();
-  const fighterRect = fighter.getBoundingClientRect();
-  tank.style.left = `${fighterRect.left - arenaRect.left + 15}px`;
-  tank.style.top = `${fighterRect.top - arenaRect.top - 25}px`;
-  arena.append(tank);
+  if (!yoru || !target || !fighter) return finish();
+  showFighterFrame(fighter, yoru, "tank", "first");
   hiddenBossAfter(250, () => {
-    tank.src = yoru.tankAssets?.[1] ?? tank.src;
+    showFighterFrame(fighter, yoru, "tank", "second");
     target.currentHp = event.targetHp;
     target.shieldHp = event.targetShield;
     target.alive = !event.targetDied;
     updateHealth(target);
     if (event.targetDied) document.querySelector(`[data-character="${target.id}"]`)?.classList.add("is-dead");
     addLog(`<b>战车</b> 格挡反击：按夜实际承伤的 80% 反弹，${target.name}受到 ${event.actualDamage} 点伤害。`, "log-enemy");
-    hiddenBossAfter(HIDDEN_BOSS_RULES.tankShowMs, () => { tank.remove(); finish(); });
+    hiddenBossAfter(HIDDEN_BOSS_RULES.tankShowMs, () => {
+      clearSpriteFrame(fighter);
+      if (yoru.alive) startIdleCycle(fighter, yoru);
+      finish();
+    });
   });
 }
 
@@ -2134,6 +2139,13 @@ function playEvent(event, finish) {
     return finish();
   }
   if (event.type === "normal-passive-reflect") {
+    if (event.skillId === "iron-bell") {
+      const reflector = document.querySelector(`[data-character="${event.attackerId}"]`);
+      reflector?.classList.remove("is-iron-bell-reflect");
+      void reflector?.offsetWidth;
+      reflector?.classList.add("is-iron-bell-reflect");
+      window.setTimeout(() => reflector?.classList.remove("is-iron-bell-reflect"), playbackDelay(700));
+    }
     const target = viewState.characters.find((unit) => unit.id === event.targetId);
     if (target) {
       target.currentHp = event.targetHp;
@@ -2737,7 +2749,7 @@ function playEvent(event, finish) {
     return;
   }
   if (event.type === "battle-end") {
-    document.querySelectorAll(".colossal-battle-smoke, .gilgamesh-visual, .hidden-spinal-sword, .hidden-yoru-tank, .hidden-yoru-summoned-gun, .hidden-boss-projectile, .hidden-boss-projectile-effect").forEach((node) => node.remove());
+    document.querySelectorAll(".colossal-battle-smoke, .gilgamesh-visual, .hidden-spinal-sword, .hidden-yoru-tank, .hidden-yoru-summoned-gun, .hidden-boss-projectile, .hidden-boss-ground-effect").forEach((node) => node.remove());
     const win = event.outcome === "victory";
     const player = pendingResult.finalCharacters.find((character) => character.team === "ally");
     const speedBeforeSettlement = campaign.runCharacterState?.spd ?? 0;

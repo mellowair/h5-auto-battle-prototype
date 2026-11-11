@@ -205,6 +205,29 @@ test("skill book teaches one passive without replacing the hero's innate passive
   assert.equal(campaign.essence, 0);
 });
 
+test("a partner's purchased skill book reaches combat and reflects actual damage", () => {
+  const campaign = shopFixture();
+  const partner = createRunCharacterState(STARTING_CHARACTERS.find((entry) => entry.id === "eren"));
+  partner.def = 300;
+  campaign.partyIds.push("eren");
+  campaign.partyStates.eren = partner;
+  campaign.essence = 40;
+  replaceSlot(campaign, "book", "iron_bell_book", 40);
+  assert.ok(buyShopItem(campaign, 0, "eren"));
+  assert.equal(campaign.runCharacterState.extraPassiveSkillIds?.includes("iron-bell") ?? false, false);
+  campaign.currentBattle = { type: "normal", step: 1, enemies: ["guard"], enemyNames: { guard: "守卫" } };
+  campaign.status = "combat";
+  const eren = prepareBattle(campaign).roster.find((unit) => unit.id === "eren");
+  assert.ok(eren.extraPassiveSkillIds.includes("iron-bell"));
+  const enemy = { id: "book-test-enemy", name: "测试敌人", team: "enemy", row: "front", position: "front",
+    hp: 1000, atk: 500, def: 50, spd: 200, critChance: 0 };
+  const result = simulateBattle([eren, enemy], () => .99);
+  const hit = result.events.find((event) => event.type === "attack" && event.attackerId === enemy.id && event.actualDamage > 0);
+  const reflected = result.events.find((event) => event.skillId === "iron-bell");
+  assert.ok(hit && reflected);
+  assert.equal(reflected.requested, Math.floor(hit.actualDamage * .5));
+});
+
 test("a pre-shop save without essence cannot buy an item for free", () => {
   const campaign = shopFixture();
   replaceSlot(campaign, "common", "magic_conch", 5);

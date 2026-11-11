@@ -21,16 +21,17 @@ test("Shin and Noi have their own transparent fallen frames", () => {
   }
 });
 
-test("Makima follower panels and both summon waves use the updated base HP", () => {
+test("Makima and follower panels use the updated base DEF in both summon waves", () => {
   const expected = {
-    "makima-bomb": [1900, 160], "flamethrower-devil": [2800, 160],
-    "katana-devil": [2700, 180], quanxi: [2700, 130],
+    "makima-bomb": [1900, 135], "flamethrower-devil": [2500, 135],
+    "katana-devil": [2400, 155], quanxi: [2400, 105],
   };
   for (const [id, stats] of Object.entries(expected))
     assert.deepEqual([STAGE_THREE_MINIONS[id].hp, STAGE_THREE_MINIONS[id].def], stats);
-  assert.equal(STAGE_THREE_BOSS_DATA.hp, 4200);
+  assert.equal(STAGE_THREE_BOSS_DATA.hp, 3700);
+  assert.equal(STAGE_THREE_BOSS_DATA.def, 160);
   assert.deepEqual([elite("shin").hp, elite("shin").atk, elite("shin").def], [2500, 600, 160]);
-  assert.deepEqual([elite("noi").hp, elite("noi").atk, elite("noi").def], [5000, 260, 160]);
+  assert.deepEqual([elite("noi").hp, elite("noi").atk, elite("noi").def], [3000, 260, 160]);
   const campaign = createStageThreeTestCampaign({ heroId: "naruto", partnerId: "eren", opponent: "makima" });
   const prepared = prepareBattle(campaign);
   for (const id of ["makima-bomb", "flamethrower-devil"]) {
@@ -82,9 +83,9 @@ test("Makima summons once below half, counts true deaths, controls only partner 
     ...["makima-bomb", "flamethrower-devil"].map((id) => STAGE_THREE_MINIONS[id])], { playerId: "hero" });
   state.round = 2;
   const boss = state.characters.find((unit) => unit.id === "makima");
-  boss.currentHp = 2100;
+  boss.currentHp = 1850;
   assert.equal(resolveStageThreeDeaths(state, []).length, 0);
-  boss.currentHp = 2099;
+  boss.currentHp = 1849;
   const summoned = resolveStageThreeDeaths(state, []);
   assert.deepEqual(summoned.map((event) => event.character.id), ["katana-devil", "quanxi"]);
   assert.equal(resolveStageThreeDeaths(state, []).length, 0);
@@ -106,7 +107,7 @@ test("Makima summons once below half, counts true deaths, controls only partner 
   assert.equal(roundFour.filter((event) => event.type === "stage3-control").length, 0);
   const bang = roundFour.find((event) => event.skillId === "makima-bang");
   assert.equal(bang.round, 4);
-  assert.equal(bang.bangBaseDamage, 320);
+  assert.equal(bang.bangBaseDamage, 160);
   assert.ok(bang.actualDamage > 0);
   for (const id of ["flamethrower-devil", "katana-devil", "quanxi"]) {
     const unit = state.characters.find((entry) => entry.id === id);
@@ -123,7 +124,7 @@ test("Makima summons once below half, counts true deaths, controls only partner 
   assert.equal(boss.lifesteal, .25);
   assert.equal(resolveStageThreeDeaths(state, []).some((event) => event.type === "stage3-minion-wipe-stun"), false);
   state.round = 5;
-  assert.equal(stageThreeRoundStart(state, () => .99).find((event) => event.skillId === "makima-bang")?.bangBaseDamage, 850);
+  assert.equal(stageThreeRoundStart(state, () => .99).find((event) => event.skillId === "makima-bang")?.bangBaseDamage, 425);
 });
 
 test("Makima's dismissed minions do not grant attack, and control never selects a summoned ally", () => {
@@ -164,7 +165,7 @@ test("a complete Makima battle ends when the Boss falls and dismisses remaining 
   assert.equal(result.events.filter((event) => event.type === "battle-end").length, 1);
 });
 
-test("Shin and Noi revive after four rounds while the survivor has doubled ATK", () => {
+test("Shin and Noi each revive once after four rounds regardless of the partner's state", () => {
   const state = initializeBattle([hero(), elite("shin"), elite("noi")]);
   state.round = 2;
   const shin = state.characters.find((unit) => unit.id === "shin");
@@ -188,12 +189,17 @@ test("Shin and Noi revive after four rounds while the survivor has doubled ATK",
   assert.equal(noi.bereavementActive, false);
   assert.equal(noi.bereavementSourceId, null);
   const again = (() => { shin.currentHp = 0; shin.alive = false; return resolveStageThreeDeaths(state, []); })();
-  assert.equal(again.filter((event) => event.type === "stage3-bereavement").length, 1);
-  assert.equal(noi.def, elite("noi").def + 100);
+  assert.equal(again.some((event) => event.type === "stage3-revive-pending"), false);
+  assert.equal(noi.def, elite("noi").def);
   noi.currentHp = 0; noi.alive = false;
-  resolveStageThreeDeaths(state, []);
+  const noiPending = resolveStageThreeDeaths(state, []);
   assert.equal(shin.reviveAtRound, null);
-  assert.equal(noi.reviveAtRound, null);
+  assert.equal(noiPending.find((event) => event.type === "stage3-revive-pending")?.reviveAtRound, 10);
+  assert.equal(isBattleOver(state), null);
+  state.round = 10;
+  assert.equal(stageThreeRoundStart(state).find((event) => event.type === "stage3-revive")?.hpAfter, 1200);
+  noi.currentHp = 0; noi.alive = false;
+  assert.equal(resolveStageThreeDeaths(state, []).some((event) => event.type === "stage3-revive-pending"), false);
   assert.equal(isBattleOver(state), "victory");
   const reverse = initializeBattle([hero(), elite("shin"), elite("noi")]);
   reverse.round = 2;
@@ -205,6 +211,26 @@ test("Shin and Noi revive after four rounds while the survivor has doubled ATK",
   assert.equal(reverseShin.def, elite("shin").def + 100);
   const battle = simulateBattle([{ ...hero(), atk: 10000, spd: 1000 }, elite("shin"), elite("noi")], () => .99);
   assert.equal(battle.outcome, "victory");
+});
+
+test("Shin and Noi still revive when both fall in the same round", () => {
+  const state = initializeBattle([hero(), elite("shin"), elite("noi")]);
+  state.round = 2;
+  for (const unit of state.characters.filter((entry) => ["shin", "noi"].includes(entry.id))) {
+    unit.currentHp = 0;
+    unit.alive = false;
+  }
+  const pending = resolveStageThreeDeaths(state, []);
+  assert.deepEqual(pending.filter((event) => event.type === "stage3-revive-pending").map((event) => event.targetId), ["shin", "noi"]);
+  assert.equal(isBattleOver(state), null);
+  state.round = 6;
+  assert.deepEqual(stageThreeRoundStart(state).filter((event) => event.type === "stage3-revive").map((event) => event.targetId), ["shin", "noi"]);
+  for (const unit of state.characters.filter((entry) => ["shin", "noi"].includes(entry.id))) {
+    unit.currentHp = 0;
+    unit.alive = false;
+  }
+  assert.equal(resolveStageThreeDeaths(state, []).some((event) => event.type === "stage3-revive-pending"), false);
+  assert.equal(isBattleOver(state), "victory");
 });
 
 test("Arima counts separate landed hits, pierces after three, and Quinque blocks only normal attacks", () => {
