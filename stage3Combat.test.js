@@ -268,13 +268,13 @@ test("Arima counts separate landed hits, pierces after three, and Quinque blocks
   assert.equal(executeAttack(awakening, awakening.characters[0], awakenedArima, () => .99).arimaCritAwakened, false);
 });
 
-test("Anteiku final stays in stage three, applies one shared run penalty and grants one Quinque", () => {
+test("legacy Anteiku final stays out of the event pool while its saved result remains readable", () => {
   const template = STARTING_CHARACTERS.find((unit) => unit.id === "naruto");
   const lead = createRunCharacterState(template, template.activeSkills[0]);
   const partner = createRunCharacterState(STARTING_CHARACTERS.find((unit) => unit.id === "eren"), "eren-free-will");
   lead.eventSeries.anteiku = { chapter1Completed: true, chapter2Completed: true };
   assert.equal(getAvailableAdventureEventIds(lead, 12, [lead, partner], 2).includes("anteiku_3"), false);
-  assert.equal(getAvailableAdventureEventIds(lead, 12, [lead, partner], 3).includes("anteiku_3"), true);
+  assert.equal(getAvailableAdventureEventIds(lead, 12, [lead, partner], 3).includes("anteiku_3"), false);
   createAdventureEventResult(lead, "third-cafe", "anteiku_3", () => .5, [lead, partner], 3);
   const before = { leadHp: lead.maxHp, leadAtk: lead.atk, partnerHp: partner.maxHp, partnerAtk: partner.atk };
   const result = resolveAdventureEvent(lead, "third-cafe", "anteiku_weapon");
@@ -316,7 +316,7 @@ test("angel clears actual skill bonuses at rounds 3, 7, 11 while preserving perm
       assert.ok(clear);
       assert.deepEqual([target.atk, target.def, target.maxHp, target.defenseBuff,
         target.critRateBonus, target.reactiveCritDamageBonus, target.shieldHp],
-      [200, 100, 2500, 0, .05, 0, 0]);
+      [200, 100, 2500, 0, .25, 0, 0]);
       assert.deepEqual([target.dodgeRateBonus, target.lifesteal, target.damageReductionBonus], [.04, .2, .1]);
       assert.equal(target.oneEyeKingEmergencyUsed, true, "once-per-battle activation remains consumed");
       assert.equal(clear.buffState.atk, 200);

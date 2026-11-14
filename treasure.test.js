@@ -25,12 +25,13 @@ function offerFor(treasureId, recipient = hero) {
   return { owner, member, sourceId };
 }
 
-test("all six treasures have stable tiers and their supplied local images", () => {
+test("existing and new treasures have stable tiers and linked artwork", () => {
   assert.deepEqual(Object.values(TREASURE_DATA).filter((item) => item.tier === "small").map((item) => item.id),
-    ["magic_conch", "sukuna_finger", "odm_gear"]);
+    ["magic_conch", "sukuna_finger", "odm_gear", "universal_capsule", "rock_lee_weights"]);
   assert.deepEqual(Object.values(TREASURE_DATA).filter((item) => item.tier === "royal").map((item) => item.id),
-    ["angel_breath", "stone_mask", "nichirin_blade"]);
-  assert.ok(Object.values(TREASURE_DATA).every((item) => item.name && item.description && item.image && existsSync(item.image)));
+    ["angel_breath", "stone_mask", "nichirin_blade", "dragon_radar", "hogyoku_fragment", "shikon_fragment"]);
+  assert.ok(Object.values(TREASURE_DATA).every((item) => item.name && item.description && (!item.image || existsSync(item.image))));
+  assert.ok(["universal_capsule", "rock_lee_weights", "dragon_radar", "hogyoku_fragment", "shikon_fragment", "drip_coffee", "quinque_guard", "quinque_crit"].every((id) => TREASURE_DATA[id].image && existsSync(TREASURE_DATA[id].image)));
 });
 
 test("small treasure modifies only its recipient and a second claim is rejected", () => {
@@ -89,7 +90,7 @@ test("formal battle roster carries treasure modifiers, and stage-two campfire st
   const roster = prepareBattle(campaign).roster;
   const main = roster.find((unit) => unit.id === "naruto");
   const partner = roster.find((unit) => unit.id === "eren");
-  assert.deepEqual([main.damageReductionBonus, main.dodgeRateBonus, main.normalAttackCurrentHpRatio], [.05, .05, .08]);
+  assert.deepEqual([main.damageReductionBonus, main.dodgeRateBonus, main.normalAttackCurrentHpRatio], [.05, .05, .1]);
   assert.equal(partner.lifesteal, .25);
   assert.equal(partner.stoneMaskHealingBlocked, true);
   const rest = createStageTwoTestCampaign({ heroId: "naruto", partnerId: "eren", seed: 72 });
@@ -126,16 +127,16 @@ test("stone mask blocks direct healing, growing treasure healing, angel breath a
   assert.equal(campaign.partyStates.naruto.currentHp, campaign.partyStates.naruto.maxHp);
 });
 
-test("Nichirin Blade creates a separate DEF-free hit based on pre-attack HP, never on dodge or skills", () => {
-  const actor = { id: "holder", team: "ally", row: "front", hp: 5000, atk: 300, def: 0, spd: 100, critChance: 0, normalAttackCurrentHpRatio: .08 };
+test("Nichirin Blade creates a separate DEF-free hit based on remaining HP after normal or skill hits", () => {
+  const actor = { id: "holder", team: "ally", row: "front", hp: 5000, atk: 300, def: 0, spd: 100, critChance: 0, normalAttackCurrentHpRatio: .1 };
   const target = { id: "foe", team: "enemy", row: "front", hp: 2000, atk: 1, def: 0, spd: 1, critChance: 0 };
   const result = simulateBattle([actor, target], () => .99);
   const first = result.events.find((event) => event.type === "attack" && event.attackerId === "holder");
   const bonus = result.events.find((event) => event.type === "treasure-damage");
   assert.equal(first.damage, 300);
   assert.equal(first.hpBefore, 2000);
-  assert.deepEqual([bonus.basisHp, bonus.requested, bonus.damage, bonus.hpBefore, bonus.hpAfter], [2000, 160, 160, 1700, 1540]);
-  assert.ok(result.events.filter((event) => event.type === "treasure-damage").every((event) => event.basisHp > event.hpBefore));
+  assert.deepEqual([bonus.basisHp, bonus.requested, bonus.damage, bonus.hpBefore, bonus.hpAfter], [1700, 170, 170, 1700, 1530]);
+  assert.ok(result.events.filter((event) => event.type === "treasure-damage").every((event) => event.basisHp === event.hpBefore));
   let rolls = 0;
   const dodge = simulateBattle([actor, target], () => rolls++ < 2 ? 0 : .99);
   const firstAttackIndex = dodge.events.findIndex((event) => event.type === "attack" && event.attackerId === "holder");
@@ -143,7 +144,7 @@ test("Nichirin Blade creates a separate DEF-free hit based on pre-attack HP, nev
   assert.notEqual(dodge.events[firstAttackIndex + 1]?.type, "treasure-damage");
   const skill = { id: "test-active", name: "技能", chance: 1, multiplier: 1.3 };
   const active = simulateBattle([{ ...actor, skills: [skill], skill }, target], () => .99);
-  assert.equal(active.events.filter((event) => event.type === "treasure-damage").length, 0);
+  assert.ok(active.events.filter((event) => event.type === "treasure-damage").length > 0);
 });
 
 test("angel breath immediately fills HP and victory revives before its 20% end heal exactly once", () => {

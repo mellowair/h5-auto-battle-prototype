@@ -43,22 +43,45 @@ test("each seeded stage map has exactly two shops on shorter lanes with legal pa
   }
 });
 
-test("five independent slots are deterministic and obey stage medicine prices", () => {
+test("seven independent slots are deterministic and obey stage medicine prices", () => {
   for (const stageId of [1, 2, 3]) {
     const a = generateShopInventory("fixed-map:shop-1", stageId);
     assert.deepEqual(a, generateShopInventory("fixed-map:shop-1", stageId));
     assert.equal(a.length, SHOP_RULES.slots);
     assert.ok(a.every((slot) => slot.available && slot.price > 0));
     assert.ok(a.filter((slot) => slot.categoryId === "medicine").every((slot) => slot.price === stageId));
-    for (const [category, price] of [["common", 15], ["growing", 20], ["book", 40], ["rare", 40]])
-      assert.ok(a.filter((slot) => slot.categoryId === category).every((slot) => slot.price === price));
+    assert.ok(a.filter((slot) => slot.categoryId === "common").every((slot) => [15, 20].includes(slot.price)));
+    assert.ok(a.filter((slot) => slot.categoryId === "book").every((slot) => [30, 40].includes(slot.price)));
+    assert.ok(a.filter((slot) => slot.categoryId === "rare").every((slot) => slot.price >= 30));
+  }
+});
+
+test("shop category weights and new treasure stock match the four independent pools", () => {
+  assert.equal(SHOP_RULES.slots, 7);
+  assert.deepEqual(Object.fromEntries(SHOP_RULES.categories.map(({ id, weight }) => [id, weight])),
+    { common: 30, medicine: 30, rare: 20, book: 20 });
+  const stock = SHOP_RULES.categories;
+  assert.ok(stock.find((entry) => entry.id === "common").ids.includes("drip_coffee"));
+  for (const id of ["quinque_crit", "quinque_guard"])
+    assert.ok(stock.find((entry) => entry.id === "rare").ids.includes(id));
+  const campaign = shopFixture(2);
+  campaign.essence = 100;
+  for (const [index, [id, category, price]] of [["quinque_crit", "rare", 40],
+    ["quinque_guard", "rare", 40], ["drip_coffee", "common", 15]].entries()) {
+    const slot = campaign.activeShop.slots[index];
+    Object.assign(slot, { categoryId: category, itemId: id, price: 1, available: true, purchased: false });
+    refreshShopPrices(campaign);
+    assert.equal(slot.price, price);
+    assert.ok(slot.image?.endsWith(".png"));
+    assert.equal(buyShopItem(campaign, index).id, id);
+    assert.equal(campaign.runCharacterState.permanentEffects.at(-1).id, id);
   }
 });
 
 test("essence rewards give special enemies precedence and leave unconfigured events at zero", () => {
-  for (const [type, amount] of [["normal", 1], ["elite", 3], ["boss", 5]])
+  for (const [type, amount] of [["normal", 2], ["elite", 4], ["boss", 7]])
     assert.equal(essenceRewardForBattle({ type, enemies: ["guard"] }).amount, amount);
-  for (const [id, amount] of [["dina", 3], ["arima", 3], ["six_ear", 3], ["gilgamesh", 5]])
+  for (const [id, amount] of [["dina", 4], ["arima", 4], ["six_ear", 4], ["gilgamesh", 7]])
     assert.equal(essenceRewardForBattle({ type: "event", enemies: [id] }).amount, amount);
   assert.equal(essenceRewardForBattle({ type: "event", enemies: ["suzuya"] }).amount, 0);
 });
@@ -75,7 +98,7 @@ test("a real victory credits essence once and a defeat credits none", () => {
     assert.ok(prepareBattle(campaign));
     const result = finishBattle(campaign, outcome, outcome === "victory" ? campaign.playerHp : 0);
     assert.ok(result);
-    assert.equal(campaign.essence, outcome === "victory" ? 1 : 0);
+    assert.equal(campaign.essence, outcome === "victory" ? 2 : 0);
     assert.equal(finishBattle(campaign, outcome, campaign.playerHp), false);
     assert.equal(campaign.essenceHistory.length, outcome === "victory" ? 1 : 0);
   }

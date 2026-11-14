@@ -133,7 +133,7 @@ test("two completed trial bosses exit immediately, leaving the third node untouc
   assert.equal(chooseTrialNode(campaign), false);
 });
 
-test("a completed trial challenge heals each member by 25% max HP before the next challenge", () => {
+test("a completed trial challenge carries each member's HP into the next challenge", () => {
   const campaign = stageThree();
   enterTrial(campaign, ["strength", "wisdom", "will"]);
   chooseTrialNode(campaign);
@@ -144,8 +144,8 @@ test("a completed trial challenge heals each member by 25% max HP before the nex
   const result = finishBattle(campaign, "victory", 1, [], allies);
   assert.equal(result.status, "trial_route");
   for (const [index, id] of campaign.partyIds.entries()) {
-    assert.equal(campaign.partyStates[id].currentHp, (index === 0 ? 1 : 0) + Math.floor(campaign.partyStates[id].maxHp * .25));
-    assert.equal(campaign.lastBattleRecovery.find((item) => item.characterId === id)?.kind, "trial_quarter_heal");
+    assert.equal(campaign.partyStates[id].currentHp, index === 0 ? 1 : 0);
+    assert.equal(campaign.lastBattleRecovery.length, 0);
   }
   assert.equal(finishBattle(campaign, "victory", 1, [], allies), false);
   chooseTrialNode(campaign);
@@ -267,7 +267,7 @@ test("a failed will challenge clears its temporary HP restriction before another
   assert.equal(campaign.runCharacterState.divinePunishment, null);
 });
 
-test("the three divine-punishment fights form one challenge and refill HP only after the third win", () => {
+test("the three divine-punishment fights carry HP through to the next challenge", () => {
   const campaign = stageThree();
   enterTrial(campaign);
   chooseTrialNode(campaign);
@@ -286,15 +286,15 @@ test("the three divine-punishment fights form one challenge and refill HP only a
       assert.equal(campaign.runCharacterState.currentHp,
         originalMax - Math.floor(originalMax * .2) - battle * 10);
     } else {
-      assert.equal(campaign.lastBattleRecovery.length, campaign.partyIds.length);
-      for (const id of campaign.partyIds) assert.equal(campaign.partyStates[id].currentHp, campaign.partyStates[id].maxHp);
+      assert.equal(campaign.lastBattleRecovery.length, 0);
+      for (const id of campaign.partyIds) assert.ok(campaign.partyStates[id].currentHp < campaign.partyStates[id].maxHp);
     }
     assert.equal(campaign.trial.divinePunishmentBattlesLeft, 3 - battle);
     if (battle < 3) assert.equal(result.status, "trial_next_battle");
     else assert.equal(result.status, "trial_route");
   }
   assert.equal(campaign.runCharacterState.maxHp, originalMax);
-  assert.equal(campaign.runCharacterState.currentHp, originalMax);
+  assert.equal(campaign.runCharacterState.currentHp, originalMax - Math.floor(originalMax * .2) - 30);
   assert.equal(campaign.runCharacterState.divinePunishment, null);
 });
 

@@ -121,7 +121,7 @@ test("level-two passives apply in combat without permanently multiplying base st
   const kaneki = initializeBattle([ally("kaneki", { hp: 1000, currentHp: 100, atk: 200, critChance: 1,
     passiveSkillId: "kaneki-one-eye", passiveLevel: 2 }), enemy("foe", { hp: 10, currentHp: 10, def: 0 })]);
   kaneki.round = 1;
-  assert.equal(kaneki.characters[0].critRateBonus, .1);
+  assert.ok(Math.abs(kaneki.characters[0].critRateBonus - .3) < 1e-10);
   const critical = executeAttack(kaneki, kaneki.characters[0], kaneki.characters[1], () => .99, { skill: null });
   assert.equal(critical.actualDamage, 10);
   assert.equal(critical.oneEyeHealedAmount, Math.floor(critical.calculatedDamage * .4));
@@ -155,21 +155,21 @@ test("Gilgamesh heals on third cast and deals true damage on fourth without a sk
   assert.equal(result.events.some((event) => event.type === "gilgamesh-rest"), false);
   const fourth = result.events.find((event) => event.gilgameshCast === 4);
   assert.ok(fourth?.trueDamage);
-  assert.equal(fourth.damage, 4000);
+  assert.equal(fourth.damage, 3000);
   assert.ok(getDodgeChance({ spd: 100, dodgeRateBonus: .2 }) > getDodgeChance({ spd: 100 }));
 });
 
-test("Gilgamesh gains separate 20 point dodge bonuses and the third cast heals without stopping the next turn", () => {
+test("Gilgamesh gains separate 30 point dodge bonuses and the third cast heals without stopping the next turn", () => {
   const gil = EVENT_ENEMY_DATA.gilgamesh;
   const plain = { spd: gil.spd };
-  assert.ok(Math.abs(getDodgeChance(gil) - getDodgeChance(plain) - .2) < 1e-10);
-  assert.ok(Math.abs(getSkillDodgeChance(gil) - getSkillDodgeChance(plain) - .2) < 1e-10);
+  assert.ok(Math.abs(getDodgeChance(gil) - getDodgeChance(plain) - .3) < 1e-10);
+  assert.ok(Math.abs(getSkillDodgeChance(gil) - getSkillDodgeChance(plain) - .3) < 1e-10);
   const attacker = ally("hero", { atk: 200, critChance: 0 });
   const normalState = initializeBattle([attacker, gil]);
   const normal = executeAttack(normalState, normalState.characters[0], normalState.characters[1], () => .23, { skill: null });
   assert.equal(normal.dodged, true);
   const skillState = initializeBattle([attacker, gil]);
-  const magic = executeAttack(skillState, skillState.characters[0], skillState.characters[1], () => .23,
+  const magic = executeAttack(skillState, skillState.characters[0], skillState.characters[1], () => .32,
     { skill: { id: "test-skill", name: "test", type: "active", effectType: "damage", multiplier: 1 } });
   assert.equal(magic.dodged, false);
 

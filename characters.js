@@ -77,7 +77,7 @@ export const EVENT_ENEMY_DATA = Object.freeze({
   },
   gilgamesh: {
     id: "gilgamesh", name: "吉尔伽美什", team: "enemy", role: "王", row: "back", position: "back",
-    hp: 2800, atk: 450, def: 120, spd: 140, dodgeRateBonus: 0.20, skillDodgeRateBonus: 0.20, attackType: "magic",
+    hp: 2800, atk: 450, def: 120, spd: 140, dodgeRateBonus: 0.30, skillDodgeRateBonus: 0.30, attackType: "magic",
     asset: "assets/event-enemies/gilgamesh.png", visualId: "gilgamesh", activeSkills: ["gilgamesh-enuma-elish"],
     skillAnimationMap: { "gilgamesh-enuma-elish": "enuma" },
     animations: { idle: { type: "frames", frames: { idle: "assets/event-enemies/gilgamesh.png" } }, enuma: { type: "frames", frames: { raise: "assets/event-enemies/gilgamesh-sword.png" } } },
@@ -115,7 +115,7 @@ export const TRIAL_ENEMY_DATA = Object.freeze({
       phase2MeleeAttack: { type: "frames", frames: { punch: "assets/trial-enemies/赫拉克勒斯二阶段攻击.png" }, impactFrames: ["punch"] },
       nineHeads: { type: "frames", frames: { charge: "assets/trial-enemies/赫拉克勒斯蓄力.png", strike: "assets/trial-enemies/赫拉克勒斯技能.png" }, durationsMs: [500, 450] } } },
   odin: { id: "odin", name: "奥丁", team: "enemy", type: "elite", role: "诸神试炼 · 智慧", row: "back", position: "back",
-    hp: 2500, atk: 530, def: 100, spd: 100, asset: "assets/trial-enemies/奥丁.png", visualId: "odin", attackType: "magic", attackAnimation: "magicAttack",
+    hp: 2900, atk: 730, def: 100, spd: 100, asset: "assets/trial-enemies/奥丁.png", visualId: "odin", attackType: "magic", attackAnimation: "magicAttack",
     activeSkills: ["odin-gungnir"], extraPassiveSkillIds: ["odin-ravens"], trialPassive: "odin", trialPassiveSkill: { name: "奥丁的庇护", description: "每 5 回合循环减伤：第 1 至 5 回合分别减免 50%、40%、30%、20%、0%。" }, rosterOrder: 2,
     projectileAsset: "assets/trial-enemies/奥丁施法素材.png",
     skillAnimationMap: { "odin-gungnir": "gungnir" },

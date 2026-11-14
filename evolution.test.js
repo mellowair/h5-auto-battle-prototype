@@ -105,7 +105,7 @@ test("hardening caps DEF at four casts; warhammer retains own DEF", () => {
   const hit = executeAttack(state, eren, foe, () => .99, { skill: effect("eren-warhammer", 3) });
   assert.equal(hit.damage > 0, true);
   assert.equal(eren.def, 300);
-  assert.equal(hit.skillAttackPower, 500);
+  assert.equal(hit.skillAttackPower, 370);
 });
 
 test("both base and evolved Eren and Naruto roll each action skill independently", () => {
@@ -313,7 +313,7 @@ test("One Eye King keeps its crit rate for the battle and crit damage for five r
   const hit = executeAttack(state, foe, kaneki, () => .99, { skill: null });
   assert.equal(hit.trialDamage.oneEyeKingTriggered, true);
   assert.equal(kaneki.oneEyeKingUntilRound, 6);
-  assert.equal(getCritChanceForTest(kaneki), .6);
+  assert.equal(getCritChanceForTest(kaneki), .8);
   state.round = 6;
   const active = executeAttack(state, kaneki, foe, (() => { const rolls = [.99, .5]; return () => rolls.shift() ?? .99; })(), { skill: null });
   state.round = 7;
@@ -321,7 +321,7 @@ test("One Eye King keeps its crit rate for the battle and crit damage for five r
   assert.equal(active.critical, true);
   assert.equal(expired.critical, true);
   assert.ok(active.calculatedDamage > expired.calculatedDamage);
-  assert.equal(getCritChanceForTest(kaneki), .6);
+  assert.equal(getCritChanceForTest(kaneki), .8);
   foe.currentHp = 1; foe.alive = true;
   const lateKill = executeAttack(state, kaneki, foe, () => .99, { skill: null });
   assert.equal(lateKill.oneEyeKingAttackBonus, 0);

@@ -134,7 +134,7 @@ test("either opening active skill preserves One Eye on the real campaign battle 
   }
 });
 
-test("1000-7 adds attack without increasing crit chance, while One Eye still heals", () => {
+test("1000-7 adds attack without increasing the innate One Eye crit chance", () => {
   const hero = unit({ currentHp: 900, skills: [skillAt("kaneki-1000-7", 1)] });
   const foe = enemy({ atk: 10, currentHp: 1000 });
   const state = initializeBattle([hero, foe]);
@@ -142,7 +142,7 @@ test("1000-7 adds attack without increasing crit chance, while One Eye still hea
   executeAttack(state, opponent, fighter, rolls(0.99, 0.99));
   const second = executeAttack(state, opponent, fighter, rolls(0.99, 0.99));
   assert.ok(second.damageSkillTriggered);
-  assert.ok(Math.abs(getCritChance(fighter) - 0.05) < 1e-10);
+  assert.ok(Math.abs(getCritChance(fighter) - 0.25) < 1e-10);
   assert.equal(fighter.atk, 210);
   const before = fighter.currentHp;
   const counter = executeAttack(state, fighter, opponent, rolls(0.99, 0.01));
@@ -178,7 +178,7 @@ test("One Eye heals floor 25% of calculated critical damage, including lethal ov
   assert.equal(overkillUser.currentHp, 1000);
 });
 
-test("Predator levels use ATK+SPD, current pre-hit HP threshold and independent dodge", () => {
+test("Predator levels use ATK+SPD×1.3, current pre-hit HP threshold and independent dodge", () => {
   assert.deepEqual([1, 2, 3, 4].map((level) => [SKILL_DATA["kaneki-predator"].levels[level].chance,
     SKILL_DATA["kaneki-predator"].levels[level].guaranteedCritBelowHpRatio]),
   [[0.50, 0.25], [0.55, 0.30], [0.55, 0.40], [0.60, 0.50]]);
@@ -186,10 +186,10 @@ test("Predator levels use ATK+SPD, current pre-hit HP threshold and independent 
   const attacker = unit({ skills: [skillAt("kaneki-predator", 4)] });
   const target = enemy({ currentHp: 240 });
   const hit = executeAttack({ characters: [attacker, target], round: 1 }, attacker, target, rolls(0, 0.99, 0.99));
-  assert.equal(hit.skillAttackPower, 325);
+  assert.equal(hit.skillAttackPower, 362.5);
   assert.equal(hit.critChance, 1);
   assert.equal(hit.critical, true);
-  assert.equal(hit.damage, Math.floor(325 * 1.3 * COMBAT_RULES.critMultiplier));
+  assert.equal(hit.damage, Math.floor(362.5 * 1.3 * COMBAT_RULES.critMultiplier));
   const boundaryAttacker = unit({ skills: [skillAt("kaneki-predator", 4)] });
   const boundaryTarget = enemy({ currentHp: 500 });
   const boundary = executeAttack({ characters: [boundaryAttacker, boundaryTarget], round: 1 },
@@ -235,7 +235,7 @@ test("1000-7 reacts only to effective damage and its bonuses reset with a new ba
     assert.equal(hero.damageTakenHits, 1);
     const second = executeAttack(state, attacker, hero, rolls(0.99, 0.99));
     const effect = SKILL_DATA["kaneki-1000-7"].levels[level];
-    assert.equal(hero.critRateBonus, 0);
+    assert.equal(hero.critRateBonus, .2);
     assert.equal(hero.dodgeRateBonus, 0);
     assert.equal(hero.atk, 200 + effect.attackBonus * (level === 4 ? 2 : 1));
     assert.equal(second.damageSkillTriggered !== null, true);
@@ -244,12 +244,12 @@ test("1000-7 reacts only to effective damage and its bonuses reset with a new ba
     assert.equal(second.damageSkillTriggered.attackGain, effect.attackBonus);
     executeAttack(state, attacker, hero, rolls(0.99, 0.99));
     executeAttack(state, attacker, hero, rolls(0.99, 0.99));
-    assert.equal(hero.critRateBonus, 0);
+    assert.equal(hero.critRateBonus, .2);
     assert.equal(hero.dodgeRateBonus, 0);
     assert.equal(hero.atk, 200 + effect.attackBonus * (level === 4 ? 4 : 2));
     const next = initializeBattle([actor, foe]);
     assert.equal(next.characters[0].damageTakenHits, 0);
-    assert.equal(next.characters[0].critRateBonus, 0);
+    assert.equal(next.characters[0].critRateBonus, .2);
     assert.equal(next.characters[0].dodgeRateBonus, 0);
     assert.equal(next.characters[0].atk, 200);
   }

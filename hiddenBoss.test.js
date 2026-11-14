@@ -34,39 +34,40 @@ test("Gun Devil bullets fly horizontally while the firing effect stays at ground
   assert.deepEqual(shot.ground, { x: 415, y: 411 });
 });
 
-test("Makima completion grants only missing fragments and opens the one-choice story", () => {
+test("Makima completion leaves the fragment count unchanged", () => {
   const campaign = campaignAtMakima();
   campaign.partyStates[campaign.partyIds[1]].permanentEffects.push(
     { id: "gun_devil_fragment" }, { id: "gun_devil_fragment" });
-  assert.equal(completeSettlement(campaign), "hidden_boss_intro");
-  assert.equal(fragmentCount(campaign), HIDDEN_BOSS_RULES.fragmentGoal);
-  assert.equal(campaign.runCharacterState.permanentEffects.filter((item) => item.id === "gun_devil_fragment").length, 3);
+  assert.equal(completeSettlement(campaign), "victory");
+  assert.equal(fragmentCount(campaign), 2);
+  assert.equal(campaign.runCharacterState.permanentEffects.filter((item) => item.id === "gun_devil_fragment").length, 0);
   assert.equal(completeSettlement(campaign), null);
-  assert.equal(fragmentCount(campaign), HIDDEN_BOSS_RULES.fragmentGoal);
-  assert.equal(campaign.hiddenBoss.storyShown, true);
+  assert.equal(fragmentCount(campaign), 2);
+  assert.equal(campaign.hiddenBoss.storyShown, false);
 });
 
-test("five recorded fragments unlock the story once", () => {
+test("four recorded fragments unlock the story once before Makima", () => {
   const campaign = campaignAtMakima();
   campaign.status = "route";
-  campaign.runCharacterState.permanentEffects.push(...Array.from({ length: 5 }, () => ({ id: "gun_devil_fragment" })));
+  campaign.runCharacterState.permanentEffects.push(...Array.from({ length: 4 }, () => ({ id: "gun_devil_fragment" })));
   assert.equal(queueHiddenBossIntro(campaign), true);
   assert.equal(campaign.status, "hidden_boss_intro");
   campaign.status = "route";
   assert.equal(queueHiddenBossIntro(campaign), false);
 });
 
-test("later chapters may defer a challenge to a campfire without repeating its story", () => {
+test("the story leads to a campfire challenge without repeating", () => {
   const campaign = campaignAtMakima();
-  campaign.stageId = 4;
+  campaign.stageId = 3;
   campaign.status = "route";
-  campaign.runCharacterState.permanentEffects.push(...Array.from({ length: 5 }, () => ({ id: "gun_devil_fragment" })));
+  campaign.runCharacterState.permanentEffects.push(...Array.from({ length: 4 }, () => ({ id: "gun_devil_fragment" })));
   assert.equal(queueHiddenBossIntro(campaign), true);
+  assert.equal(beginHiddenBossChallenge(campaign), false, "the first prompt only points to a future campfire");
   assert.equal(deferHiddenBossChallenge(campaign), true);
   assert.equal(queueHiddenBossIntro(campaign), false);
   campaign.status = "event";
   campaign.activeEventType = "campfire";
-  campaign.activeNode = { id: "future-campfire", type: "campfire" };
+  campaign.activeNode = { id: "future-campfire", type: "campfire", status: "in_progress" };
   assert.equal(resumeHiddenBossAtCampfire(campaign), true);
   assert.equal(campaign.status, "hidden_boss_intro");
   assert.equal(campaign.history.at(-1).resolution, "hidden-boss");
@@ -75,10 +76,17 @@ test("later chapters may defer a challenge to a campfire without repeating its s
 
 test("one continuous battle carries bullet holes into Yoru and absorbs partner stats once", () => {
   const campaign = campaignAtMakima();
-  assert.equal(completeSettlement(campaign), "hidden_boss_intro");
+  campaign.status = "route";
+  campaign.runCharacterState.permanentEffects.push(...Array.from({ length: 4 }, () => ({ id: "gun_devil_fragment" })));
+  assert.equal(queueHiddenBossIntro(campaign), true);
+  assert.equal(deferHiddenBossChallenge(campaign), true);
+  campaign.status = "event";
+  campaign.activeEventType = "campfire";
+  campaign.activeNode = { id: "hidden-boss-campfire", type: "campfire", status: "in_progress" };
+  assert.equal(resumeHiddenBossAtCampfire(campaign), true);
   campaign.runCharacterState.maxHp = 100000;
   campaign.runCharacterState.currentHp = 95000;
-  campaign.runCharacterState.atk = 900;
+  campaign.runCharacterState.atk = 5000;
   campaign.runCharacterState.def = 180;
   campaign.partyStates[campaign.partyIds[1]].maxHp = 4000;
   campaign.partyStates[campaign.partyIds[1]].currentHp = 3200;
@@ -88,7 +96,8 @@ test("one continuous battle carries bullet holes into Yoru and absorbs partner s
   assert.equal(beginHiddenBossChallenge(campaign), true);
   const prepared = prepareBattle(campaign);
   const gun = prepared.roster.find((unit) => unit.id === GUN_DEVIL.id);
-  assert.deepEqual([gun.hp, gun.atk, gun.def, gun.spd], [3500, 800, 120, 300]);
+  assert.deepEqual([gun.hp, gun.atk, gun.def, gun.spd], [4000, 999, 180, 300]);
+  gun.hp = gun.maxHp = gun.currentHp = 15000;
   assert.equal(prepared.roster.find((unit) => unit.id === campaign.playerId).currentHp, 100000);
   const result = simulateBattle(prepared.roster, () => .5, prepared.combatOptions);
   const phases = result.events.filter((event) => event.type === "hidden-boss-phase");
@@ -120,6 +129,6 @@ test("one continuous battle carries bullet holes into Yoru and absorbs partner s
   assert.equal(campaign.partyStates[campaign.partyIds[1]].currentHp, partnerHp);
   assert.equal(campaign.lastEssenceReward.amount, 20);
   assert.equal(campaign.essenceHistory.filter((entry) => entry.reason === "hidden_boss").length, 1);
-  assert.equal(completeSettlement(campaign), "victory");
+  assert.equal(completeSettlement(campaign), "route");
   assert.equal(completeSettlement(campaign), null);
 });

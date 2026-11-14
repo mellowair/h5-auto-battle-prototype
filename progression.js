@@ -53,6 +53,15 @@ function pickThree(random) {
 function getMaxHp(state) { return Math.max(1, finite(state.maxHp, finite(state.hp, 1))); }
 export function hasStoneMask(state) { return Boolean(state?.permanentEffects?.some((effect) => effect.id === "stone_mask")); }
 
+export function applyRockLeeWeight(state, effect) {
+  if (effect?.id !== "rock_lee_weights") return effect;
+  const loss = Math.max(0, (state.spd ?? 0) - Math.floor((state.spd ?? 0) * .9));
+  state.spd = Math.max(0, state.spd - loss);
+  effect.spd = -loss;
+  effect.weightInitialSpdLoss = loss;
+  return effect;
+}
+
 export function createRunCharacterState(character, initialSkillId) {
   if (!character?.id) throw new TypeError("character with a stable id is required");
   const source = character.baseStats ?? {
@@ -158,8 +167,9 @@ export function claimTreasure(runState, sourceId, treasureId, recipientState, re
   recipientState.currentHp = Math.min(recipientState.currentHp, recipientState.maxHp);
   if (gains.critRateBonus) recipientState.critRate = Math.min(COMBAT_RULES.maxCritChance, recipientState.critRate + gains.critRateBonus);
   if (treasure.id === "angel_breath" && !(recipientState.divinePunishment?.battlesLeft > 0) && !hasStoneMask(recipientState)) recipientState.currentHp = recipientState.maxHp;
-  recipientState.permanentEffects.push({ id: treasure.id, name: treasure.name,
-    description: specialPreview?.description ?? repeatedTreasureDescription(treasure, multiplier, gains), sourceId, sourceLabel: "王之宝库奇遇", stageId: record.data.stageId ?? 1, acquisitionCount: recipientState.permanentEffects.filter((effect) => effect.id === treasureId).length + 1, ...gains });
+  const effect = { id: treasure.id, name: treasure.name,
+    description: specialPreview?.description ?? repeatedTreasureDescription(treasure, multiplier, gains), sourceId, sourceLabel: "王之宝库奇遇", stageId: record.data.stageId ?? 1, acquisitionCount: recipientState.permanentEffects.filter((effect) => effect.id === treasureId).length + 1, ...gains };
+  recipientState.permanentEffects.push(applyRockLeeWeight(recipientState, effect));
   offer.claimed = true;
   offer.treasureId = treasureId;
   offer.recipientId = recipientId;
@@ -308,7 +318,7 @@ export function getAvailableAdventureEventIds(runState, step = 1, partyStates = 
       state.learnedActiveSkills.some((id) => (state.skillLevels[id] ?? 0) >= 4))))
     && (eventId !== "coffee_shop" || eligible("anteiku", 1))
     && (eventId !== "anteiku_2" || eligible("anteiku", 2, stageId >= 2 && stageId <= 3 && Boolean(series.anteiku?.chapter2Unlocked)))
-    && (eventId !== "anteiku_3" || stageId === 3 && Boolean(series.anteiku?.chapter2Completed) && !series.anteiku?.chapter3Completed)
+    && eventId !== "anteiku_3"
     && (eventId !== "big_rock" || eligible("rock", 1))
     && (eventId !== "giant_rock_2" || eligible("rock", 2, stageId >= 2 && Boolean(series.rock?.chapter2Unlocked)))
     && (eventId !== "fall_rock" || (!runState.fallRockCompleted && runState.fallRockCount < ADVENTURE_EVENT_DATA.fall_rock.stages.length))
@@ -504,8 +514,15 @@ export function resolveCampfire(runState, sourceId, choiceId, skillId = null) {
   if (choiceId !== "skill_upgrade" || !options[1].enabled || !options[1].skills.some((entry) => entry.skillId === skillId)) return false;
   const skill = applySkillTraining(runState, skillId, `campfire:${sourceId}`);
   if (!skill) return false;
+  let capsuleRestored = 0;
+  if (runState.permanentEffects.some((effect) => effect.id === "universal_capsule") &&
+      !hasStoneMask(runState) && !(runState.divinePunishment?.battlesLeft > 0)) {
+    const before = runState.currentHp;
+    runState.currentHp = Math.min(runState.maxHp, before + Math.floor(runState.maxHp * .2));
+    capsuleRestored = runState.currentHp - before;
+  }
   runState.completedCampfires.push(sourceId);
-  return { choiceId, skill };
+  return { choiceId, skill, capsuleRestored, currentHp: runState.currentHp };
 }
 
 export function createBattleRewardOffer(runState, battleId, battleType = "normal", random = Math.random) {
@@ -605,7 +622,7 @@ export function createAdventureEventResult(runState, sourceId, eventId, random =
   if (eventId === "scroll" && !partyStates.some((state) => getUnlearnedActiveSkills(state).length)) return null;
   if (eventId === "fall_rock" && (runState.fallRockCompleted || runState.fallRockCount >= config.stages.length)) return null;
   if (eventId === "sea_beyond" && Object.values(runState.eventResults).some((event) => event.eventId === "sea_beyond")) return null;
-  if (["sea_beyond_2", "old_scroll_2", "anteiku_2", "anteiku_3", "giant_rock_2"].includes(eventId) &&
+  if (["sea_beyond_2", "old_scroll_2", "anteiku_2", "giant_rock_2"].includes(eventId) &&
     !getAvailableAdventureEventIds(runState, 1, partyStates, stageId).includes(eventId)) return null;
   const record = { sourceId, eventId, name: config.name, description: config.description, image: config.image, effectText: config.effectText, status: config.containsBattle ? "pending_battle" : "pending", type: config.type, containsBattle: config.containsBattle, data: { stageId } };
   if (eventId === "gamble" || eventId === "gamble_2") record.data = { stageId, phase: "recipient", round: 1, successCount: 0, rounds: [] };
@@ -1092,21 +1109,20 @@ export function grantAdventureSpecialReward(member, sourceId, rewardId) {
   if (!["drip_coffee", "six_ear_true_form"].includes(rewardId) ||
     !recordAction(member, makeActionKey(`special:${rewardId}`, sourceId))) return false;
   const reward = rewardId === "drip_coffee"
-    ? { id: rewardId, name: "挂耳咖啡", image: "assets/events/drip_coffee.png", description: "篝火恢复额外增加最大 HP 的 15%。" }
+    ? TREASURE_DATA.drip_coffee
     : { id: rewardId, name: "六耳真身", image: "assets/events/six_ear_true_form.png", description: "本局普通攻击和主动技能攻击无法被敌人闪避。" };
-  member.permanentEffects.push({ ...reward, sourceId });
-  return reward;
+  const effect = { ...reward, sourceId };
+  member.permanentEffects.push(effect);
+  return effect;
 }
 
 export function grantQuinque(member, sourceId, rewardId) {
   ensureRunState(member);
   if (!["quinque_guard", "quinque_crit"].includes(rewardId) ||
     !recordAction(member, makeActionKey("quinque", sourceId))) return false;
-  const reward = rewardId === "quinque_guard"
-    ? { id: rewardId, name: "库因克 · 防御", image: "assets/treasures/quinque-guard.png", description: "被普通攻击命中时，50% 概率抵挡一半伤害。" }
-    : { id: rewardId, name: "库因克 · 暴击", image: "assets/treasures/quinque-crit.png", description: "生命低于 60% 时暴击率增加 30 个百分点。" };
-  member.permanentEffects.push({ ...reward, sourceId });
-  return reward;
+  const effect = { ...TREASURE_DATA[rewardId], sourceId };
+  member.permanentEffects.push(effect);
+  return effect;
 }
 
 export function startAdventureBattle(runState, sourceId) {

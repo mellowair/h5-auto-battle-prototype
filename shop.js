@@ -1,6 +1,6 @@
 import { createSeededRandom } from "./routeMap.js";
 import { GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT, TREASURE_DATA } from "./skills.js";
-import { grantEliteSukunaFinger, grantGiantSpinalFluid, grantGunDevilFragment, hasStoneMask, learnActiveSkill, previewGrowingDrop } from "./progression.js";
+import { applyRockLeeWeight, grantAdventureSpecialReward, grantEliteSukunaFinger, grantGiantSpinalFluid, grantGunDevilFragment, grantQuinque, hasStoneMask, learnActiveSkill, previewGrowingDrop } from "./progression.js";
 import { SHOP_RULES } from "./shopConfig.js";
 
 export const SHOP_TREASURES = Object.freeze({ ...TREASURE_DATA,
@@ -17,14 +17,17 @@ export function essenceRewardForBattle(battle) {
 }
 
 function draw(random, items) { return items[Math.min(items.length - 1, Math.floor(random() * items.length))]; }
+const GROWING_SHOP_IDS = new Set(["sukuna_finger", "gun_devil_fragment", "giant_spinal_fluid"]);
+function shopPrice(item, category) { return item?.price ?? (GROWING_SHOP_IDS.has(item?.id) ? 20 : category.price); }
 
 export function refreshShopPrices(campaign) {
   for (const slot of campaign?.activeShop?.slots ?? []) {
-    const category = SHOP_RULES.categories.find((entry) => entry.id === slot.categoryId);
-    if (category) slot.price = category.id === "medicine"
-      ? SHOP_RULES.medicinePriceByStage[campaign.stageId] : category.price;
+    const category = SHOP_RULES.categories.find((entry) => entry.id === slot.categoryId)
+      ?? (slot.categoryId === "growing" ? { id: "growing", price: 20 } : null);
     const item = SHOP_TREASURES[slot.itemId] ?? SHOP_RULES.medicines.find((entry) => entry.id === slot.itemId)
       ?? SHOP_RULES.books.find((entry) => entry.id === slot.itemId);
+    if (category) slot.price = category.id === "medicine"
+      ? SHOP_RULES.medicinePriceByStage[campaign.stageId] : shopPrice(item, category);
     if (item?.image) slot.image = item.image;
     if (item) slot.placeholderArt = false;
   }
@@ -38,12 +41,13 @@ export function generateShopInventory(seed, stageId) {
     let roll = random() * totalWeight;
     const category = categories.find((entry) => (roll -= entry.weight) < 0) ?? categories.at(-1);
     const pool = category.id === "book" ? SHOP_RULES.books : category.id === "medicine" ? SHOP_RULES.medicines.filter((item) => item.stageId === stageId)
-      : category.ids.map((id) => SHOP_TREASURES[id]);
+      : category.ids.map((id) => SHOP_TREASURES[id]).filter((item) => item &&
+        (category.id !== "rare" || shopPrice(item, category) >= 30));
     const item = pool.length ? draw(random, pool) : null;
     return { index, categoryId: category.id, itemId: item?.id ?? null,
       name: item?.name ?? (category.id === "book" ? "技能书待配置" : "状态药物待配置"),
       image: item?.image ?? null, description: item?.description ?? "待配置／不可购买",
-      price: category.id === "medicine" ? SHOP_RULES.medicinePriceByStage[stageId] : category.price,
+      price: category.id === "medicine" ? SHOP_RULES.medicinePriceByStage[stageId] : shopPrice(item, category),
       available: Boolean(item), placeholderArt: ["book", "medicine"].includes(category.id), purchased: false };
   });
 }
@@ -55,7 +59,7 @@ export function previewShopItem(campaign, slot, recipientId = campaign?.playerId
   const count = member.permanentEffects?.filter((effect) => effect.id === slot.itemId).length ?? 0;
   const alreadyOwned = slot.categoryId === "medicine" && (campaign.shopMedicines ?? [])
     .some((effect) => effect.recipientId === recipientId && effect.id === slot.itemId && effect.battlesLeft > 0);
-  const growth = slot.categoryId === "growing" ? previewGrowingDrop(member, slot.itemId, 1) : null;
+  const growth = GROWING_SHOP_IDS.has(slot.itemId) ? previewGrowingDrop(member, slot.itemId, 1) : null;
   return { ...slot, ownedCount: count, alreadyOwned, recipientId,
     expectedGains: growth ? { atk: growth.atk, def: growth.def, maxHp: growth.maxHp } : null,
     fullDescription: growth ? `${item.description} 本次购买预计：${growth.description.replace(/^第 1 关/, "商店")}` : slot.description };
@@ -66,6 +70,8 @@ function grantTreasure(member, slot, sourceId, stageId) {
   if (slot.itemId === GIANT_SPINAL_FLUID.id) effect = grantGiantSpinalFluid(member, sourceId, 1);
   else if (slot.itemId === GUN_DEVIL_FRAGMENT.id) effect = grantGunDevilFragment(member, sourceId, 1);
   else if (slot.itemId === TREASURE_DATA.sukuna_finger.id) effect = grantEliteSukunaFinger(member, sourceId, 1);
+  else if (slot.itemId === "drip_coffee") effect = grantAdventureSpecialReward(member, sourceId, slot.itemId);
+  else if (["quinque_guard", "quinque_crit"].includes(slot.itemId)) effect = grantQuinque(member, sourceId, slot.itemId);
   else {
     const item = SHOP_TREASURES[slot.itemId];
     if (!item || member.consumedActions.includes(`shop-treasure:${sourceId}`)) return false;
@@ -78,13 +84,13 @@ function grantTreasure(member, slot, sourceId, stageId) {
     member.currentHp = Math.min(member.currentHp, member.maxHp);
     if (gains.critRateBonus) member.critRate = Math.min(1, member.critRate + gains.critRateBonus);
     if (item.id === "angel_breath" && !(member.divinePunishment?.battlesLeft > 0) && !hasStoneMask(member)) member.currentHp = member.maxHp;
-    effect = { ...item, ...gains, sourceId };
+    effect = applyRockLeeWeight(member, { ...item, ...gains, sourceId });
     member.permanentEffects.push(effect);
   }
   if (!effect) return false;
   effect.stageId = stageId;
   effect.sourceLabel = `第${stageId}关商店`;
-  if (slot.categoryId === "growing") effect.description = effect.description.replace(/^第 1 关/, "商店");
+  if (GROWING_SHOP_IDS.has(slot.itemId)) effect.description = effect.description.replace(/^第 1 关/, "商店");
   return effect;
 }
 

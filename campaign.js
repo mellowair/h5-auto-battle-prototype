@@ -21,6 +21,83 @@ const ROUTE_LENGTH = ROUTE_MAP_FINAL_STEP;
 // Balance adjustment for ordinary route battles in the first two stages only.
 const EARLY_NORMAL_ENEMY_STAT_SCALE = 0.9;
 const DINA_STAGE_GROWTH = 0.3;
+
+function applyVictoryTreasureGrowth(campaign) {
+  const battleId = campaign.currentBattle?.id ?? campaign.activeNode?.id;
+  if (!battleId) return;
+  for (const id of campaign.partyIds) {
+    const member = campaign.partyStates[id];
+    if (!member) continue;
+    for (const effect of member.permanentEffects ?? []) {
+      if (effect.id === "rock_lee_weights") {
+        const key = `rock-lee-win:${effect.sourceId}:${battleId}`;
+        if (member.consumedActions.includes(key)) continue;
+        member.consumedActions.push(key);
+        const gain = Math.min(10, Math.max(0, 100 - (effect.weightVictorySpdGain ?? 0)));
+        member.spd += gain;
+        effect.weightVictorySpdGain = (effect.weightVictorySpdGain ?? 0) + gain;
+        effect.spd = (effect.spd ?? 0) + gain;
+      }
+      if (effect.id === "dragon_radar") {
+        const key = `dragon-radar-win:${effect.sourceId}:${battleId}`;
+        if (member.consumedActions.includes(key)) continue;
+        member.consumedActions.push(key);
+        effect.winsSinceObtained = (effect.winsSinceObtained ?? 0) + 1;
+        if (effect.winsSinceObtained >= 7) {
+          effect.winsSinceObtained -= 7;
+          const pool = Object.values(TREASURE_DATA).filter((item) => item.tier === "small" && item.id !== "sukuna_finger").map((item) => item.id);
+          const choices = [];
+          while (choices.length < 3 && pool.length) choices.push(pool.splice(Math.floor(campaign.random() * pool.length), 1)[0]);
+          (campaign.pendingRadarOffers ??= []).push({ ownerId: id, sourceId: `dragon-radar:${effect.sourceId}:${battleId}`, choices });
+        }
+      }
+      if (effect.id === "hogyoku_fragment" &&
+          (campaign.currentBattle?.type === "elite" || campaign.activeNode?.resolution === "elite") &&
+          (effect.eliteTriggers ?? 0) < 10) {
+        const key = `hogyoku-elite:${effect.sourceId}:${battleId}`;
+        if (member.consumedActions.includes(key)) continue;
+        member.consumedActions.push(key);
+        effect.eliteTriggers = (effect.eliteTriggers ?? 0) + 1;
+        const stat = ["maxHp", "atk", "def", "spd"][Math.floor(campaign.random() * 4)];
+        const amount = stat === "maxHp" ? 100 : 10;
+        effect[stat] = (effect[stat] ?? 0) + amount;
+        (effect.hogyokuHistory ??= []).push({ battleId, stageId: campaign.stageId, stat, amount });
+        for (const recipientId of campaign.partyIds) {
+          const recipient = campaign.partyStates[recipientId];
+          if (!recipient) continue;
+          recipient[stat] += amount;
+          recipient.permanentEffects.push({ id: "hogyoku_growth", name: "崩玉碎片成长", sourceId: key,
+            sourceLabel: `${campaign.currentBattle.title ?? "精英"}战斗奖励`, stageId: campaign.stageId, [stat]: amount });
+        }
+      }
+    }
+  }
+  campaign.playerMaxHp = campaign.runCharacterState.maxHp;
+  campaign.playerHp = campaign.runCharacterState.currentHp;
+}
+
+export function getDragonRadarOffer(campaign) { return campaign?.pendingRadarOffers?.[0] ?? null; }
+
+export function claimDragonRadarOffer(campaign, treasureId) {
+  const offer = getDragonRadarOffer(campaign);
+  if (!offer?.choices.includes(treasureId)) return false;
+  const member = campaign.partyStates?.[offer.ownerId];
+  const treasure = TREASURE_DATA[treasureId];
+  if (!member || !treasure || treasure.tier !== "small") return false;
+  const sourceId = `${offer.sourceId}:reward`;
+  // The radar reuses the King's Treasury settlement, including repeat bonuses.
+  const record = { eventId: "kings_treasury", status: "awaiting_treasure", data: {
+    stageId: campaign.stageId, treasureOffer: { tier: "small", choices: offer.choices, claimed: false } } };
+  campaign.runCharacterState.eventResults[sourceId] = record;
+  const result = claimTreasure(campaign.runCharacterState, sourceId, treasureId, member, offer.ownerId);
+  if (!result) { delete campaign.runCharacterState.eventResults[sourceId]; return false; }
+  const effect = member.permanentEffects.at(-1);
+  if (effect?.sourceId === sourceId) effect.sourceLabel = "龙珠雷达七场胜利奖励";
+  campaign.pendingRadarOffers.shift();
+  campaign.playerHp = campaign.runCharacterState.currentHp;
+  campaign.playerMaxHp = campaign.runCharacterState.maxHp;
+  return result;
+}
 export const STAGE_TWO_STAT_UPGRADES = Object.freeze([
   { id: "maxHp", name: "最大生命 +100", value: 100 },
   { id: "atk", name: "攻击 +10", value: 10 },
@@ -354,6 +431,7 @@ export function prepareBattle(campaign) {
       damageReductionBonus: treasureModifiers.damageReduction, dodgeRateBonus: treasureModifiers.dodgeRateBonus,
       quinqueGuard: state.permanentEffects?.some((effect) => effect.id === "quinque_guard") ?? false,
       quinqueCrit: state.permanentEffects?.some((effect) => effect.id === "quinque_crit") ?? false,
+      shikonOverhealShield: state.permanentEffects?.some((effect) => effect.id === "shikon_fragment") ?? false,
       unavoidableAttack: treasureModifiers.unavoidableAttack,
       lifesteal: treasureModifiers.lifesteal, normalAttackCurrentHpRatio: treasureModifiers.normalAttackCurrentHpRatio,
       critChance: state.critRate, critMultiplier: state.critMultiplier,
@@ -572,12 +650,11 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
   }
   if (campaign.trialBattle) {
     const completedTrialBattle = campaign.currentBattle;
+    if (outcome === "victory") applyVictoryTreasureGrowth(campaign);
     const result = settleTrialBattle(campaign, outcome);
     if (outcome === "victory" && result) awardBattleEssence(campaign, completedTrialBattle);
-    if (outcome === "victory" && result?.status !== "trial_next_battle" &&
-        (result?.trialOutcome === "active" || result?.trialOutcome === "completed")) {
-      // One completed trial challenge restores 25% of each member's current
-      // maximum HP. The three divine-punishment fights remain one challenge.
+    if (outcome === "victory" && result?.trialOutcome === "completed") {
+      // Restore only after the final trial; carry current HP between tasks.
       for (const id of campaign.partyIds) {
         const state = campaign.partyStates[id];
         if (!state) continue;
@@ -597,6 +674,7 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
     return { status: "settlement", next: "defeat" };
   }
   if (campaign.currentBattle?.hiddenBoss) {
+    applyVictoryTreasureGrowth(campaign);
     campaign.hiddenBoss ??= { unlocked: true, storyShown: true, resolved: false, makimaCleared: false };
     campaign.playerHp = campaign.runCharacterState.currentHp;
     campaign.completedBattles += 1;
@@ -629,6 +707,7 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
     campaign.lastBattleRecovery.push({ characterId: id, kind: "angel_breath", restored: state.currentHp - before, currentHp: state.currentHp });
   }
   campaign.playerHp = campaign.runCharacterState.currentHp;
+  applyVictoryTreasureGrowth(campaign);
   campaign.completedBattles += 1;
   campaign.consecutiveWithoutBattle = 0;
   awardBattleEssence(campaign);
@@ -704,20 +783,6 @@ export function completeSettlement(campaign) {
       !campaign.devBattleOnly) {
     campaign.hiddenBoss ??= { unlocked: false, storyShown: false, resolved: false, makimaCleared: false };
     campaign.hiddenBoss.makimaCleared = true;
-    if (!campaign.hiddenBoss.resolved && !campaign.hiddenBoss.storyShown) {
-      const missing = Math.max(0, HIDDEN_BOSS_RULES.fragmentGoal - fragmentCount(campaign));
-      for (let index = 0; index < missing; index += 1) {
-        const effect = grantGunDevilFragment(campaign.runCharacterState, `makima-hidden-boss:${index + 1}`, campaign.stageId);
-        if (effect) effect.sourceLabel = "玛奇玛战后补足";
-      }
-      campaign.playerHp = campaign.runCharacterState.currentHp;
-      campaign.playerMaxHp = campaign.runCharacterState.maxHp;
-      campaign.hiddenBoss.unlocked = true;
-      campaign.hiddenBoss.storyShown = true;
-      campaign.status = "hidden_boss_intro";
-      campaign.currentBattle = null;
-      return campaign.status;
-    }
   }
   if (next === "victory" && campaign.stageId === 2 && campaign.currentBattle?.type === "boss" && !campaign.devBattleOnly) {
     campaign.step += 1;
@@ -733,42 +798,43 @@ export function completeSettlement(campaign) {
 }
 
 export function queueHiddenBossIntro(campaign) {
-  if (!campaign?.playerId || campaign.status !== "route" || campaign.devBattleOnly) return false;
+  if (!campaign?.playerId || !["route", "shop"].includes(campaign.status) || campaign.devBattleOnly) return false;
   campaign.hiddenBoss ??= { unlocked: false, storyShown: false, resolved: false, makimaCleared: false };
   if (campaign.hiddenBoss.storyShown || campaign.hiddenBoss.resolved ||
       fragmentCount(campaign) < HIDDEN_BOSS_RULES.fragmentGoal) return false;
   campaign.hiddenBoss.unlocked = true;
   campaign.hiddenBoss.storyShown = true;
+  campaign.hiddenBoss.introReturnStatus = campaign.status;
+  campaign.hiddenBoss.introPending = true;
   campaign.status = "hidden_boss_intro";
   return true;
 }
 
 export function deferHiddenBossChallenge(campaign) {
-  if (campaign?.status !== "hidden_boss_intro" || campaign.stageId <= 3 ||
-      !campaign.hiddenBoss?.unlocked || campaign.hiddenBoss.attempted) return false;
+  if (campaign?.status !== "hidden_boss_intro" || !campaign.hiddenBoss?.introPending ||
+      !campaign.hiddenBoss.unlocked || campaign.hiddenBoss.attempted) return false;
   campaign.hiddenBoss.deferred = true;
-  campaign.status = "route";
+  campaign.hiddenBoss.introPending = false;
+  campaign.status = campaign.hiddenBoss.introReturnStatus ?? "route";
   return true;
 }
 
 export function resumeHiddenBossAtCampfire(campaign) {
-  if (campaign?.stageId <= 3 || campaign?.status !== "event" ||
-      campaign.activeEventType !== "campfire" || !campaign.hiddenBoss?.deferred ||
+  if (campaign?.status !== "event" ||
+      campaign.activeEventType !== "campfire" || !campaign.hiddenBoss?.unlocked ||
       campaign.hiddenBoss.resolved || campaign.eventResolved) return false;
-  if (campaign.activeNode) {
-    campaign.activeNode.status = "completed";
-    campaign.activeNode.resolution = "hidden-boss";
-    campaign.history.push({ id: campaign.activeNode.id, step: campaign.step, stageId: campaign.stageId,
-      type: campaign.activeNode.type, resolution: "hidden-boss", status: "completed" });
-    campaign.activeNode = null;
-  }
+  if (!campaign.activeNode) return false;
+  campaign.activeNode.resolution = "hidden-boss";
+  if (!completeActiveNode(campaign)) return false;
   campaign.hiddenBoss.deferred = false;
+  campaign.hiddenBoss.introPending = false;
   campaign.status = "hidden_boss_intro";
   return true;
 }
 
 export function beginHiddenBossChallenge(campaign) {
-  if (campaign?.status !== "hidden_boss_intro" || !campaign.hiddenBoss?.unlocked || campaign.hiddenBoss.resolved) return false;
+  if (campaign?.status !== "hidden_boss_intro" || !campaign.hiddenBoss?.unlocked ||
+      campaign.hiddenBoss.introPending || campaign.hiddenBoss.resolved || campaign.hiddenBoss.attempted) return false;
   for (const id of campaign.partyIds) {
     const state = campaign.partyStates?.[id];
     if (state && !hasStoneMask(state)) state.currentHp = Math.min(state.maxHp,
@@ -818,7 +884,7 @@ export function getCampaignRewardOffer(campaign) {
   return campaign.runCharacterState.rewardOffers[campaign.rewardBattleId] ?? null;
 }
 
-function eliteDropId(campaign) {
+export function eliteDropId(campaign) {
   if (campaign?.currentBattle?.type !== "elite") return null;
   const enemies = campaign.currentBattle.enemies ?? [];
   if (enemies.includes("mahito") || enemies.includes("toji")) return "sukuna_finger";
@@ -1130,11 +1196,29 @@ export function chooseRoute(campaign, nodeId) {
         const partyStates = campaign.partyIds.map((id) => campaign.partyStates[id]);
         const eventId = chooseAdventureEventId(campaign.runCharacterState, campaign.random, campaign.step, partyStates, campaign.stageId);
         campaign.pendingEvent = createAdventureEventResult(campaign.runCharacterState, node.id, eventId, campaign.random, partyStates, campaign.stageId);
+        if (eventId === "anteiku_2") {
+          campaign.runCharacterState.eventSeries.anteiku ??= {};
+          campaign.runCharacterState.eventSeries.anteiku.chapter2Triggered = true;
+        }
       }
       node.resolution = campaign.pendingEvent.eventId;
     }
     campaign.eventResolved = false;
     campaign.status = "event";
+    const anteiku = campaign.runCharacterState.eventSeries.anteiku;
+    if (node.type === "campfire" && (anteiku?.chapter2Triggered || anteiku?.chapter2Completed) &&
+        !anteiku.chapter3Completed && !anteiku.arimaCampfireConsumed) {
+      campaign.activeEventType = "adventure";
+      campaign.pendingEvent = createAdventureEventResult(campaign.runCharacterState, node.id, "anteiku_3",
+        campaign.random, campaign.partyIds.map((id) => campaign.partyStates[id]), campaign.stageId);
+      if (!campaign.pendingEvent || !resolveCampaignEvent(campaign, "anteiku_arima"))
+        throw new Error("有马贵将篝火遭遇无法启动");
+      const battle = startCampaignEventBattle(campaign);
+      if (!battle) throw new Error("有马贵将篝火战斗无法启动");
+      anteiku.arimaCampfireConsumed = true;
+      node.resolution = "anteiku_arima";
+      return battle;
+    }
     return { type: "event", event: campaign.pendingEvent, symbol: node.type === "question" ? "?" : "campfire" };
   } catch (error) {
     campaign.routeMap.visitedEdges.length = previous.edgeCount;

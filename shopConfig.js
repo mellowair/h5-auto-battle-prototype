@@ -1,15 +1,14 @@
 // Shop balance and item definitions live here.
 export const SHOP_RULES = Object.freeze({
-  targetNodes: 2, minimumNodesBetweenShops: 3, slots: 5,
-  essence: Object.freeze({ normal: 1, elite: 3, boss: 5 }),
-  specialEssence: Object.freeze({ dina: 3, arima: 3, six_ear: 3, gilgamesh: 5 }),
+  targetNodes: 2, minimumNodesBetweenShops: 3, slots: 7,
+  essence: Object.freeze({ normal: 2, elite: 4, boss: 7 }),
+  specialEssence: Object.freeze({ dina: 4, arima: 4, six_ear: 4, gilgamesh: 7 }),
   medicinePriceByStage: Object.freeze({ 1: 1, 2: 2, 3: 3 }),
   categories: Object.freeze([
-    { id: "common", weight: 30, price: 15, ids: ["magic_conch", "odm_gear"] },
+    { id: "common", weight: 30, price: 15, ids: ["magic_conch", "odm_gear", "universal_capsule", "rock_lee_weights", "drip_coffee", "sukuna_finger", "gun_devil_fragment", "giant_spinal_fluid"] },
     { id: "medicine", weight: 30, price: null, ids: [] },
-    { id: "growing", weight: 20, price: 20, ids: ["sukuna_finger", "gun_devil_fragment", "giant_spinal_fluid"] },
-    { id: "book", weight: 10, price: 40, ids: [] },
-    { id: "rare", weight: 10, price: 40, ids: ["angel_breath", "stone_mask", "nichirin_blade"] },
+    { id: "rare", weight: 20, price: 40, ids: ["angel_breath", "stone_mask", "nichirin_blade", "dragon_radar", "hogyoku_fragment", "shikon_fragment", "quinque_crit", "quinque_guard"] },
+    { id: "book", weight: 20, price: 40, ids: [] },
   ]),
   // A future medicine has {id,name,image,description,battles:1|2,modifiers,stackable}.
   medicines: Object.freeze([1, 2, 3].flatMap((stageId) => ["atk", "def"].map((stat) => ({
@@ -19,8 +18,19 @@ export const SHOP_RULES = Object.freeze({
     battles: 1, modifiers: { [stat]: stageId * 10 + 10 }, stackable: false,
   })))),
   // A future book has {id,name,image,description,skillId,skillType,characterIds}.
-  books: Object.freeze([{ id: "iron_bell_book", name: "金钟罩铁布衫", image: "assets/shop/skill-book.png",
-    description: "被动技能：自身防御高于伤害来源时，将本次实际受到伤害的 50% 反弹给伤害来源。",
-    skillId: "iron-bell", skillType: "passive", characterIds: null }]),
+  books: Object.freeze([
+    { id: "iron_bell_book", name: "金钟罩铁布衫", image: "assets/shop/skill-book.png", effectImage: "assets/shop/iron-bell-effect.png", price: 40,
+      description: "被动技能：自身 DEF 高于目标时技能无视其 30% DEF；自身 DEF 高于伤害来源时仍反弹实际承伤的 50%。",
+      skillId: "iron-bell", skillType: "passive", characterIds: null },
+    { id: "armament_haki_book", name: "武装色霸气", image: "assets/shop/skill-book.png", effectImage: "assets/shop/armament-haki-effect.png", price: 30,
+      description: "被动技能：普通攻击按原攻击威力造成真实伤害。",
+      skillId: "armament-haki", skillType: "passive", characterIds: null },
+    { id: "heavenly_restriction_book", name: "天予咒缚", image: "assets/shop/skill-book.png", effectImage: "assets/shop/heavenly-restriction-effect.png", price: 40,
+      description: "被动技能：禁用其他主动技能，按实际禁用等级获得 ATK；速度高于目标时追加普通攻击。达到四次攻击后每行动一次休息一回合。",
+      skillId: "heavenly-restriction-book", skillType: "passive", characterIds: null },
+    { id: "undying_subspecies_book", name: "不死亚种", image: "assets/shop/skill-book.png", effectImage: "assets/shop/undying-subspecies-effect.png", price: 40,
+      description: "被动技能：每战首次致命伤害保留 1 HP，之后 3 回合无法通过行动恢复 HP。",
+      skillId: "undying-subspecies", skillType: "passive", characterIds: null },
+  ]),
   allowDuplicateItemsInShop: true,
 });

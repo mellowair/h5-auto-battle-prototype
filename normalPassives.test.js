@@ -82,7 +82,7 @@ test("a Gollum surviving five rounds steals up to five essence once without chan
     assert.equal(campaign.partyStates[id].spd, before[index].spd);
   }
   assert.equal(event.stolen, 3);
-  assert.equal(campaign.essence, 3, "the normal victory returns one essence after the theft");
+  assert.equal(campaign.essence, 4, "the elite victory returns four essence after the theft");
   assert.equal(campaign.essenceHistory.find((entry) => entry.reason === "gollum").amount, -3);
 });
 
