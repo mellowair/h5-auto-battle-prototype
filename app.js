@@ -2937,7 +2937,7 @@ function playEvent(event, finish) {
       timer = window.setTimeout(() => {
         timer = null;
         const flask = fighter && targetFighter && launchTrialProjectile(fighter, targetFighter,
-          actor?.projectileAsset, scaled(560));
+          actor?.projectileAsset, playbackDelay(560));
         flask?.classList.add("swamp-flask-projectile");
         timer = window.setTimeout(() => {
           timer = null;
@@ -2950,9 +2950,9 @@ function playEvent(event, finish) {
           if (fighter && actor) startIdleCycle(fighter, actor);
           addLog(`<b>${actor?.name ?? "沼气巨人"}</b> 投掷 <span class="skill-name">毒气药剂</span>，全体存活友方中毒 +1 层。`, "log-enemy");
           finish();
-        }, scaled(560));
-      }, scaled(180));
-    }, scaled(400));
+        }, playbackDelay(560));
+      }, playbackDelay(180));
+    }, playbackDelay(400));
     return;
   }
   if (event.type === "eternity-growth") {
@@ -2964,7 +2964,7 @@ function playEvent(event, finish) {
       visual.style.setProperty("--visual-scale", String(baseScale * event.scaleFactor));
     }
     addLog(`<span class="round-label">R${event.round}</span> <b>永恒恶魔</b> 持续膨胀。`, "log-enemy");
-    timer = window.setTimeout(() => { timer = null; finish(); }, scaled(520));
+    timer = window.setTimeout(() => { timer = null; finish(); }, playbackDelay(520));
     return;
   }
   if (event.type === "eternity-suffocation") {

@@ -694,6 +694,7 @@ h2 { margin: 0; color: #3a455c; font-size: 11px; font-weight: 900; }
 
 /* Opening city and hero selection */
 .intro-screen.intro-city { min-height: min(82vh, 680px); padding: 0; background: #02030a; border-color: #171a2b; }
+.entry-screen .entry-version { position: absolute; left: max(8px, env(safe-area-inset-left)); bottom: max(8px, env(safe-area-inset-bottom)); z-index: 5; color: #536176; opacity: .85; font: 600 9px Consolas, monospace; pointer-events: none; }
 .city-sky { position: absolute; inset: 0; overflow: hidden; background: #02030a; }
 .city-panorama { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 58%; image-rendering: pixelated; opacity: 0; filter: saturate(.9) brightness(.72); transition: opacity var(--opening-reveal-duration, 1600ms) ease-out, filter var(--opening-reveal-duration, 1600ms) ease-out; }
 .opening-lights .city-panorama { opacity: .12; filter: saturate(.9) brightness(.24); }
@@ -716,7 +717,7 @@ h2 { margin: 0; color: #3a455c; font-size: 11px; font-weight: 900; }
 .starter-card img { width: 92px; height: 115px; object-fit: contain; object-position: center bottom; image-rendering: pixelated; filter: drop-shadow(0 2px 1px rgba(14,20,35,.16)); }
 .starter-card b { font-size: 12px; }.starter-card span { color: #8a9287; font-size: 9px; }
 .character-select-screen .intro-start { margin-top: 21px; }
-.entry-screen { min-height: min(82vh, 680px); display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; padding: 22px 12px; color: var(--navy); text-align: center; background: #f6f3e8; border: 2px solid #26324b; border-radius: 10px; }
+.entry-screen { position: relative; min-height: min(82vh, 680px); display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; padding: 22px 12px; color: var(--navy); text-align: center; background: #f6f3e8; border: 2px solid #26324b; border-radius: 10px; }
 .entry-stage { position: relative; width: 100%; height: 330px; display: grid; place-items: end center; overflow: hidden; }
 .entry-actor { position: absolute; bottom: 18px; z-index: 2; width: 142px; height: 178px; display: grid; place-items: center; transform: translateY(-600px); }
 .entry-actor.has-landed { transform: translateY(0); }
