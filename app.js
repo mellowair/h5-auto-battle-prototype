@@ -5193,7 +5193,9 @@ function renderBattleReward() {
         $("#decision-copy").textContent = `${item.description} 领取未完成，请再次点击确认领取；若仍无法继续，请截取此处提示。`;
         return false;
       }
-      updateProgressionDisplays(); renderRoute(); return true;
+      updateProgressionDisplays();
+      if (result.phase === "bonus") renderBattleReward(); else renderRoute();
+      return true;
     }, "ACT 03 · ELITE REWARD", item.image, { portraitCards: true });
     return;
   }

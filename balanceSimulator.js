@@ -43,7 +43,14 @@ function applyReward(campaign, stats) {
     if (!second) throw new Error("Could not apply simulated elite reward");
     stats.eliteBonuses += 1;
   } else if (first.phase === "elite_drop") {
-    if (!claimCampaignEliteDrop(campaign, campaign.playerId)) throw new Error("Could not claim simulated elite drop");
+    const drop = claimCampaignEliteDrop(campaign, campaign.playerId);
+    if (!drop) throw new Error("Could not claim simulated elite drop");
+    if (drop.phase === "bonus") {
+      const skillId = offer.upgradeableSkills[0];
+      if (!claimCampaignReward(campaign, "skill_upgrade", null, skillId))
+        throw new Error("Could not apply simulated elite skill after item drop");
+      stats.eliteBonuses += 1;
+    }
   }
 }
 

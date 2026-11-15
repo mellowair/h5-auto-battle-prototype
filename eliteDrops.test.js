@@ -75,10 +75,17 @@ test("Swamp Giant awards one Giant Spinal Fluid through the elite reward flow", 
     def: campaign.runCharacterState.def };
   const claim = claimCampaignEliteDrop(campaign, "naruto");
   assert.equal(claim.effect.id, "giant_spinal_fluid");
+  assert.equal(claim.phase, "bonus", "the treasure must be additional to the usual elite skill reward");
+  assert.equal(campaign.rewardPhase, "bonus");
   assert.equal(campaign.runCharacterState.maxHp, before.maxHp + 150);
   assert.equal(campaign.runCharacterState.currentHp, Math.min(before.maxHp + 150, before.currentHp + 150));
   assert.equal(campaign.runCharacterState.def, before.def + 20);
   assert.equal(claimCampaignEliteDrop(campaign, "naruto"), false);
+  const skillId = offer.upgradeableSkills[0];
+  const oldLevel = campaign.runCharacterState.skillLevels[skillId] ?? 1;
+  assert.equal(claimCampaignReward(campaign, "skill_upgrade", null, skillId).phase, "complete");
+  assert.equal(campaign.runCharacterState.skillLevels[skillId], oldLevel + 1);
+  assert.equal(campaign.status, "route");
 });
 
 test("Mahito drop remains claimable when the hero has no skills left to upgrade", () => {
