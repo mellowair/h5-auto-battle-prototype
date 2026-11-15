@@ -93,8 +93,10 @@ function resolveEvent(campaign, stats) {
     else if (event.eventId === "anteiku_2") choice = "anteiku_leave";
     else if (event.eventId === "big_rock") choice = "rock_bypass";
     else if (event.eventId === "giant_rock_2") choice = "rock_avoid_again";
-    else if (event.eventId === "death_note") choice = "death_note_open";
-    else if (event.eventId === "fate_gate") choice = "fate_accept";
+    else if (event.eventId === "death_note") choice = "death_temptation";
+    else if (event.eventId === "death_note_2") choice = "death_nothing";
+    else if (event.eventId === "fate_gate") choice = "fate_continue";
+    else if (event.eventId === "fate_gate_2") choice = "fate_vip";
     else if (["learn_skill", "skill_upgrade"].includes(event.type)) choice = event.data.skillChoices[0] ?? "scroll_leave";
     if (["stat_choice", "curse"].includes(event.type)) choice = chooseStat(event.data.statChoices);
     if (event.eventId !== "sea_beyond") {

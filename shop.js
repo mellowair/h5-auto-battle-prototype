@@ -20,7 +20,40 @@ function draw(random, items) { return items[Math.min(items.length - 1, Math.floo
 const GROWING_SHOP_IDS = new Set(["sukuna_finger", "gun_devil_fragment", "giant_spinal_fluid"]);
 function shopPrice(item, category) {
   if (category.id === "book" && item?.price == null) return null;
-  return item?.price ?? (GROWING_SHOP_IDS.has(item?.id) ? 20 : category.price);
+  return item?.price ?? (item?.grade === "legendary" ? 40 : item?.grade === "rare" ? 20
+    : GROWING_SHOP_IDS.has(item?.id) ? 20 : category.price);
+}
+
+const VIP_RULES = Object.freeze({ vip_card: { multiplier: .8, purchases: 3, shops: 2 },
+  premium_vip_card: { multiplier: .6, purchases: 5, shops: 4 } });
+
+export function activateVipCard(campaign, itemId) {
+  const rule = VIP_RULES[itemId];
+  if (!campaign || !rule) return false;
+  campaign.shopDiscount = { type: itemId, multiplier: rule.multiplier, usedPurchases: 0,
+    enteredShops: 0, acquiredShopId: campaign.status === "shop" ? campaign.activeShop?.nodeId : null,
+    countedShopIds: [], expired: false };
+  refreshShopPrices(campaign);
+  return campaign.shopDiscount;
+}
+
+export function registerShopEntry(campaign, nodeId) {
+  const vip = campaign?.shopDiscount;
+  if (vip && !vip.expired && nodeId !== vip.acquiredShopId && !vip.countedShopIds.includes(nodeId)) {
+    vip.countedShopIds.push(nodeId);
+    vip.enteredShops += 1;
+    if (vip.enteredShops >= VIP_RULES[vip.type].shops) vip.expired = true;
+  }
+  const ticket = campaign?.vipTrialTicket;
+  if (ticket && !ticket.used && !ticket.shopId) ticket.shopId = nodeId;
+  refreshShopPrices(campaign);
+}
+
+function activeDiscount(campaign) {
+  const ticket = campaign?.vipTrialTicket;
+  if (ticket && !ticket.used && ticket.shopId === campaign?.activeShop?.nodeId) return { kind: "ticket", multiplier: .6 };
+  const vip = campaign?.shopDiscount;
+  return vip && !vip.expired ? { kind: "card", multiplier: vip.multiplier } : { kind: null, multiplier: 1 };
 }
 
 export function refreshShopPrices(campaign) {
@@ -29,8 +62,11 @@ export function refreshShopPrices(campaign) {
       ?? (slot.categoryId === "growing" ? { id: "growing", price: 20 } : null);
     const item = SHOP_TREASURES[slot.itemId] ?? SHOP_RULES.medicines.find((entry) => entry.id === slot.itemId)
       ?? SHOP_RULES.books.find((entry) => entry.id === slot.itemId);
-    if (category) slot.price = category.id === "medicine"
-      ? SHOP_RULES.medicinePriceByStage[campaign.stageId] : shopPrice(item, category);
+    if (category) {
+      slot.basePrice = category.id === "medicine"
+        ? SHOP_RULES.medicinePriceByStage[campaign.stageId] : shopPrice(item, category);
+      slot.price = Math.ceil(slot.basePrice * activeDiscount(campaign).multiplier);
+    }
     if (item?.image) slot.image = item.image;
     if (item) slot.placeholderArt = false;
   }
@@ -44,8 +80,8 @@ export function generateShopInventory(seed, stageId) {
     const available = categories.map((category) => ({ category,
       pool: (category.id === "book" ? SHOP_RULES.books : category.id === "medicine" ? SHOP_RULES.medicines.filter((item) => item.stageId === stageId)
         : category.ids.map((id) => SHOP_TREASURES[id]).filter((item) => item &&
-          (category.id !== "rare" || shopPrice(item, category) >= 30)))
-        .filter((item) => !selectedIds.has(item.id) && Number.isFinite(shopPrice(item, category)))
+          (!["common", "rare", "legendary"].includes(category.id) || item.grade === category.id)))
+        .filter((item) => !selectedIds.has(item.id) && (category.id === "medicine" || Number.isFinite(shopPrice(item, category))))
     })).filter((entry) => entry.pool.length > 0);
     if (!available.length) throw new Error("商店可用商品不足 7 件");
     const totalWeight = available.reduce((sum, entry) => sum + entry.category.weight, 0);
@@ -116,9 +152,11 @@ export function buyShopItem(campaign, index, recipientId = campaign?.playerId) {
       (slot.categoryId === "medicine" && (campaign.shopMedicines ?? []).some((effect) =>
         effect.recipientId === recipientId && effect.id === slot.itemId && effect.battlesLeft > 0)) ||
       !Number.isFinite(slot.price) || slot.price <= 0 || (campaign.essence ?? 0) < slot.price) return false;
+  const chargedPrice = slot.price;
   const sourceId = `shop:${campaign.stageId}:${campaign.activeShop.nodeId}:${index}`;
   let result;
-  if (["common", "growing", "rare"].includes(slot.categoryId)) result = grantTreasure(member, slot, sourceId, campaign.stageId);
+  const discount = activeDiscount(campaign);
+  if (["common", "growing", "rare", "legendary"].includes(slot.categoryId)) result = grantTreasure(member, slot, sourceId, campaign.stageId);
   else if (slot.categoryId === "book") {
     const book = SHOP_RULES.books.find((item) => item.id === slot.itemId);
     if (book && (!book.characterIds || book.characterIds.includes(recipientId))) {
@@ -142,11 +180,22 @@ export function buyShopItem(campaign, index, recipientId = campaign?.playerId) {
     }
   }
   if (!result) return false;
-  campaign.essence -= slot.price;
+  campaign.essence -= chargedPrice;
   slot.purchased = true;
+  if (slot.itemId === "vip_card" || slot.itemId === "premium_vip_card") {
+    if (discount.kind === "ticket") campaign.vipTrialTicket.used = true;
+    activateVipCard(campaign, slot.itemId);
+  }
+  else if (discount.kind === "ticket") { campaign.vipTrialTicket.used = true; refreshShopPrices(campaign); }
+  else if (discount.kind === "card") {
+    const vip = campaign.shopDiscount;
+    vip.usedPurchases += 1;
+    if (vip.usedPurchases >= VIP_RULES[vip.type].purchases) vip.expired = true;
+    refreshShopPrices(campaign);
+  }
   const gains = slot.categoryId === "medicine" ? result.modifiers ?? {} :
     Object.fromEntries(["atk", "def", "maxHp"].filter((key) => result[key]).map((key) => [key, result[key]]));
-  campaign.activeShop.purchases.push({ index, itemId: slot.itemId, recipientId, price: slot.price,
+  campaign.activeShop.purchases.push({ index, itemId: slot.itemId, recipientId, price: chargedPrice,
     stageId: campaign.stageId, gains, effect: slot.categoryId === "book" ? result.description : null });
   campaign.playerHp = campaign.runCharacterState.currentHp;
   campaign.playerMaxHp = campaign.runCharacterState.maxHp;

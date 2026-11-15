@@ -5,9 +5,10 @@ export const SHOP_RULES = Object.freeze({
   specialEssence: Object.freeze({ dina: 4, arima: 4, six_ear: 4, gilgamesh: 7 }),
   medicinePriceByStage: Object.freeze({ 1: 1, 2: 2, 3: 3 }),
   categories: Object.freeze([
-    { id: "common", weight: 30, price: 15, ids: ["magic_conch", "odm_gear", "universal_capsule", "rock_lee_weights", "drip_coffee", "sukuna_finger", "gun_devil_fragment", "giant_spinal_fluid"] },
+    { id: "common", weight: 30, price: 15, ids: ["magic_conch", "odm_gear", "universal_capsule", "rock_lee_weights", "drip_coffee", "vip_card"] },
     { id: "medicine", weight: 30, price: null, ids: [] },
-    { id: "rare", weight: 20, price: 40, ids: ["angel_breath", "stone_mask", "nichirin_blade", "dragon_radar", "hogyoku_fragment", "shikon_fragment", "quinque_crit", "quinque_guard"] },
+    { id: "rare", weight: 10, price: 20, ids: ["sukuna_finger", "gun_devil_fragment", "giant_spinal_fluid"] },
+    { id: "legendary", weight: 10, price: 40, ids: ["angel_breath", "stone_mask", "nichirin_blade", "dragon_radar", "hogyoku_fragment", "shikon_fragment", "quinque_crit", "quinque_guard", "premium_vip_card"] },
     { id: "book", weight: 20, price: 40, ids: [] },
   ]),
   // A future medicine has {id,name,image,description,battles:1|2,modifiers,stackable}.

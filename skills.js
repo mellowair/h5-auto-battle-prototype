@@ -372,8 +372,10 @@ export const ADVENTURE_EVENT_DATA = {
   anteiku_2: { id: "anteiku_2", name: "安定区", type: "anteiku_sequel", description: "再次回来时，街区已经被封锁，年迈的店长告诉你，平静的日子已经一去不返。", image: "assets/events/event_anteiku_2.png", effectText: "你将如何选择？", containsBattle: false, providesReward: true, requiresChoice: true },
   anteiku_3: { id: "anteiku_3", name: "安定区", type: "anteiku_final", description: "封锁后的安定区传来脚步声，白色死神站在街道尽头。", image: "assets/events/event_anteiku_3.png", effectText: "你将如何选择？", containsBattle: false, providesReward: true, requiresChoice: true },
   giant_rock_2: { id: "giant_rock_2", name: "路遇巨石", type: "rock_sequel", description: "兜兜转转又是这块巨石，你听到了巨石下有窸窸窣窣的声音。", image: "assets/events/event_giant_rock_2.png", effectText: "你将如何选择？", containsBattle: false, providesReward: true, requiresChoice: true },
-  death_note: { id: "death_note", name: "死亡笔记", type: "death_note", description: "一本散发着不祥气息的笔记本……要不要打开看看呢？", image: "assets/events/event_death_note.png", effectText: "打开后可能招来厄运，也可能获得力量；效果持续两场战斗，并显示在状态栏。", containsBattle: false, providesReward: true, requiresChoice: true },
-  fate_gate: { id: "fate_gate", name: "命运石之门", type: "guaranteed_skill", description: "这一切都是命运石之门的选择！", image: "assets/events/event_fate_gate.png", effectText: "下一场战斗中随机强化一个已学习且可触发的技能，使其触发率提升至 100%。", containsBattle: false, providesReward: false, requiresChoice: true },
+  death_note: { id: "death_note", name: "死亡笔记（1）", type: "death_note", description: "一本散发着不祥气息的笔记本……", image: "assets/events/event_death_note.png", effectText: "选择走向光明，或收起笔记等待下一次相遇。", containsBattle: false, providesReward: true, requiresChoice: true },
+  death_note_2: { id: "death_note_2", name: "死亡笔记（2）", type: "death_note", description: "死神再次向你伸出手。", image: "assets/events/event_death_note.png", effectText: "选择走向光明、读万卷书，或恢复生命。", containsBattle: false, providesReward: true, requiresChoice: true },
+  fate_gate: { id: "fate_gate", name: "命运石之门（1）", type: "fate_gate", description: "这一切都是命运石之门的选择！", image: "assets/events/event_fate_gate.png", effectText: "开始一次随机实验，或继续等待下一次实验。", containsBattle: false, providesReward: true, requiresChoice: true },
+  fate_gate_2: { id: "fate_gate_2", name: "命运石之门（2）", type: "fate_gate", description: "实验的其他可能性出现在眼前。", image: "assets/events/event_fate_gate.png", effectText: "选择剩余的实验结果，或领取临时高级 VIP 体验券。", containsBattle: false, providesReward: true, requiresChoice: true },
   fall_rock: {
     id: "fall_rock", name: "酋长岩意外", type: "max_hp_loss", description: "你突然决定去酋长岩 free solo，不慎摔落……",
     image: "assets/events/event_fall_rock.png", effectText: "最大生命值上限降低 5%，当前生命不变（超过新上限时会受限）。",
@@ -417,32 +419,34 @@ export const ADVENTURE_EVENT_DATA = {
 };
 
 export const GIANT_SPINAL_FLUID = Object.freeze({
-  id: "giant_spinal_fluid", name: "巨人脊髓液", image: "assets/events/giant_spinal_fluid.png",
+  id: "giant_spinal_fluid", name: "巨人脊髓液", grade: "rare", price: 20, image: "assets/events/giant_spinal_fluid.png",
   description: "第一关基础 DEF +20、最大 HP +150，并立即恢复等量 HP。每跨一关及每重复获取一次，本次正属性收益各增加基础值的 20%。", atk: 0, def: 20, maxHp: 150,
 });
 
 export const GUN_DEVIL_FRAGMENT = Object.freeze({
-  id: "gun_devil_fragment", name: "枪魔碎片", image: "assets/treasures/gun-devil-fragment.png",
+  id: "gun_devil_fragment", name: "枪魔碎片", grade: "rare", price: 20, image: "assets/treasures/gun-devil-fragment.png",
   description: "第一关基础最大 HP +200，并立即恢复等量 HP。每跨一关及每重复获取一次，本次收益各增加基础值的 20%。", maxHp: 200,
 });
 
 // King's Treasury rewards are data only; their effects are applied by the
 // existing run-character and battle-state rules.
 export const TREASURE_DATA = Object.freeze({
-  magic_conch: { id: "magic_conch", tier: "small", name: "神奇海螺", image: "assets/treasures/magic-conch.png", description: "本局可减免的战斗伤害减免 +5 个百分点。", damageReduction: 0.05 },
-  sukuna_finger: { id: "sukuna_finger", tier: "small", name: "宿傩手指", image: "assets/treasures/sukuna-finger.png", description: "第一关基础 ATK +30，最大 HP -150；每跨一关及每重复获取一次，ATK 收益各增加基础值的 20%，最大 HP 代价不变。", atk: 30, maxHp: -150 },
-  odm_gear: { id: "odm_gear", tier: "small", name: "立体机动装置", image: "assets/treasures/odm-gear-transparent.png", description: "本局闪避率 +5 个百分点，暴击率 +5 个百分点。", dodgeRateBonus: 0.05, critRateBonus: 0.05 },
-  universal_capsule: { id: "universal_capsule", tier: "small", name: "万能胶囊", image: "assets/treasures/universal-capsule.png", description: "每次在篝火实际选择升级技能时，恢复自身最大 HP 的 20%。" },
-  rock_lee_weights: { id: "rock_lee_weights", tier: "small", name: "洛克李的负重", image: "assets/treasures/rock-lee-weights.png", description: "获得时当前 SPD 降低 10%；此后每场胜利 SPD +10，胜利成长最多累计 +100。" },
-  drip_coffee: { id: "drip_coffee", tier: "shop_only", name: "挂耳咖啡", image: "assets/treasures/drip-coffee.png", price: 15, description: "篝火恢复额外增加最大 HP 的 15%。" },
-  angel_breath: { id: "angel_breath", tier: "royal", name: "大天使的气息", image: "assets/treasures/angel-breath.png", description: "立即回满 HP；此后每场战斗结束恢复最大 HP 的 20%。", battleEndHealRatio: 0.20 },
-  stone_mask: { id: "stone_mask", tier: "royal", name: "石鬼面", image: "assets/treasures/stone-mask.png", description: "本局吸血 +25 个百分点；持有者只能通过吸血恢复 HP，篝火、治疗和关卡结算均无法回血。", lifesteal: 0.25, blocksCampfireHeal: true },
-  nichirin_blade: { id: "nichirin_blade", tier: "royal", name: "日轮刀", image: "assets/treasures/nichirin-blade.png", description: "每次伤害命中后，额外造成目标剩余当前 HP 的 10% 真实伤害，不会再次触发自身。", normalAttackCurrentHpRatio: 0.10 },
-  dragon_radar: { id: "dragon_radar", tier: "royal", name: "龙珠雷达", image: "assets/treasures/dragon-radar.png", description: "获得后每累计 7 场战斗胜利，从 3 件普通宝物中选择 1 件。" },
-  hogyoku_fragment: { id: "hogyoku_fragment", tier: "royal", name: "崩玉碎片", image: "assets/treasures/hogyoku-fragment.png", description: "每击败一名精英，全队随机获得最大 HP +100、ATK +10、DEF +10 或 SPD +10；最多触发 10 次。" },
-  shikon_fragment: { id: "shikon_fragment", tier: "royal", name: "四魂之玉碎片", image: "assets/treasures/shikon-fragment.png", description: "当前战斗中超过最大 HP 的治疗量转化为护盾，不重复计入 HP 回复。" },
-  quinque_crit: { id: "quinque_crit", tier: "shop_only", name: "库因克-暴击", image: "assets/treasures/quinque-crit.png", price: 40, description: "生命低于 60% 时暴击率增加 30 个百分点。" },
-  quinque_guard: { id: "quinque_guard", tier: "shop_only", name: "库因克-格挡", image: "assets/treasures/quinque-guard.png", price: 40, description: "被普通攻击命中时，50% 概率抵挡一半伤害。" },
+  magic_conch: { id: "magic_conch", grade: "common", name: "神奇海螺", image: "assets/treasures/magic-conch.png", description: "本局可减免的战斗伤害减免 +5 个百分点。", damageReduction: 0.05 },
+  sukuna_finger: { id: "sukuna_finger", grade: "rare", price: 20, name: "宿傩手指", image: "assets/treasures/sukuna-finger.png", description: "第一关基础 ATK +30，最大 HP -150；每跨一关及每重复获取一次，ATK 收益各增加基础值的 20%，最大 HP 代价不变。", atk: 30, maxHp: -150 },
+  odm_gear: { id: "odm_gear", grade: "common", name: "立体机动装置", image: "assets/treasures/odm-gear-transparent.png", description: "本局闪避率 +5 个百分点，暴击率 +5 个百分点。", dodgeRateBonus: 0.05, critRateBonus: 0.05 },
+  universal_capsule: { id: "universal_capsule", grade: "common", name: "万能胶囊", image: "assets/treasures/universal-capsule.png", description: "每次在篝火实际选择升级技能时，恢复自身最大 HP 的 20%。" },
+  rock_lee_weights: { id: "rock_lee_weights", grade: "common", name: "洛克李的负重", image: "assets/treasures/rock-lee-weights.png", description: "获得时当前 SPD 降低 10%；此后每场胜利 SPD +10，胜利成长最多累计 +100。" },
+  drip_coffee: { id: "drip_coffee", grade: "common", name: "挂耳咖啡", image: "assets/treasures/drip-coffee.png", price: 15, description: "篝火恢复额外增加最大 HP 的 15%。" },
+  angel_breath: { id: "angel_breath", grade: "legendary", name: "大天使的气息", image: "assets/treasures/angel-breath.png", description: "立即回满 HP；此后每场战斗结束恢复最大 HP 的 20%。", battleEndHealRatio: 0.20 },
+  stone_mask: { id: "stone_mask", grade: "legendary", name: "石鬼面", image: "assets/treasures/stone-mask.png", description: "本局吸血 +25 个百分点；持有者只能通过吸血恢复 HP，篝火、治疗和关卡结算均无法回血。", lifesteal: 0.25, blocksCampfireHeal: true },
+  nichirin_blade: { id: "nichirin_blade", grade: "legendary", name: "日轮刀", image: "assets/treasures/nichirin-blade.png", description: "每次伤害命中后，额外造成目标剩余当前 HP 的 10% 真实伤害，不会再次触发自身。", normalAttackCurrentHpRatio: 0.10 },
+  dragon_radar: { id: "dragon_radar", grade: "legendary", name: "龙珠雷达", image: "assets/treasures/dragon-radar.png", description: "获得后每累计 7 场战斗胜利，从 3 件普通宝物中选择 1 件。" },
+  hogyoku_fragment: { id: "hogyoku_fragment", grade: "legendary", name: "崩玉碎片", image: "assets/treasures/hogyoku-fragment.png", description: "每击败一名精英，全队随机获得最大 HP +100、ATK +10、DEF +10 或 SPD +10；最多触发 10 次。" },
+  shikon_fragment: { id: "shikon_fragment", grade: "legendary", name: "四魂之玉碎片", image: "assets/treasures/shikon-fragment.png", description: "当前战斗中超过最大 HP 的治疗量转化为护盾，不重复计入 HP 回复。" },
+  quinque_crit: { id: "quinque_crit", grade: "legendary", name: "库因克-暴击", image: "assets/treasures/quinque-crit.png", price: 40, description: "生命低于 60% 时暴击率增加 30 个百分点。" },
+  quinque_guard: { id: "quinque_guard", grade: "legendary", name: "库因克-格挡", image: "assets/treasures/quinque-guard.png", price: 40, description: "被普通攻击命中时，50% 概率抵挡一半伤害。" },
+  vip_card: { id: "vip_card", grade: "common", name: "VIP卡", image: "assets/treasures/vip-card.png", price: 15, description: "商店所有商品八折，折扣购买3件商品或后续进入2次商店后失效。" },
+  premium_vip_card: { id: "premium_vip_card", grade: "legendary", name: "高级VIP卡", image: "assets/treasures/vip-card-premium.png", price: 40, description: "商店所有商品六折，折扣购买5件商品或后续进入4次商店后失效。" },
 });
 
 export const ELITE_BONUS_REWARDS = [

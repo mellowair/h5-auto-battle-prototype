@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { simulateBattle } from "./battle.js";
 import { beginHiddenBossChallenge, completeSettlement, createCampaign, deferHiddenBossChallenge,
-  finishBattle, prepareBattle, queueHiddenBossIntro, resumeHiddenBossAtCampfire } from "./campaign.js";
+  finishBattle, prepareBattle, queueHiddenBossIntro, resolveCampaignEvent,
+  resumeHiddenBossAtCampfire } from "./campaign.js";
 import { STARTING_CHARACTERS } from "./characters.js";
 import { fragmentCount, GUN_DEVIL, hiddenBossShotLayout, HIDDEN_BOSS_RULES, YORU } from "./hiddenBoss.js";
 import { createRunCharacterState } from "./progression.js";
@@ -72,6 +73,24 @@ test("the story leads to a campfire challenge without repeating", () => {
   assert.equal(campaign.status, "hidden_boss_intro");
   assert.equal(campaign.history.at(-1).resolution, "hidden-boss");
   assert.equal(resumeHiddenBossAtCampfire(campaign), false);
+});
+
+test("a deferred fragment challenge remains available after resting at a campfire", () => {
+  const campaign = campaignAtMakima();
+  campaign.status = "route";
+  campaign.runCharacterState.permanentEffects.push(...Array.from({ length: 4 }, () => ({ id: "gun_devil_fragment" })));
+  assert.equal(queueHiddenBossIntro(campaign), true);
+  assert.equal(deferHiddenBossChallenge(campaign), true);
+  campaign.status = "event";
+  campaign.activeEventType = "campfire";
+  campaign.activeNode = { id: "first-campfire", type: "campfire", status: "in_progress" };
+  assert.ok(resolveCampaignEvent(campaign, "rest"));
+  assert.equal(campaign.hiddenBoss.unlocked, true);
+  assert.equal(campaign.hiddenBoss.resolved, false);
+  campaign.activeNode = { id: "next-campfire", type: "campfire", status: "in_progress" };
+  campaign.eventResolved = false;
+  assert.equal(resumeHiddenBossAtCampfire(campaign), true);
+  assert.equal(beginHiddenBossChallenge(campaign), true);
 });
 
 test("one continuous battle carries bullet holes into Yoru and absorbs partner stats once", () => {

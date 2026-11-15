@@ -50,9 +50,10 @@ test("seven independent slots are deterministic and obey stage medicine prices",
     assert.equal(a.length, SHOP_RULES.slots);
     assert.ok(a.every((slot) => slot.available && slot.price > 0));
     assert.ok(a.filter((slot) => slot.categoryId === "medicine").every((slot) => slot.price === stageId));
-    assert.ok(a.filter((slot) => slot.categoryId === "common").every((slot) => [15, 20].includes(slot.price)));
+    assert.ok(a.filter((slot) => slot.categoryId === "common").every((slot) => slot.price === 15));
     assert.ok(a.filter((slot) => slot.categoryId === "book").every((slot) => [30, 40].includes(slot.price)));
-    assert.ok(a.filter((slot) => slot.categoryId === "rare").every((slot) => slot.price >= 30));
+    assert.ok(a.filter((slot) => slot.categoryId === "rare").every((slot) => slot.price === 20));
+    assert.ok(a.filter((slot) => slot.categoryId === "legendary").every((slot) => slot.price === 40));
   }
 });
 
@@ -72,18 +73,18 @@ test("one hundred shop rolls each contain seven distinct item IDs, even when a c
   assert.deepEqual(campaign.activeShop.slots.map((slot) => slot.itemId), savedSlots.map((slot) => slot.itemId));
 });
 
-test("shop category weights and new treasure stock match the four independent pools", () => {
+test("shop category weights split higher treasures into rare and legendary pools", () => {
   assert.equal(SHOP_RULES.slots, 7);
   assert.deepEqual(Object.fromEntries(SHOP_RULES.categories.map(({ id, weight }) => [id, weight])),
-    { common: 30, medicine: 30, rare: 20, book: 20 });
+    { common: 30, medicine: 30, rare: 10, legendary: 10, book: 20 });
   const stock = SHOP_RULES.categories;
   assert.ok(stock.find((entry) => entry.id === "common").ids.includes("drip_coffee"));
   for (const id of ["quinque_crit", "quinque_guard"])
-    assert.ok(stock.find((entry) => entry.id === "rare").ids.includes(id));
+    assert.ok(stock.find((entry) => entry.id === "legendary").ids.includes(id));
   const campaign = shopFixture(2);
   campaign.essence = 100;
-  for (const [index, [id, category, price]] of [["quinque_crit", "rare", 40],
-    ["quinque_guard", "rare", 40], ["drip_coffee", "common", 15]].entries()) {
+  for (const [index, [id, category, price]] of [["quinque_crit", "legendary", 40],
+    ["quinque_guard", "legendary", 40], ["drip_coffee", "common", 15]].entries()) {
     const slot = campaign.activeShop.slots[index];
     Object.assign(slot, { categoryId: category, itemId: id, price: 1, available: true, purchased: false });
     refreshShopPrices(campaign);

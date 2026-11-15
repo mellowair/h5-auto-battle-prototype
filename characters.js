@@ -104,7 +104,7 @@ export const EVENT_ENEMY_DATA = Object.freeze({
 // Their stage-two row-template stats are assigned in campaign.js.
 export const TRIAL_ENEMY_DATA = Object.freeze({
   heracles: { id: "heracles", name: "赫拉克勒斯", team: "enemy", type: "elite", role: "诸神试炼 · 力量", row: "front", position: "front",
-    hp: 3000, atk: 520, def: 160, spd: 100, asset: "assets/trial-enemies/赫拉克勒斯.png", visualId: "heracles", attackType: "melee",
+    hp: 3000, atk: 520, def: 180, spd: 100, asset: "assets/trial-enemies/赫拉克勒斯.png", visualId: "heracles", attackType: "melee",
     activeSkills: ["heracles-nine-heads"], trialPassive: "heracles", trialPassiveSkill: { name: "不死试炼", description: "首次倒地后进入不死模式，抵挡接下来的 12 次攻击。" }, rosterOrder: 2,
     skillAnimationMap: { "heracles-nine-heads": "nineHeads" },
     animations: { idle: { type: "frames", frames: { idle: "assets/trial-enemies/赫拉克勒斯.png" } },
@@ -115,7 +115,7 @@ export const TRIAL_ENEMY_DATA = Object.freeze({
       phase2MeleeAttack: { type: "frames", frames: { punch: "assets/trial-enemies/赫拉克勒斯二阶段攻击.png" }, impactFrames: ["punch"] },
       nineHeads: { type: "frames", frames: { charge: "assets/trial-enemies/赫拉克勒斯蓄力.png", strike: "assets/trial-enemies/赫拉克勒斯技能.png" }, durationsMs: [500, 450] } } },
   odin: { id: "odin", name: "奥丁", team: "enemy", type: "elite", role: "诸神试炼 · 智慧", row: "back", position: "back",
-    hp: 2900, atk: 730, def: 100, spd: 100, asset: "assets/trial-enemies/奥丁.png", visualId: "odin", attackType: "magic", attackAnimation: "magicAttack",
+    hp: 2900, atk: 730, def: 120, spd: 100, asset: "assets/trial-enemies/奥丁.png", visualId: "odin", attackType: "magic", attackAnimation: "magicAttack",
     activeSkills: ["odin-gungnir"], extraPassiveSkillIds: ["odin-ravens"], trialPassive: "odin", trialPassiveSkill: { name: "奥丁的庇护", description: "每 5 回合循环减伤：第 1 至 5 回合分别减免 50%、40%、30%、20%、0%。" }, rosterOrder: 2,
     projectileAsset: "assets/trial-enemies/奥丁施法素材.png",
     skillAnimationMap: { "odin-gungnir": "gungnir" },
@@ -417,7 +417,7 @@ export const ELITE_ENEMY_DATA = [
   },
   {
     id: "eternity-devil", name: "永恒恶魔", type: "elite", stageId: 1, role: "永恒恶魔", row: "front", position: "front",
-    hp: 1600, atk: 40, def: 20, spd: 20, attackType: "melee", visualId: "eternity-devil",
+    hp: 1600, atk: 40, def: 50, spd: 20, attackType: "melee", visualId: "eternity-devil",
     asset: "assets/elites/eternity_devil_idle.png",
     animations: { idle: { type: "frames", frames: { idle: "assets/elites/eternity_devil_idle.png" } } },
   },
@@ -480,7 +480,7 @@ export const ELITE_ENEMY_DATA = [
     },
     extraPassiveSkillIds: ["stage3-resurrection"] },
   { id: "falling-devil", name: "下落恶魔", type: "elite", stageId: 3, team: "enemy",
-    role: "机制型精英", row: "back", position: "back", hp: 6000, atk: 250, def: 130, spd: 140,
+    role: "机制型精英", row: "back", position: "back", hp: 6000, atk: 250, def: 160, spd: 140,
     attackType: "ranged", attackAnimation: "magicAttack", asset: "assets/stage3-elites/falling/idle.png", visualId: "falling-devil",
     extraPassiveSkillIds: ["falling-gravity-domain", "falling-weightlessness", "falling-main-course"],
     gravityCircleAsset: "assets/stage3-elites/falling/gravity-circle.png",

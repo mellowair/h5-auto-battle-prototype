@@ -2,7 +2,7 @@ import { ANIMATION_TIMING, CHARACTER_DATA, COMBAT_RULES, STAGE_TWO_NORMAL_PASSIV
 import { beginHiddenBossChallenge, deferHiddenBossChallenge, queueHiddenBossIntro, resumeHiddenBossAtCampfire,
   beginArimaCampfireChallenge, canChallengeArimaAtCampfire } from "./campaign.js";
 import { HIDDEN_BOSS_RULES, GUN_DEVIL, hiddenBossShotLayout, SPINAL_SWORD_BY_PARTNER, YORU } from "./hiddenBoss.js";
-import { advanceEventEpilogue, advanceStageTransition, beginJourney, beginStageTwo, beginStageThree, buyShopItem, chooseEvolutionUpgrade, chooseRoute, chooseTrialNode, chooseStartingSkill, claimCampaignEliteDrop, claimCampaignReward, claimCampaignSpecialReward, claimCampaignQuinque, claimCampaignTreasure, claimDragonRadarOffer, claimStageTwoEliteSkill, claimStageTwoEliteSkip, claimStageTwoGiantRecipient, claimStageTwoStatReward, completeLocation, completeSettlement, createCampaign, eliteDropId, enterTrialMap, finishBattle, finishTrialResult, getActiveCampfireOptions, getCampaignRewardOffer, getCampaignTreasureOffer, getDragonRadarOffer, getRouteMap, getRouteOptions, getShopRouteOptions, getStageTransitionChoices, getStageTwoCampfireOptions, leaveShop, prepareBattle, previewShopItem, resolveCampaignEvent, resolveStageTwoCampfire, resolveTrialOffer, resolveTrialWill, selectStartingCharacter, startCampaign, startCampaignEventBattle, STAGE_TWO_STAT_UPGRADES } from "./campaign.js";
+import { advanceEventEpilogue, advanceStageTransition, beginJourney, beginStageTwo, beginStageThree, buyShopItem, chooseEvolutionUpgrade, chooseRoute, chooseTrialNode, chooseStartingSkill, claimCampaignEliteDrop, claimCampaignReward, claimCampaignSpecialReward, claimCampaignQuinque, claimCampaignTreasure, claimDragonRadarOffer, claimFateReward, claimStageTwoEliteSkill, claimStageTwoEliteSkip, claimStageTwoGiantRecipient, claimStageTwoStatReward, completeLocation, completeSettlement, createCampaign, eliteDropId, enterTrialMap, finishBattle, finishTrialResult, getActiveCampfireOptions, getCampaignRewardOffer, getCampaignTreasureOffer, getDragonRadarOffer, getFateReward, getRouteMap, getRouteOptions, getShopRouteOptions, getStageTransitionChoices, getStageTwoCampfireOptions, leaveShop, prepareBattle, previewShopItem, resolveCampaignEvent, resolveStageTwoCampfire, resolveTrialOffer, resolveTrialWill, selectStartingCharacter, startCampaign, startCampaignEventBattle, STAGE_TWO_STAT_UPGRADES } from "./campaign.js";
 import { getCritChance, getDodgeChance, getSkillDodgeChance, initializeBattle, simulateBattle } from "./battle.js";
 import { canDeclineNewSkill, getSeaBeyondOfferDetails, getSkillAtLevel, getSkillTrainingChoices, getTemporaryCombatModifiers, getTemporaryEffectDisplayRows, getTreasureCombatModifiers, getUnlearnedActiveSkills, previewGrowingDrop } from "./progression.js";
 import { ATTRIBUTE_UPGRADES, ELITE_BONUS_REWARDS, GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT, SKILL_DATA, TREASURE_DATA } from "./skills.js";
@@ -14,6 +14,7 @@ import { createEntranceCompletion, ENEMY_ENTRANCE_DURATION_MS, getEnemyEntrance 
 import { TANG_SUMMON_WEIGHTS } from "./tangSummons.js";
 import { TRIAL_TASKS } from "./trial.js";
 import { refreshShopPrices } from "./shop.js";
+import { SHOP_RULES } from "./shopConfig.js";
 import { evolvedBattlePresentation } from "./evolvedVisuals.js";
 import { evolutionDisplayName } from "./evolution.js";
 
@@ -412,8 +413,11 @@ function describeEventResult(result) {
   if (Number.isFinite(result.spdGain)) return `${partyPresentation(result.recipientId)?.name ?? "角色"}本局速度 +${result.spdGain}。`;
   if (Number.isFinite(result.maxHpGain)) return `最大生命值 +${result.maxHpGain}，当前生命值保持不变。`;
   if (result.gains?.length && !Number.isFinite(result.hpLoss)) return `${partyPresentation(result.recipientId)?.name ?? "角色"}本局额外获得：${result.gains.map(({ stat, amount }) => `${({ atk: "攻击", def: "防御", spd: "速度" })[stat]} +${amount}`).join("、")}，本次未扣除生命值。`;
-  if (result.blessing === "player_damage_increased") return "厄运降临：接下来两场战斗中，你受到的伤害为 1.5 倍。";
-  if (result.blessing === "enemy_damage_doubled") return "力量降临：接下来两场战斗中，敌人受到的伤害翻倍。";
+  if (Number.isFinite(result.essenceBlockedBattles)) return `接下来 ${result.essenceBlockedBattles} 场战斗不获得精华；本关精英入场 HP ×${result.eliteHpMultiplier}，Boss 入场 HP ×${result.bossHpMultiplier}。`;
+  if (result.treasureId && Number.isFinite(result.maxHpLoss)) return `最大 HP 减少 ${result.maxHpLoss}，获得「${({giant_spinal_fluid:"巨人脊髓液",gun_devil_fragment:"枪魔碎片",sukuna_finger:"宿傩手指"})[result.treasureId]}」。`;
+  if (result.sequelUnlocked) return result.shownResult ? `本次看见了「${({long:"长期实验",medium:"中期实验",short:"短期实验"})[result.shownResult]}」的可能性；下次可从另外两种实验中选择。` : "后续事件已开启。";
+  if (result.atkMultiplier) return `绿色果冻香蕉：ATK ×${result.atkMultiplier}，持续 ${result.battlesRemaining} 场战斗；完成后领取奖励。`;
+  if (result.vipTicket) return "获得临时高级 VIP 体验券；下一间商店可六折购买一件商品。";
   if (result.effect?.stat || result.healFraction) return `${result.healBlockedBy === "stone_mask" ? "石鬼面使本次治疗无效；" : result.restored ? `立即恢复 ${result.restored} HP；` : ""}${result.effect?.stat ? `下一场战斗${result.effect.stat.toUpperCase()} ${result.effect.amount > 0 ? "+" : ""}${result.effect.amount}。` : ""}`;
   if (result.skipped) return result.exhausted ? "这条道路已无法再带来新力量，你选择离开。" : "你选择离开，没有发生其他变化。";
   if (result.stage && Number.isFinite(result.critRateGain)) {
@@ -1273,17 +1277,33 @@ function renderAllyStatusIcons() {
     allyStatuses.push({ id: "tang-meditate", name: "唐僧打坐", image: "assets/tang/tang_meditate.png", tone: "passive",
       description: "召唤物存活期间唐僧停止普通行动；每三个完整战斗回合发动一次诵经冲击。" });
   const temporaryEffects = campaign?.runCharacterState ? getTemporaryEffectDisplayRows(campaign.runCharacterState) : [];
+  if ((campaign?.runCharacterState?.essenceBlockedBattles ?? 0) > 0)
+    allyStatuses.push({ id: "death-note-essence", name: "死亡笔记", image: "assets/events/event_death_note.png", tone: "danger",
+      description: `还需完成 ${campaign.runCharacterState.essenceBlockedBattles} 场战斗，期间无法获得精华。` });
+  if (campaign?.vipTrialTicket && !campaign.vipTrialTicket.used)
+    allyStatuses.push({ id: "vip-trial-ticket", name: "临时高级VIP体验券", image: TREASURE_DATA.premium_vip_card.image, tone: "buff",
+      description: "下一间商店可六折购买一件商品；离开该商店后失效。" });
+  if (campaign?.shopDiscount && !campaign.shopDiscount.expired) {
+    const vip = campaign.shopDiscount;
+    const limits = vip.type === "premium_vip_card" ? { purchases: 5, shops: 4 } : { purchases: 3, shops: 2 };
+    allyStatuses.push({ id: "vip-card-active", name: TREASURE_DATA[vip.type].name, image: TREASURE_DATA[vip.type].image, tone: "buff",
+      description: `商店 ${vip.multiplier * 10} 折；还能以折扣购买 ${limits.purchases - vip.usedPurchases} 件商品，或进入 ${limits.shops - vip.enteredShops} 间新商店。` });
+  }
   for (const effect of temporaryEffects) {
     const isCafe = ["coffee_shop", "coffee_help", "anteiku_2"].includes(effect.id);
     const isDeathNote = effect.id === "death_note";
+    const isBanana = effect.id === "fate_banana";
     allyStatuses.push({
       id: effect.id ?? effect.name,
-      name: isDeathNote ? "死亡笔记" : isCafe ? "安定区" : "路遇巨石",
-      image: isDeathNote ? "assets/events/event_death_note.png" : isCafe ? "assets/events/event_coffee_shop.png" : "assets/events/event_big_rock.png",
+      name: isBanana ? "绿色果冻香蕉" : isDeathNote ? "死亡笔记" : isCafe ? "安定区" : "路遇巨石",
+      image: isBanana ? "assets/status-green-banana.svg" : isDeathNote ? "assets/events/event_death_note.png" : isCafe ? "assets/events/event_coffee_shop.png" : "assets/events/event_big_rock.png",
       tone: effect.polarity,
       description: `${effect.statName} ${effect.amountText} · ${effect.durationText}`,
     });
   }
+  if (campaign?.status === "combat" && campaign.pendingEvent?.data?.moneyBuff && campaign.currentBattle?.enemies?.includes("gilgamesh"))
+    allyStatuses.push({ id: "money-is-dirt", name: "视金钱如粪土", image: "assets/events/event_found_money.png", tone: "buff",
+      description: "仅在本场吉尔伽美什战斗中：受到伤害减少 20%，造成伤害增加 20%。" });
   const ownedTreasures = (campaign?.partyIds ?? []).flatMap((ownerId) =>
     (campaign.partyStates?.[ownerId]?.permanentEffects ?? [])
       .filter((effect) => TREASURE_DATA[effect.id] || [GIANT_SPINAL_FLUID.id, "gun_devil_fragment", "drip_coffee", "six_ear_true_form", "quinque_guard", "quinque_crit", "anteiku_weapon"].includes(effect.id))
@@ -1297,7 +1317,7 @@ function renderAllyStatusIcons() {
     const gain = entries.reduce((sum, { effect }) => { for (const key of ["atk", "def", "maxHp", "spd"]) sum[key] = (sum[key] ?? 0) + (effect[key] ?? 0); return sum; }, {});
     const gains = Object.entries(gain).filter(([, value]) => value).map(([key, value]) => `${key.toUpperCase()} ${value > 0 ? "+" : ""}${value}`).join("、");
     const history = entries.map(({ effect, ownerId }, index) => `${partyPresentation(ownerId)?.name ?? ownerId}第 ${effect.acquisitionCount ?? index + 1} 次：第 ${effect.stageId ?? "未知"} 关，来源 ${effect.sourceLabel ?? effect.sourceId ?? "未知"}，${Object.entries(effect).filter(([key, value]) => ["atk", "def", "maxHp", "spd"].includes(key) && value).map(([key, value]) => `${key.toUpperCase()} ${value > 0 ? "+" : ""}${value}`).join("、") || effect.description || "特殊效果"}${effect.hogyokuHistory?.length ? `；精英触发 ${effect.hogyokuHistory.length} 次` : ""}${effect.weightVictorySpdGain ? `；胜利累计 SPD +${effect.weightVictorySpdGain}` : ""}`).join("；");
-    treasureStatuses.push({ id: `treasure-${item.id}`, name: `${TREASURE_DATA[item.id]?.name ?? item.name} ×${entries.length}`, image: TREASURE_DATA[item.id]?.image ?? (item.id === GIANT_SPINAL_FLUID.id ? GIANT_SPINAL_FLUID.image : item.image), tone: "buff", description: `${gains ? `累计 ${gains}。` : "特殊效果保留原说明。"}${history}` });
+    treasureStatuses.push({ id: `treasure-${item.id}`, name: `${TREASURE_DATA[item.id]?.name ?? item.name} ×${entries.length}`, image: TREASURE_DATA[item.id]?.image ?? (item.id === GIANT_SPINAL_FLUID.id ? GIANT_SPINAL_FLUID.image : item.image), tone: "buff", description: `${({common:"普通",rare:"稀有",legendary:"传说"})[(TREASURE_DATA[item.id]?.grade ?? ([GIANT_SPINAL_FLUID.id, GUN_DEVIL_FRAGMENT.id].includes(item.id) ? "rare" : null))] ?? "宝物"}宝物。${gains ? `累计 ${gains}。` : "特殊效果保留原说明。"}${history}` });
   }
   if (battleStatusState.jinchuriki) {
     const passive = battleStatusState.jinchuriki;
@@ -2889,7 +2909,8 @@ function playEvent(event, finish) {
         else renderEnding();
       }
       };
-      if (getDragonRadarOffer(campaign)) renderDragonRadarOffer(continueTransition);
+      if (getFateReward(campaign)) return renderFateReward(continueTransition);
+      if (getDragonRadarOffer(campaign)) return renderDragonRadarOffer(continueTransition);
       else continueTransition();
     };
     timer = window.setTimeout(() => {
@@ -3043,8 +3064,8 @@ function playEvent(event, finish) {
       addLog(`<b>娜美</b> 逃离战斗；偷走的 ${event.amount} 点 DEF 不再归还。`, "log-enemy");
     } else if (target) {
       target.currentHp = event.hpAfter;
-      target.alive = event.hpAfter > 0;
       if (Number.isFinite(event.maxHpAfter)) target.maxHp = event.maxHpAfter;
+      target.alive = event.hpAfter > 0;
       updateHealth(target);
       const fighter = document.querySelector(`[data-character="${target.id}"]`);
       const number = fighter?.querySelector(".damage-number");
@@ -3510,8 +3531,8 @@ function playEvent(event, finish) {
     }
     if (kiraStand) scheduleBorosVisual(() => { kiraStand?.remove(); kiraStand = null; }, scaled(130));
     target.currentHp = event.targetHp;
-    target.alive = event.targetHp > 0;
     if (Number.isFinite(event.targetMaxHp)) target.maxHp = event.targetMaxHp;
+    target.alive = event.targetHp > 0;
     target.burnStacks = event.burnStacks ?? target.burnStacks ?? 0;
     target.bleedStacks = event.bleedStacks ?? target.bleedStacks ?? 0;
     if (event.trialDamage?.undyingTriggered) {
@@ -4034,6 +4055,7 @@ function playEnemyEntrance(entrance, token, onComplete) {
 }
 
 function beginBattle() {
+  if (getFateReward(campaign)) return renderFateReward(() => beginBattle());
   if (getDragonRadarOffer(campaign)) return renderDragonRadarOffer(() => beginBattle());
   resolvedYoruAoeCasts.clear();
   if (battleStartPhase !== "idle" || playback || !campaign || campaign.status !== "combat") return false;
@@ -4254,6 +4276,7 @@ function renderTrialIntro() {
 }
 
 function renderTrialMap() {
+  if (getFateReward(campaign)) return renderFateReward(() => renderTrialMap());
   if (getDragonRadarOffer(campaign)) return renderDragonRadarOffer(() => renderTrialMap());
   if (campaign?.status !== "trial_route" || !campaign.trial) return;
   const trial = campaign.trial;
@@ -4296,6 +4319,7 @@ function renderTrialWill() {
 }
 
 function renderTrialResult() {
+  if (getFateReward(campaign)) return renderFateReward(() => renderTrialResult());
   if (getDragonRadarOffer(campaign)) return renderDragonRadarOffer(() => renderTrialResult());
   if (campaign?.status !== "trial_result") return;
   const won = campaign.trial.status === "completed";
@@ -4335,6 +4359,7 @@ function renderEvolutionReward() {
 }
 
 function renderHiddenBossIntro() {
+  if (getFateReward(campaign)) return renderFateReward(() => renderHiddenBossIntro());
   if (getDragonRadarOffer(campaign)) return renderDragonRadarOffer(() => renderHiddenBossIntro());
   if (campaign?.status !== "hidden_boss_intro") return;
   $("#hidden-boss-enter").hidden = Boolean(campaign.hiddenBoss?.introPending);
@@ -4354,6 +4379,7 @@ function renderHiddenBossIntro() {
 
 function renderRoute() {
   if (!campaign || campaign.status !== "route") return;
+  if (getFateReward(campaign)) return renderFateReward(() => renderRoute());
   if (getDragonRadarOffer(campaign)) return renderDragonRadarOffer(() => renderRoute());
   if (queueHiddenBossIntro(campaign)) return renderHiddenBossIntro();
   const routeMap = getRouteMap(campaign);
@@ -4436,7 +4462,7 @@ let selectedShopSlot = null;
 let selectedShopRecipientId = null;
 let shopChoosingRecipient = false;
 function shopCategoryLabel(id) {
-  return ({ common: "普通宝物", growing: "可累积宝物", rare: "稀有宝物", medicine: "临时药物", book: "技能书" })[id] ?? id;
+  return ({ common: "普通宝物", growing: "稀有宝物", rare: "稀有宝物", legendary: "传说宝物", medicine: "临时药物", book: "技能书" })[id] ?? id;
 }
 function renderShop() {
   if (campaign?.status !== "shop" || !campaign.activeShop) return;
@@ -4532,7 +4558,7 @@ function purchaseShopSlot(index) {
   if (!selectedShopRecipientId) return false;
   const result = buyShopItem(campaign, index, selectedShopRecipientId);
   const alreadyOwned = !result && previewShopItem(campaign, campaign.activeShop.slots[index], selectedShopRecipientId)?.alreadyOwned;
-  $("#shop-feedback").textContent = result ? `购买成功：${campaign.activeShop.slots[index].name}交给${partyPresentation(selectedShopRecipientId)?.name ?? selectedShopRecipientId}，精华 -${campaign.activeShop.slots[index].price}。` : alreadyOwned ? "该角色已拥有此药剂。" : "购买未完成，请查看余额或角色是否已学会该技能。";
+  $("#shop-feedback").textContent = result ? `购买成功：${campaign.activeShop.slots[index].name}交给${partyPresentation(selectedShopRecipientId)?.name ?? selectedShopRecipientId}，精华 -${campaign.activeShop.purchases.at(-1)?.price}。` : alreadyOwned ? "该角色已拥有此药剂。" : "购买未完成，请查看余额或角色是否已学会该技能。";
   if (!result) $("#shop-detail-description").textContent = alreadyOwned ? "该角色已拥有此药剂，请选择其他角色。" : "购买未完成：请确认精华足够，且该角色尚未学会这本技能书。";
   if (result) { $("#shop-detail-dialog").close(); renderShop(); }
   return result;
@@ -4717,6 +4743,7 @@ function renderEvent(selection = {}) {
 }
 
 function renderEnding() {
+  if (getFateReward(campaign)) return renderFateReward(() => renderEnding());
   if (getDragonRadarOffer(campaign)) return renderDragonRadarOffer(() => renderEnding());
   if (!campaign || !["victory", "defeat"].includes(campaign.status)) return;
   $("#ending-screen").classList.remove("stage-two-pending");
@@ -4879,6 +4906,7 @@ function playStageThreeInterlude(flow) {
 }
 
 function renderStageTransition() {
+  if (getFateReward(campaign)) return renderFateReward(() => renderStageTransition());
   if (getDragonRadarOffer(campaign)) return renderDragonRadarOffer(() => renderStageTransition());
   if (campaign?.status !== "stage_transition") return;
   void preloadStageTwoBackground();
@@ -5095,12 +5123,45 @@ function renderDragonRadarOffer(onComplete = null) {
   renderDecisionScreen("龙珠雷达 · 七场胜利", "从三件普通宝物中选择一件领取。", choices, "确认领取", (treasureId) => {
     if (!claimDragonRadarOffer(campaign, treasureId)) return false;
     updateProgressionDisplays();
-    if (getDragonRadarOffer(campaign)) renderDragonRadarOffer(onComplete);
+    if (getFateReward(campaign)) return renderFateReward(onComplete);
+    if (getDragonRadarOffer(campaign)) return renderDragonRadarOffer(onComplete);
     else if (onComplete) onComplete();
     else if (campaign.status === "reward") renderBattleReward();
     else renderRoute();
     return true;
   }, "ACT · DRAGON RADAR");
+  return true;
+}
+
+function renderFateReward(onComplete = null) {
+  const offer = getFateReward(campaign);
+  if (!offer) return false;
+  const book = SHOP_RULES.books.find((item) => item.id === offer.bookId);
+  const choices = campaign.partyIds.flatMap((recipientId) => {
+    const member = campaign.partyStates[recipientId];
+    const owner = partyPresentation(recipientId)?.name ?? recipientId;
+    if (offer.type === "long") {
+      const eligible = book?.skillType === "passive-upgrade"
+        ? (member.passiveLevel ?? 1) === 1 && Boolean(SKILL_DATA[member.passiveSkillId]?.levels?.[2])
+        : book?.skillType === "passive" && !(member.extraPassiveSkillIds ?? []).includes(book.skillId);
+      return eligible ? [decisionChoice(recipientId, `${owner}学习「${book.name}」`, book.description, false, book.image)] : [];
+    }
+    return offer.choices.map((treasureId) => {
+      const treasure = TREASURE_DATA[treasureId] ?? (treasureId === "giant_spinal_fluid" ? GIANT_SPINAL_FLUID : GUN_DEVIL_FRAGMENT);
+      return decisionChoice(`${recipientId}|${treasureId}`, `${owner}获得「${treasure.name}」`, treasure.description, false, treasure.image);
+    });
+  });
+  renderDecisionScreen("命运石之门 · 实验完成", offer.type === "long" ? "随机技能书已确定；选择学习角色。"
+    : offer.type === "medium" ? "从三件稀有宝物中选择一件，并指定领取角色。" : "随机普通宝物已确定；指定领取角色。",
+    choices, "领取奖励", (choice) => {
+      const [recipientId, treasureId] = choice.split("|");
+      if (!claimFateReward(campaign, recipientId, treasureId ?? null)) return false;
+      updateProgressionDisplays();
+      if (onComplete) onComplete();
+      else if (campaign.status === "reward") renderBattleReward();
+      else renderRoute();
+      return true;
+    }, "ACT · FATE REWARD");
   return true;
 }
 
@@ -5139,6 +5200,7 @@ function renderTreasureOffer() {
 
 function renderBattleReward() {
   if (!campaign || campaign.status !== "reward") return;
+  if (getFateReward(campaign)) return renderFateReward(() => renderBattleReward());
   if (getDragonRadarOffer(campaign)) return renderDragonRadarOffer(() => renderBattleReward());
   if (campaign.rewardPhase === "treasure") return renderTreasureOffer();
   if (campaign.rewardPhase === "quinque") {
@@ -5430,7 +5492,7 @@ function resolveVisibleEvent(choiceId, skillId = null) {
     renderAdventureEvent();
     return true;
   }
-  if (campaign.activeEventType === "adventure" && ["sea_beyond", "sea_beyond_2", "old_scroll_2", "coffee_shop", "anteiku_2", "anteiku_3", "big_rock", "giant_rock_2", "death_note", "fate_gate", "kings_treasury"].includes(campaign.pendingEvent?.eventId)) {
+  if (campaign.activeEventType === "adventure" && ["sea_beyond", "sea_beyond_2", "old_scroll_2", "coffee_shop", "anteiku_2", "anteiku_3", "big_rock", "giant_rock_2", "death_note", "death_note_2", "fate_gate", "fate_gate_2", "kings_treasury"].includes(campaign.pendingEvent?.eventId)) {
     renderEventResult(result);
     return true;
   }
@@ -5452,7 +5514,7 @@ function renderCampfire() {
       decisionChoice("rest", "全队休息", healText),
       decisionChoice("skill_upgrade", "全队技能升级", "每名符合条件的队员各升级一次。", !canUpgrade),
       ...(arimaChallenge ? [decisionChoice("arima_challenge", "挑战有马贵将", "可留待之后的篝火挑战。")]: []),
-      ...(deferredBoss ? [decisionChoice("hidden_boss", "查看枪魔碎片", "前往隐藏首领挑战。")]: []),
+      ...(deferredBoss ? [decisionChoice("hidden_boss", "挑战枪之恶魔与战争恶魔·夜", "可留待之后的篝火挑战。")]: []),
     ], "确认", (id) => {
       if (id === "arima_challenge") {
         if (!beginArimaCampfireChallenge(campaign)) return false;
@@ -5513,7 +5575,7 @@ function renderCampfire() {
     decisionChoice("rest", "休息治疗", rest.blockedBy ? "石鬼面阻止篝火回血。" : `恢复 ${rest.healAmount} HP（当前 ${campaign.runCharacterState.currentHp}/${campaign.runCharacterState.maxHp}）。`),
     decisionChoice("skill_upgrade", "技能升级", upgrade.enabled ? upgrade.skills.map((entry) => entry.currentLevel ? `${entry.name} Lv.${entry.currentLevel} → Lv.${entry.nextLevel}` : `学习 ${entry.name} Lv.1`).join("、") : upgrade.reason, !upgrade.enabled),
     ...(campaign.hiddenBoss?.unlocked && !campaign.hiddenBoss.resolved && !campaign.hiddenBoss.attempted
-      ? [decisionChoice("hidden_boss", "查看枪魔碎片", "前往隐藏首领挑战。")]
+      ? [decisionChoice("hidden_boss", "挑战枪之恶魔与战争恶魔·夜", "可留待之后的篝火挑战。")]
       : []),
   ], "确认选择", (id) => {
     if (id === "hidden_boss") {
@@ -5686,18 +5748,32 @@ function renderAdventureEvent() {
     choices.push(decisionChoice("rock_avoid_again", "好奇心害死猫，反正咱也搬不动", ""));
     choices.push(decisionChoice("rock_fight", "相见即是缘，再搬搬看吧", ""));
   } else if (record.eventId === "death_note") {
-    choices.push(decisionChoice("death_note_open", "打开笔记", "获得或承受一项持续两场战斗的效果；选择后会揭晓结果并显示在状态栏。"));
-    choices.push(decisionChoice("death_note_pass", "路过", "不触碰笔记，继续前进。"));
-  } else if (record.eventId === "fate_gate") choices.push(decisionChoice("fate_accept", "接受命运的指引", record.data.skillChoices.length ? record.effectText : "当前没有已学习且可触发的技能；确认后正常结束事件，不会生成无效效果。"));
+    choices.push(decisionChoice("death_light", "走向光明", "后续 5 场战斗无精华；本关精英入场 HP -20%，Boss -10%。"));
+    choices.push(decisionChoice("death_temptation", "死神诱惑", "收起笔记，开启死亡笔记（2）。"));
+  } else if (record.eventId === "death_note_2") {
+    choices.push(decisionChoice("death_light", "走向光明", "后续 3 场战斗无精华；本关精英入场 HP -25%，Boss -15%。"));
+    choices.push(decisionChoice("death_read", "读万卷书", "永久失去 44% 最大 HP，随机获得一件稀有宝物。"));
+    choices.push(decisionChoice("death_nothing", "我什么都不想要", "恢复相当于最大 HP 44% 的生命。"));
+  } else if (record.eventId === "fate_gate") {
+    choices.push(decisionChoice("fate_experiment", "这一切都是命运石之门的选择", "随机开始一项实验。"));
+    choices.push(decisionChoice("fate_continue", "继续实验", "开启命运石之门（2）。"));
+  } else if (record.eventId === "fate_gate_2") {
+    if (record.data.phase === "select") for (const type of ["long", "medium", "short"].filter((type) => type !== campaign.runCharacterState.eventSeries.fateGate?.shownResult))
+      choices.push(decisionChoice(`fate_experiment|${type}`, ({long:"长期实验 · 10场 / ATK -25%",medium:"中期实验 · 5场 / ATK -20%",short:"短期实验 · 3场 / ATK -10%"})[type], "完成后领取对应奖励。"));
+    else {
+      choices.push(decisionChoice("fate_choose", "这一切都是命运石之门的选择", "从上次未展示的两种实验中选择。"));
+      choices.push(decisionChoice("fate_vip", "比起做实验还是VIP吧", "下一间商店六折购买一件商品。"));
+    }
+  }
   else choices.push(decisionChoice("__confirm__", "继续前进", record.effectText));
   // Event choices reveal outcomes only after selection; phase-two skill lists
   // are shown after the initial decision and still expose only names.
-  if (record.eventId !== "devil_bargain") for (const choice of choices) choice.description = "";
+  if (!["devil_bargain", "death_note", "death_note_2", "fate_gate", "fate_gate_2"].includes(record.eventId)) for (const choice of choices) choice.description = "";
   const eventDescription = record.type === "gamble"
     ? record.data.phase === "recipient" ? `${record.description}\n请选择本次赌博的角色。`
       : `${record.data.round === 3 ? "贪心不足蛇吞象" : record.description}\n第 ${record.data.round} 轮 · ${partyPresentation(record.data.recipientId)?.name ?? "角色"}`
-    : record.eventId === "fate_gate"
-    ? `${record.description} ${record.data.skillChoices.length ? record.effectText : "当前没有已学习且可触发的技能；确认后正常结束事件。"}`
+    : ["fate_gate", "fate_gate_2"].includes(record.eventId)
+    ? `${record.description} ${record.effectText}`
     : record.eventId === "fall_rock"
       ? `${record.description} ${record.effectText}`
     : record.eventId === "sea_beyond" && record.data.phase === "intro"
@@ -5940,7 +6016,8 @@ function initializeGame() {
           else if (campaign.status === "hidden_boss_intro") renderHiddenBossIntro();
           else renderEnding();
         };
-        if (getDragonRadarOffer(campaign)) renderDragonRadarOffer(resumeSettlement);
+        if (getFateReward(campaign)) return renderFateReward(resumeSettlement);
+        if (getDragonRadarOffer(campaign)) return renderDragonRadarOffer(resumeSettlement);
         else resumeSettlement();
       }
       else if (["victory", "defeat"].includes(campaign.status)) renderEnding();

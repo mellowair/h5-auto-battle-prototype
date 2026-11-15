@@ -1,14 +1,15 @@
 import { ADVENTURE_EVENTS, CAMPAIGN_BATTLES, CHARACTER_DATA, DEIDARA_ANIMATIONS, ELITE_ENEMY_DATA, EVENT_ENEMY_DATA, NORMAL_ENEMY_APPEARANCES, STAGE_TWO_BOSS_DATA, STAGE_TWO_NORMAL_ENEMY_TIERS, STAGE_THREE_BOSS_DATA, STAGE_THREE_MINIONS, STAGE_THREE_NORMAL_ENEMY_TIERS, STARTING_CHARACTERS, TRIAL_ENEMY_DATA } from "./characters.js";
 import { evolvedBattlePresentation } from "./evolvedVisuals.js";
 import { fragmentCount, GUN_DEVIL, HIDDEN_BOSS_RULES } from "./hiddenBoss.js";
-import { buyShopItem, essenceRewardForBattle, generateShopInventory, previewShopItem } from "./shop.js";
+import { activateVipCard, buyShopItem, essenceRewardForBattle, generateShopInventory, previewShopItem, registerShopEntry } from "./shop.js";
 import { SKILL_DATA, TREASURE_DATA } from "./skills.js";
+import { SHOP_RULES } from "./shopConfig.js";
 import { createSeededRandom, generateRouteMap, ROUTE_MAP_FINAL_STEP } from "./routeMap.js";
 import {
   applyAdventureBattleBonusReward, applyAdventureBattleStatReward, applyBattleBonusReward,
   advanceTemporaryEffectsAfterBattle, applyAdventurePartyOutcome, applyBattleStatReward, chooseAdventureEventId, completeAdventureBattle, createAdventureEventResult,
   canDeclineNewSkill, createBattleRewardOffer, createRunCharacterState, getAvailableAdventureEventIds, getCampfireOptions, getSkillAtLevel,
-  getTemporaryCombatModifiers, getTemporaryEffects, getTreasureCombatModifiers, getUnlearnedActiveSkills, getUpgradeableSkills, getSkillTrainingChoices, grantGiantSpinalFluid, grantEliteSukunaFinger, grantGunDevilFragment, grantAdventureSpecialReward, grantQuinque, claimTreasure, learnActiveSkill, upgradeActiveSkill,
+  getTemporaryCombatModifiers, getTemporaryEffects, getTreasureCombatModifiers, getUnlearnedActiveSkills, getUpgradeableSkills, getSkillTrainingChoices, grantGiantSpinalFluid, grantEliteSukunaFinger, grantGunDevilFragment, grantAdventureSpecialReward, grantEventTreasure, grantQuinque, claimTreasure, learnActiveSkill, upgradeActiveSkill,
   createStatUpgradeChoices, applyStatUpgrade, healRunCharacter, hasStoneMask, resolveAdventureEvent, resolveCampfire, startAdventureBattle, upgradePassiveSkill,
 } from "./progression.js";
 import { ATTRIBUTE_UPGRADES } from "./skills.js";
@@ -45,7 +46,7 @@ function applyVictoryTreasureGrowth(campaign) {
         effect.winsSinceObtained = (effect.winsSinceObtained ?? 0) + 1;
         if (effect.winsSinceObtained >= 7) {
           effect.winsSinceObtained -= 7;
-          const pool = Object.values(TREASURE_DATA).filter((item) => item.tier === "small" && item.id !== "sukuna_finger").map((item) => item.id);
+          const pool = Object.values(TREASURE_DATA).filter((item) => item.grade === "common").map((item) => item.id);
           const choices = [];
           while (choices.length < 3 && pool.length) choices.push(pool.splice(Math.floor(campaign.random() * pool.length), 1)[0]);
           (campaign.pendingRadarOffers ??= []).push({ ownerId: id, sourceId: `dragon-radar:${effect.sourceId}:${battleId}`, choices });
@@ -83,7 +84,7 @@ export function claimDragonRadarOffer(campaign, treasureId) {
   if (!offer?.choices.includes(treasureId)) return false;
   const member = campaign.partyStates?.[offer.ownerId];
   const treasure = TREASURE_DATA[treasureId];
-  if (!member || !treasure || treasure.tier !== "small") return false;
+  if (!member || !treasure || treasure.grade !== "common") return false;
   const sourceId = `${offer.sourceId}:reward`;
   // The radar reuses the King's Treasury settlement, including repeat bonuses.
   const record = { eventId: "kings_treasury", status: "awaiting_treasure", data: {
@@ -320,7 +321,7 @@ export function createCampaign(random = Math.random, options = {}) {
     startingSkillSelected: false, activeEventType: null, eventBattleSourceId: null,
     rewardBattleId: null, rewardPhase: null, rewardBattleType: null, stageTransition: null, stageTwoReward: null,
     essence: 0, essenceHistory: [], lastEssenceReward: null, activeShop: null, shopHistory: [], shopMedicines: [],
-    chapter3Entered: false, chapter3FirstEncounterAssigned: false, trialOffered: false,
+    chapter3Entered: false, chapter3FirstEncounterAssigned: false, stage2AdventureCount: 0, trialOffered: false,
     hiddenBoss: { unlocked: false, storyShown: false, resolved: false, makimaCleared: false },
     trialAccepted: false, trialDeclined: false, trialCompleted: false, evolutionPending: false,
     trialFailurePenaltyApplied: false, trial: null, trialBattle: null, evolutionRewards: null,
@@ -392,6 +393,8 @@ export function prepareBattle(campaign) {
   const battleStartEffects = [];
   const routeStep = campaign.stageId >= 2 ? campaign.stageStep ?? battle.stageStep : battle.step;
   const routeGrowth = getRouteEnemyGrowth(battle.type, routeStep, campaign.stageId);
+  const moneyBuff = battle.enemies?.includes("gilgamesh") &&
+    campaign.runCharacterState.eventResults?.[campaign.eventBattleSourceId]?.data?.moneyBuff;
   const battleId = campaign.currentBattle?.hiddenBoss ? campaign.currentBattle.id : campaign.trialBattle?.id ?? (campaign.eventBattleSourceId
     ? `event:${campaign.eventBattleSourceId}` : campaign.activeNode?.id ?? `step-${campaign.step}-battle`);
   const allies = campaign.partyIds.map((id, index) => {
@@ -424,10 +427,11 @@ export function prepareBattle(campaign) {
       hp: state.maxHp, maxHp: state.maxHp, currentHp: state.currentHp,
       ...(id === "tang" ? { tangGrowth: Object.fromEntries(["maxHp", "atk", "def", "spd"].map((stat) =>
         [stat, Math.max(0, state[stat] - template.baseStats[stat])])) } : {}),
-      atk: Math.floor(state.atk * (id === campaign.playerId ? campaign.nextAttackMultiplier : 1)) + shopModifiers.atk,
+      atk: Math.floor(state.atk * (id === campaign.playerId ? campaign.nextAttackMultiplier : 1) * temporaryModifiers.atkMultiplier) + shopModifiers.atk,
       def: Math.max(0, state.def + temporaryModifiers.def + shopModifiers.def), spd: Math.max(0, state.spd + temporaryModifiers.spd),
       roundLimitedSpdEffects, spdWithoutRoundEffects: Math.max(0, state.spd + temporaryModifiers.spd - roundLimitedSpdTotal),
-      damageTakenMultiplier: temporaryModifiers.damageTakenMultiplier, damageDealtMultiplier: temporaryModifiers.damageDealtMultiplier,
+      damageTakenMultiplier: temporaryModifiers.damageTakenMultiplier * (moneyBuff ? .8 : 1),
+      damageDealtMultiplier: temporaryModifiers.damageDealtMultiplier * (moneyBuff ? 1.2 : 1),
       damageReductionBonus: treasureModifiers.damageReduction, dodgeRateBonus: treasureModifiers.dodgeRateBonus,
       quinqueGuard: state.permanentEffects?.some((effect) => effect.id === "quinque_guard") ?? false,
       quinqueCrit: state.permanentEffects?.some((effect) => effect.id === "quinque_crit") ?? false,
@@ -488,7 +492,10 @@ export function prepareBattle(campaign) {
       battle.enemyGrowthExemptIds?.includes(enemyId) ? { hp: 1, atk: 1, def: 1 } : routeGrowth;
     const normalScale = campaign.stageId <= 2 && battle.type === "normal" ? EARLY_NORMAL_ENEMY_STAT_SCALE : 1;
     const trialScale = trialNormal ? .8 : 1;
-    const maxHp = Math.max(1, Math.floor(Math.floor(baseHp * enemyGrowth.hp) * normalScale * trialScale));
+    const curse = campaign.runCharacterState.eventSeries?.deathNote?.curse;
+    const curseMultiplier = curse?.stageId === campaign.stageId
+      ? battle.type === "elite" ? curse.eliteHpMultiplier : battle.type === "boss" ? curse.bossHpMultiplier : 1 : 1;
+    const maxHp = Math.max(1, Math.floor(Math.floor(baseHp * enemyGrowth.hp) * normalScale * trialScale * curseMultiplier));
     const summonedGuard = template.summonPassive?.unitId === "guard" ? (() => {
       const guard = enemyTemplates.get("guard");
       const stageStats = campaign.stageId === 1 ? guard
@@ -587,6 +594,61 @@ export function prepareBattle(campaign) {
   };
 }
 
+export function getFateReward(campaign) { return campaign?.pendingFateReward ?? null; }
+
+export function claimFateReward(campaign, recipientId, treasureId = null) {
+  const offer = getFateReward(campaign);
+  const member = campaign?.partyStates?.[recipientId];
+  if (!offer || !member || !campaign.partyIds.includes(recipientId)) return false;
+  const sourceId = `${offer.sourceId}:fate-reward`;
+  let result;
+  if (offer.type === "long") {
+    const book = SHOP_RULES.books.find((entry) => entry.id === offer.bookId);
+    if (!book) return false;
+    if (book.skillType === "passive-upgrade") result = upgradePassiveSkill(member, sourceId);
+    else if (book.skillType === "passive" && !(member.extraPassiveSkillIds ?? []).includes(book.skillId)) {
+      member.extraPassiveSkillIds ??= [];
+      member.extraPassiveSkillIds.push(book.skillId);
+      result = { bookId: book.id, skillId: book.skillId };
+    }
+    if (result) member.skillHistory.push({ skillId: book.skillId ?? result.skillId, sourceId, kind: "fate-book" });
+  } else {
+    const selectedId = offer.type === "medium" ? treasureId : offer.treasureId;
+    if (!offer.choices.includes(selectedId)) return false;
+    result = grantEventTreasure(member, sourceId, selectedId, campaign.stageId, "命运石之门实验奖励");
+    if (result && ["vip_card", "premium_vip_card"].includes(selectedId)) activateVipCard(campaign, selectedId);
+  }
+  if (!result) return false;
+  campaign.runCharacterState.fateExperiment.rewardClaimed = true;
+  campaign.pendingFateReward = null;
+  campaign.playerHp = campaign.runCharacterState.currentHp;
+  campaign.playerMaxHp = campaign.runCharacterState.maxHp;
+  return result;
+}
+
+function advanceFateExperiment(campaign) {
+  const experiment = campaign.runCharacterState?.fateExperiment;
+  if (!experiment || experiment.rewardClaimed || experiment.battlesRemaining <= 0) return;
+  experiment.battlesRemaining -= 1;
+  if (experiment.battlesRemaining > 0) return;
+  const type = experiment.type;
+  const offer = { sourceId: experiment.sourceId, type };
+  if (type === "medium") offer.choices = ["giant_spinal_fluid", "gun_devil_fragment", "sukuna_finger"];
+  else if (type === "short") {
+    const pool = Object.values(TREASURE_DATA).filter((item) => item.grade === "common" && (item.price ?? 15) < 20);
+    offer.treasureId = pool[Math.floor(campaign.random() * pool.length)].id;
+    offer.choices = [offer.treasureId];
+  } else {
+    const books = SHOP_RULES.books.filter((book) => campaign.partyIds.some((id) => {
+      const member = campaign.partyStates[id];
+      return book.skillType === "passive-upgrade" ? (member.passiveLevel ?? 1) === 1 && SKILL_DATA[member.passiveSkillId]?.levels?.[2]
+        : book.skillType === "passive" && !(member.extraPassiveSkillIds ?? []).includes(book.skillId);
+    }));
+    offer.bookId = books[Math.floor(campaign.random() * books.length)]?.id ?? null;
+  }
+  campaign.pendingFateReward = offer;
+}
+
 export function finishBattle(campaign, outcome, playerHp, battleEvents = [], finalCharacters = null) {
   if (!campaign || campaign.status !== "combat" || !campaign.combatLaunched) return false;
   campaign.combatLaunched = false;
@@ -640,6 +702,9 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
     const state = campaign.partyStates?.[id] ?? (id === campaign.playerId ? campaign.runCharacterState : null);
     if (state) advanceTemporaryEffectsAfterBattle(state, completedRounds);
   }
+  advanceFateExperiment(campaign);
+  if (outcome !== "victory" && (campaign.runCharacterState?.essenceBlockedBattles ?? 0) > 0)
+    campaign.runCharacterState.essenceBlockedBattles -= 1;
   if (campaign.runCharacterState && Array.isArray(battleEvents)) {
     const casts = new Set(battleEvents.filter(event => ["rasengan", "naruto-giant-rasengan"].includes(event?.skillId) && event.targetDied).map(event => event.skillCastId || [campaign.currentBattle?.id, event.round, event.attackerId].join(":")));
     for (const castId of casts) { const key = "rasengan-kill:" + castId; if (!campaign.runCharacterState.consumedActions.includes(key)) { campaign.runCharacterState.spd += 5; campaign.runCharacterState.consumedActions.push(key); } }
@@ -679,11 +744,14 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
     campaign.playerHp = campaign.runCharacterState.currentHp;
     campaign.completedBattles += 1;
     if (!campaign.hiddenBoss?.rewarded) {
-      campaign.essence = (campaign.essence ?? 0) + HIDDEN_BOSS_RULES.rewardEssence;
-      campaign.lastEssenceReward = { amount: HIDDEN_BOSS_RULES.rewardEssence, reason: "hidden_boss" };
+      const blocked = (campaign.runCharacterState?.essenceBlockedBattles ?? 0) > 0;
+      if (blocked) campaign.runCharacterState.essenceBlockedBattles -= 1;
+      const amount = blocked ? 0 : HIDDEN_BOSS_RULES.rewardEssence;
+      campaign.essence = (campaign.essence ?? 0) + amount;
+      campaign.lastEssenceReward = { amount, reason: blocked ? "death_note" : "hidden_boss" };
       campaign.essenceHistory ??= [];
       campaign.essenceHistory.push({ battleId: campaign.currentBattle.id, stageId: campaign.stageId,
-        amount: HIDDEN_BOSS_RULES.rewardEssence, reason: "hidden_boss" });
+        amount, reason: blocked ? "death_note" : "hidden_boss" });
       campaign.hiddenBoss.rewarded = true;
     }
     campaign.settlementNext = "hidden_boss_win";
@@ -755,7 +823,10 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
 }
 
 function awardBattleEssence(campaign, battle = campaign.currentBattle) {
-  const reward = essenceRewardForBattle(battle);
+  const blocked = (campaign.runCharacterState?.essenceBlockedBattles ?? 0) > 0;
+  const reward = blocked ? { amount: 0, reason: "death_note", blockedBaseAmount: essenceRewardForBattle(battle).amount }
+    : essenceRewardForBattle(battle);
+  if (blocked) campaign.runCharacterState.essenceBlockedBattles -= 1;
   campaign.essence = (campaign.essence ?? 0) + reward.amount;
   campaign.lastEssenceReward = reward;
   campaign.essenceHistory ??= [];
@@ -970,6 +1041,7 @@ export function claimCampaignTreasure(campaign, treasureId, recipientId) {
   const effect = claimTreasure(campaign.runCharacterState, offer.sourceId, treasureId,
     campaign.partyStates[recipientId], recipientId);
   if (!effect) return false;
+  if (["vip_card", "premium_vip_card"].includes(treasureId)) activateVipCard(campaign, treasureId);
   effect.sourceLabel = "王之宝库奇遇";
   effect.stageId = campaign.stageId;
   campaign.playerHp = campaign.runCharacterState.currentHp;
@@ -1135,8 +1207,7 @@ export function claimCampaignReward(campaign, choiceId, extraChoiceId = null, sk
 }
 
 export function getRouteOptions(campaign) {
-  return campaign?.status === "route" ? legalChildren(campaign).filter((node) => node.status === "pending" &&
-    (campaign.stageId !== 3 || campaign.trialOffered || node.type === "question")) : [];
+  return campaign?.status === "route" ? legalChildren(campaign).filter((node) => node.status === "pending") : [];
 }
 
 export function getRouteMap(campaign) {
@@ -1161,6 +1232,9 @@ export function chooseRoute(campaign, nodeId) {
     combatLaunched: campaign.combatLaunched, status: campaign.status,
     eliteEncounterCount: campaign.eliteEncounterHistory?.length ?? 0,
     chapter3FirstEncounterAssigned: campaign.chapter3FirstEncounterAssigned,
+    stage2AdventureCount: campaign.stage2AdventureCount,
+    foundMoneyTreasury: campaign.runCharacterState?.eventSeries?.foundMoneyTreasury
+      ? { ...campaign.runCharacterState.eventSeries.foundMoneyTreasury } : null,
     eventResult: eventResults?.[node.id],
   };
   try {
@@ -1178,6 +1252,7 @@ export function chooseRoute(campaign, nodeId) {
       campaign.activeShop = { nodeId: node.id, stageId: campaign.stageId,
         slots: generateShopInventory(`${campaign.routeMap.seed}:${node.id}`, campaign.stageId), purchases: [] };
       campaign.status = "shop";
+      registerShopEntry(campaign, node.id);
       return { type: "shop", shop: campaign.activeShop };
     }
 
@@ -1195,8 +1270,19 @@ export function chooseRoute(campaign, nodeId) {
         campaign.runCharacterState.eventResults[node.id] = campaign.pendingEvent;
       } else {
         const partyStates = campaign.partyIds.map((id) => campaign.partyStates[id]);
-        const eventId = chooseAdventureEventId(campaign.runCharacterState, campaign.random, campaign.step, partyStates, campaign.stageId);
+        const moneyChain = campaign.runCharacterState.eventSeries.foundMoneyTreasury;
+        if (campaign.stageId === 2) campaign.stage2AdventureCount = (campaign.stage2AdventureCount ?? 0) + 1;
+        const forceTreasury = campaign.stageId === 2 && moneyChain?.pending && !moneyChain.forced && campaign.stage2AdventureCount === 3;
+        const eventId = forceTreasury ? "kings_treasury" : chooseAdventureEventId(campaign.runCharacterState,
+          campaign.random, campaign.step, partyStates, campaign.stageId,
+          campaign.stageId === 2 && moneyChain?.pending && !moneyChain.forced ? ["kings_treasury"] : []);
         campaign.pendingEvent = createAdventureEventResult(campaign.runCharacterState, node.id, eventId, campaign.random, partyStates, campaign.stageId);
+        if (forceTreasury && campaign.pendingEvent) {
+          moneyChain.forced = true;
+          moneyChain.pending = false;
+          campaign.pendingEvent.data.moneyBuff = true;
+          campaign.runCharacterState.eventResults[node.id].data.moneyBuff = true;
+        }
         if (eventId === "anteiku_2") {
           campaign.runCharacterState.eventSeries.anteiku ??= {};
           campaign.runCharacterState.eventSeries.anteiku.chapter2Triggered = true;
@@ -1223,6 +1309,9 @@ export function chooseRoute(campaign, nodeId) {
     campaign.status = previous.status;
     if (campaign.eliteEncounterHistory) campaign.eliteEncounterHistory.length = previous.eliteEncounterCount;
     campaign.chapter3FirstEncounterAssigned = previous.chapter3FirstEncounterAssigned;
+    campaign.stage2AdventureCount = previous.stage2AdventureCount;
+    if (previous.foundMoneyTreasury)
+      campaign.runCharacterState.eventSeries.foundMoneyTreasury = previous.foundMoneyTreasury;
     if (eventResults) {
       if (hadEventResult) eventResults[node.id] = previous.eventResult;
       else delete eventResults[node.id];
@@ -1293,6 +1382,7 @@ export function resolveCampaignEvent(campaign, choiceId = null, skillId = null) 
   }
   if (!result) return false;
   campaign.pendingEvent = campaign.runCharacterState.eventResults[campaign.activeNode.id] ?? campaign.pendingEvent;
+  if (result.result?.vipTicket) campaign.vipTrialTicket = { used: false, shopId: null, multiplier: .6 };
   campaign.playerHp = campaign.runCharacterState.currentHp;
   campaign.playerMaxHp = campaign.runCharacterState.maxHp;
   const eventRecord = campaign.runCharacterState.eventResults[campaign.activeNode.id];
@@ -1435,6 +1525,7 @@ export function getShopRouteOptions(campaign) {
 
 export function leaveShop(campaign) {
   if (campaign?.status !== "shop" || campaign.activeNode?.id !== campaign.activeShop?.nodeId) return false;
+  if (campaign.vipTrialTicket?.shopId === campaign.activeShop.nodeId) campaign.vipTrialTicket.used = true;
   campaign.activeShop.essenceAfter = campaign.essence;
   campaign.shopHistory ??= [];
   campaign.shopHistory.push(campaign.activeShop);
@@ -1588,6 +1679,7 @@ export function beginStageTwo(campaign) {
     campaign.partyIds.length !== 2) return false;
   restorePartyHealthForStage(campaign, 2);
   campaign.stageId = 2;
+  campaign.stage2AdventureCount = 0;
   campaign.eliteEncounterHistory = [];
   campaign.stageStep = 1;
   campaign.routeMap = generateRouteMap(`stage2:${campaign.routeMap.seed}`, { stageId: 2 });
@@ -1609,10 +1701,6 @@ export function beginStageThree(campaign) {
   campaign.chapter3Entered = true;
   campaign.stageStep = 1;
   campaign.routeMap = generateRouteMap(`stage3:${campaign.routeMap.seed}`, { stageId: 3 });
-  // Guarantee a trial event at the stage entrance while preserving the normal route.
-  const start = campaign.routeMap.nodes.find((node) => node.id === campaign.routeMap.startNodeId);
-  const firstRooms = start?.nextNodeIds.map((id) => campaign.routeMap.nodes.find((node) => node.id === id)).filter(Boolean) ?? [];
-  if (!firstRooms.some((node) => node.type === "question") && firstRooms.length) firstRooms[0].type = "question";
   campaign.activeNode = null;
   campaign.currentBattle = null;
   campaign.pendingEvent = null;

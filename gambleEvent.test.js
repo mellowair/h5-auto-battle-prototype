@@ -261,12 +261,13 @@ test("third-round loss with no earlier win keeps every prior penalty", () => {
   assert.equal(final.result.successCount, 0);
 });
 
-test("stage-three event pool excludes three old encounters but keeps gamble", () => {
+test("stage-three event pool admits both reworked events but excludes the giant encounter", () => {
   const run = make("naruto");
   const pool = getAvailableAdventureEventIds(run, 9, [run], 3);
   assert.ok(pool.includes("gamble"));
-  for (const id of ["death_note", "fate_gate", "giant_encirclement"])
-    assert.equal(pool.includes(id), false);
+  for (const id of ["death_note", "fate_gate"])
+    assert.equal(pool.includes(id), true);
+  assert.equal(pool.includes("giant_encirclement"), false);
   const stageOne = getAvailableAdventureEventIds(run, 9, [run], 1);
   for (const id of ["gamble", "death_note", "fate_gate", "giant_encirclement"])
     assert.ok(stageOne.includes(id));

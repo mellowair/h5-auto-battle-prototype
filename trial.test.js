@@ -28,7 +28,7 @@ function stageThree(seed = 19) {
 function enterTrial(campaign, order = ["will", "strength", "wisdom"]) {
   const first = getRouteOptions(campaign);
   assert.ok(first.some((node) => node.type === "question"));
-  assert.ok(first.every((node) => node.type === "question"), "ordinary stage-three combat is not open yet");
+  assert.ok(first.some((node) => node.type === "battle"), "ordinary stage-three combat is available before the trial");
   const question = first.find((node) => node.type === "question");
   assert.equal(chooseRoute(campaign, question.id).event.eventId, "trial_land");
   assert.equal(resolveTrialOffer(campaign, "trial_accept").status, "trial_intro");
@@ -43,13 +43,13 @@ test("Odin ties use HP, ATK, DEF, SPD choice order, not gained values", () => {
   assert.equal(odinWeakestPointStat({ maxHp: 0, atk: 0, def: 0, spd: 1 }), "spd");
 });
 
-test("first stage-three playable room forces trial, then decline opens the normal route", () => {
+test("the first entered stage-three question forces trial while ordinary battle remains available", () => {
   for (let seed = 0; seed < 100; seed += 1) {
     const campaign = stageThree(seed);
     const options = getRouteOptions(campaign);
     assert.ok(options.length > 0, `seed ${seed} has a trial entry`);
-    assert.ok(options.every((node) => node.type === "question"));
-    assert.equal(chooseRoute(campaign, options[0].id).event.eventId, "trial_land");
+    assert.ok(options.some((node) => node.type === "battle"));
+    assert.equal(chooseRoute(campaign, options.find((node) => node.type === "question").id).event.eventId, "trial_land");
     assert.equal(resolveTrialOffer(campaign, "trial_decline").status, "route");
     assert.ok(getRouteOptions(campaign).length > 0);
     assert.ok(getRouteOptions(campaign).every((node) => node.status === "pending"));

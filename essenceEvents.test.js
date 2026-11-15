@@ -68,7 +68,7 @@ test("event UI hides found money outcome and previews both devil bargain consequ
   const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
   assert.match(app, /money_take", "天上掉馅饼", ""/);
   assert.match(app, /money_leave", "不是我的不能拿", ""/);
-  assert.match(app, /record\.eventId !== "devil_bargain"\) for \(const choice of choices\) choice\.description = ""/);
+  assert.match(app, /!\["devil_bargain", "death_note", "death_note_2", "fate_gate", "fate_gate_2"\]\.includes\(record\.eventId\)\) for \(const choice of choices\) choice\.description = ""/);
   assert.match(app, /devil_trade"[^\n]*50%/);
   assert.match(app, /devil_leave"[^\n]*1 点精华/);
 });

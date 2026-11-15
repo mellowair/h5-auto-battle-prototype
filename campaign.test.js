@@ -8,7 +8,8 @@ import { createAdventureEventResult, getAvailableAdventureEventIds, resolveAdven
 function safeAdventureChoice(event) {
   return ({ sea_beyond: "sea_pass", sea_beyond_2: "sea_home", old_scroll_2: "scroll_not_yet",
     coffee_shop: "coffee_leave", anteiku_2: "anteiku_leave", big_rock: "rock_bypass",
-    giant_rock_2: "rock_avoid_again", death_note: "death_note_pass", fate_gate: "fate_accept",
+    giant_rock_2: "rock_avoid_again", death_note: "death_temptation", death_note_2: "death_nothing",
+    fate_gate: "fate_continue", fate_gate_2: "fate_vip",
     kings_treasury: "treasury_leave", found_money: "money_leave", devil_bargain: "devil_leave" })[event.eventId] ?? event.data.skillChoices?.[0] ?? "scroll_leave";
 }
 function resolveSafeAdventure(campaign) {

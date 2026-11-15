@@ -119,7 +119,7 @@ test("weight and radar count each battle victory once; radar grants a real ordin
   assert.equal(campaign.pendingRadarOffers.length, 1);
   const offer = campaign.pendingRadarOffers[0];
   assert.equal(offer.choices.length, 3);
-  assert.ok(offer.choices.every((id) => TREASURE_DATA[id].tier === "small"));
+  assert.ok(offer.choices.every((id) => TREASURE_DATA[id].grade === "common"));
   assert.ok(claimDragonRadarOffer(campaign, offer.choices[0]));
   assert.equal(campaign.pendingRadarOffers.length, 0);
   assert.ok(run.permanentEffects.some((effect) => effect.sourceLabel === "龙珠雷达七场胜利奖励"));

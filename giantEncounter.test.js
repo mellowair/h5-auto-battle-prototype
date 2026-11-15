@@ -53,7 +53,7 @@ test("giant encounter draw uses actual entered-room step and filters before samp
     assert.equal(chooseAdventureEventId(run, () => (index + 0.5) / candidates.length, step), "giant_encirclement");
   }
   const source = readFileSync(new URL("./campaign.js", import.meta.url), "utf8");
-  assert.match(source, /chooseAdventureEventId\(campaign\.runCharacterState, campaign\.random, campaign\.step, partyStates, campaign\.stageId\)/);
+  assert.match(source, /chooseAdventureEventId\(campaign\.runCharacterState,\s*campaign\.random, campaign\.step, partyStates, campaign\.stageId,/);
 });
 
 test("a real late-route question opens the giant encounter and carries its choice into battle and reward", () => {

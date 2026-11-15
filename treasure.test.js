@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { STARTING_CHARACTERS } from "./characters.js";
 import { executeAttack, getCritChance, getDodgeChance, initializeBattle, simulateBattle } from "./battle.js";
 import { chooseRoute, claimCampaignTreasure, completeLocation, finishBattle, getCampaignTreasureOffer, getRouteOptions, prepareBattle, resolveCampaignEvent, resolveStageTwoCampfire, restorePartyHealthForStage, startCampaignEventBattle } from "./campaign.js";
-import { claimTreasure, createAdventureEventResult, createRunCharacterState, getCampfireOptions, getTreasureCombatModifiers, grantGiantSpinalFluid, grantGunDevilFragment, healRunCharacter, resolveAdventureEvent, resolveCampfire } from "./progression.js";
+import { claimTreasure, createAdventureEventResult, createRunCharacterState, getCampfireOptions, getTreasureCombatModifiers, grantEliteSukunaFinger, grantGiantSpinalFluid, grantGunDevilFragment, healRunCharacter, resolveAdventureEvent, resolveCampfire } from "./progression.js";
 import { TREASURE_DATA } from "./skills.js";
 import { createStageTwoDirectBattleCampaign, createStageTwoTestCampaign } from "./dev/stage2-config.js";
 
@@ -18,18 +18,20 @@ function offerFor(treasureId, recipient = hero) {
   createAdventureEventResult(owner, sourceId, "kings_treasury");
   const record = owner.eventResults[sourceId];
   record.status = "awaiting_treasure";
-  const alternative = TREASURE_DATA[treasureId].tier === "small"
+  const tier = TREASURE_DATA[treasureId].grade === "legendary" ? "royal" : "small";
+  const alternative = tier === "small"
     ? treasureId === "magic_conch" ? "odm_gear" : "magic_conch"
     : treasureId === "angel_breath" ? "stone_mask" : "angel_breath";
-  record.data.treasureOffer = { tier: TREASURE_DATA[treasureId].tier, choices: [treasureId, alternative], claimed: false };
+  record.data.treasureOffer = { tier, choices: [treasureId, alternative], claimed: false };
   return { owner, member, sourceId };
 }
 
-test("existing and new treasures have stable tiers and linked artwork", () => {
-  assert.deepEqual(Object.values(TREASURE_DATA).filter((item) => item.tier === "small").map((item) => item.id),
-    ["magic_conch", "sukuna_finger", "odm_gear", "universal_capsule", "rock_lee_weights"]);
-  assert.deepEqual(Object.values(TREASURE_DATA).filter((item) => item.tier === "royal").map((item) => item.id),
-    ["angel_breath", "stone_mask", "nichirin_blade", "dragon_radar", "hogyoku_fragment", "shikon_fragment"]);
+test("treasures have separate common, rare and legendary grades with linked artwork", () => {
+  assert.deepEqual(Object.values(TREASURE_DATA).filter((item) => item.grade === "common").map((item) => item.id),
+    ["magic_conch", "odm_gear", "universal_capsule", "rock_lee_weights", "drip_coffee", "vip_card"]);
+  assert.deepEqual(Object.values(TREASURE_DATA).filter((item) => item.grade === "rare").map((item) => item.id), ["sukuna_finger"]);
+  assert.deepEqual(Object.values(TREASURE_DATA).filter((item) => item.grade === "legendary").map((item) => item.id),
+    ["angel_breath", "stone_mask", "nichirin_blade", "dragon_radar", "hogyoku_fragment", "shikon_fragment", "quinque_crit", "quinque_guard", "premium_vip_card"]);
   assert.ok(Object.values(TREASURE_DATA).every((item) => item.name && item.description && (!item.image || existsSync(item.image))));
   assert.ok(["universal_capsule", "rock_lee_weights", "dragon_radar", "hogyoku_fragment", "shikon_fragment", "drip_coffee", "quinque_guard", "quinque_crit"].every((id) => TREASURE_DATA[id].image && existsSync(TREASURE_DATA[id].image)));
 });
@@ -49,11 +51,11 @@ test("small treasure modifies only its recipient and a second claim is rejected"
 });
 
 test("Sukuna finger clamps HP, while ODM gear raises actual dodge and crit chances", () => {
-  const finger = offerFor("sukuna_finger");
-  finger.member.maxHp = 1600; finger.member.currentHp = 1500;
-  const oldAtk = finger.member.atk;
-  assert.ok(claimTreasure(finger.owner, finger.sourceId, "sukuna_finger", finger.member, finger.member.characterId));
-  assert.deepEqual([finger.member.maxHp, finger.member.currentHp, finger.member.atk], [1450, 1450, oldAtk + 30]);
+  const finger = createRunCharacterState(hero);
+  finger.maxHp = 1600; finger.currentHp = 1500;
+  const oldAtk = finger.atk;
+  assert.ok(grantEliteSukunaFinger(finger, "mahito"));
+  assert.deepEqual([finger.maxHp, finger.currentHp, finger.atk], [1450, 1450, oldAtk + 30]);
   const gear = offerFor("odm_gear");
   const oldCrit = gear.member.critRate;
   assert.ok(claimTreasure(gear.owner, gear.sourceId, "odm_gear", gear.member, gear.member.characterId));

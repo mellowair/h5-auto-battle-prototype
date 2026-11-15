@@ -77,21 +77,19 @@ test("stat reward offers are three unique stable choices and each stat applies c
   }
 });
 
-test("Fate Gate arms only a next-real-battle skill guarantee and no-skill runs remain safe", () => {
+test("Fate Gate starts a timed experiment even for a hero without learned skills", () => {
   const run = makeNaruto();
   const event = createAdventureEventResult(run, "fate-node", "fate_gate", () => 0);
-  assert.deepEqual(event.data.skillChoices, ["shadow-clone-rush"]);
-  const armed = resolveAdventureEvent(run, "fate-node", "fate_accept");
-  assert.equal(armed.result.guaranteeArmed, true);
-  assert.deepEqual(run.nextBattleSkillGuarantee, { sourceId: "fate-node", skillIds: ["shadow-clone-rush"] });
-  assert.equal(resolveAdventureEvent(run, "fate-node", "fate_accept"), false, "event resolution is idempotent");
+  assert.equal(event.data.experiment, "long");
+  const armed = resolveAdventureEvent(run, "fate-node", "fate_experiment");
+  assert.equal(armed.result.battlesRemaining, 10);
+  assert.equal(getTemporaryCombatModifiers(run).atkMultiplier, .75);
+  assert.equal(resolveAdventureEvent(run, "fate-node", "fate_experiment"), false, "event resolution is idempotent");
 
   const unskilled = createRunCharacterState(STARTING_CHARACTERS.find((character) => character.id === "eren"), null);
-  const noSkillEvent = createAdventureEventResult(unskilled, "empty-fate", "fate_gate", () => 0);
-  assert.deepEqual(noSkillEvent.data.skillChoices, []);
-  const skipped = resolveAdventureEvent(unskilled, "empty-fate", "fate_accept");
-  assert.equal(skipped.result.noEligibleSkills, true);
-  assert.equal(unskilled.nextBattleSkillGuarantee, null);
+  createAdventureEventResult(unskilled, "empty-fate", "fate_gate", () => 0);
+  assert.equal(resolveAdventureEvent(unskilled, "empty-fate", "fate_experiment").result.battlesRemaining, 10);
+  assert.equal(getTemporaryCombatModifiers(unskilled).atkMultiplier, .75);
 });
 
 test("HP upgrade raises max HP without healing and preserves current HP", () => {
@@ -294,13 +292,10 @@ test("Gun Devil and spinal fluid drops grow linearly per recipient and restore t
   const finger = makeNaruto();
   finger.currentHp = 500;
   assert.equal(grantEliteSukunaFinger(finger, "mahito").atk, 30);
-  createAdventureEventResult(finger, "treasury-repeat", "kings_treasury");
-  resolveAdventureEvent(finger, "treasury-repeat", "treasury_steal", () => .1);
-  finger.eventResults["treasury-repeat"].data.treasureOffer.choices = ["sukuna_finger", "magic_conch"];
-  assert.ok(claimTreasure(finger, "treasury-repeat", "sukuna_finger", finger, finger.characterId));
+  assert.ok(grantEliteSukunaFinger(finger, "second-elite"));
   assert.deepEqual([finger.atk, finger.maxHp, finger.currentHp], [256, 1300, 500]);
   assert.equal(finger.permanentEffects.at(-1).atk, 36);
-  assert.equal(claimTreasure(finger, "treasury-repeat", "sukuna_finger", finger, finger.characterId), false);
+  assert.equal(grantEliteSukunaFinger(finger, "second-elite"), false);
 
   const conch = makeNaruto();
   conch.permanentEffects.push({ id: "magic_conch", sourceId: "old" });
@@ -355,10 +350,7 @@ test("special drop stage growth and repeat growth both use first-stage base valu
   assert.deepEqual([fingerFirst.atk, fingerSecond.atk, fingerFirst.maxHp, fingerSecond.maxHp], [30, 42, -150, -150]);
   assert.equal(grantEliteSukunaFinger(makeNaruto(), "mahito-3", 3).atk, 42);
   const treasury = makeNaruto();
-  createAdventureEventResult(treasury, "stage-two-treasury", "kings_treasury", () => 0, [treasury], 2);
-  resolveAdventureEvent(treasury, "stage-two-treasury", "treasury_steal", () => .1);
-  treasury.eventResults["stage-two-treasury"].data.treasureOffer.choices = ["sukuna_finger", "magic_conch"];
-  assert.ok(claimTreasure(treasury, "stage-two-treasury", "sukuna_finger", treasury, treasury.characterId));
+  assert.ok(grantEliteSukunaFinger(treasury, "stage-two-elite", 2));
   assert.deepEqual([treasury.atk, treasury.maxHp], [226, 1450]);
 });
 
@@ -542,7 +534,7 @@ test("Anteiku coffee heals 15 percent and grants DEF plus 30 only for the next b
 });
 
 test("event images point to copied local resources and decision UI renders them", () => {
-  assert.equal(Object.keys(ADVENTURE_EVENT_DATA).length, 18);
+  assert.equal(Object.keys(ADVENTURE_EVENT_DATA).length, 20);
   const app=readFileSync(new URL("./app.js",import.meta.url),"utf8"), html=readFileSync(new URL("./index.html",import.meta.url),"utf8"), css=readFileSync(new URL("./style.css",import.meta.url),"utf8");
   assert.match(app,/eventImage\.src = image/); assert.match(html,/id="decision-event-image"/); assert.match(css,/\.decision-event-image\[hidden\]\s*\{\s*display:\s*none/);
   for (const id of ["sea_beyond","death_note","fate_gate","giant_encirclement","kings_treasury","gamble","gamble_2","found_money","devil_bargain"]) {
@@ -608,34 +600,25 @@ test("sea beyond uses three percentage sacrifice tiers and random stat rewards, 
  assert.equal(getAvailableAdventureEventIds(declined).includes("sea_beyond"),false,"declining still consumes the run's single appearance");
 });
 
-test("death note rolls once, lasts two real battles, and cannot refresh in the same run", () => {
- const bad=makeNaruto(); createAdventureEventResult(bad,"death-bad","death_note",()=>0); const event=resolveAdventureEvent(bad,"death-bad","death_note_open"); assert.equal(event.result.blessing,"player_damage_increased"); assert.equal(getTemporaryCombatModifiers(bad).damageTakenMultiplier,1.5); assert.equal(getTemporaryCombatModifiers(bad).damageDealtMultiplier,1);
- const row=getTemporaryEffectDisplayRows(bad).find(effect=>effect.id==="death_note"); assert.deepEqual([row.statName,row.amountText,row.durationText,row.polarity],["受到伤害","×1.5","剩余 2 场战斗","debuff"]);
- advanceTemporaryEffectsAfterBattle(bad); assert.equal(bad.temporaryEffects[0].battlesRemaining,1); advanceTemporaryEffectsAfterBattle(bad); assert.equal(getTemporaryCombatModifiers(bad).damageTakenMultiplier,1);
- const good=makeNaruto(); createAdventureEventResult(good,"death-good","death_note",()=>0.9); resolveAdventureEvent(good,"death-good","death_note_open"); assert.equal(getTemporaryCombatModifiers(good).damageDealtMultiplier,2);
- advanceTemporaryEffectsAfterBattle(good); assert.equal(good.temporaryEffects[0].battlesRemaining,1);
- assert.equal(createAdventureEventResult(good,"death-refresh","death_note",()=>0.9),null);
- assert.equal(resolveAdventureEvent(good,"death-refresh","death_note_open"),false);
- assert.equal(good.temporaryEffects.length,1); assert.equal(good.temporaryEffects[0].battlesRemaining,1);
+test("Death Note links two one-time chapters and applies only the selected light cost", () => {
+  const run = makeNaruto();
+  createAdventureEventResult(run, "death-first", "death_note", () => 0, [run], 3);
+  assert.equal(resolveAdventureEvent(run, "death-first", "death_temptation").result.sequelUnlocked, true);
+  assert.equal(createAdventureEventResult(run, "death-repeat", "death_note", () => 0, [run], 3), null);
+  assert.ok(getAvailableAdventureEventIds(run, 10, [run], 3).includes("death_note_2"));
+  createAdventureEventResult(run, "death-second", "death_note_2", () => 0, [run], 3);
+  const result = resolveAdventureEvent(run, "death-second", "death_light");
+  assert.deepEqual([result.result.essenceBlockedBattles, result.result.eliteHpMultiplier, result.result.bossHpMultiplier], [3, .75, .85]);
+  assert.equal(resolveAdventureEvent(run, "death-second", "death_light"), false);
+  assert.equal(getAvailableAdventureEventIds(run, 10, [run], 3).includes("death_note_2"), false);
 });
 
-test("Death Note pass, harm, and boon all settle once; the event UI handles non-stat effects", () => {
+test("Death Note choice descriptions and result text use the new rules", () => {
   const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
-  const textHandler = app.slice(app.indexOf("function describeEventResult"), app.indexOf("function applySpriteFrame"));
-  assert.ok(textHandler.indexOf('result.blessing === "player_damage_increased"') < textHandler.indexOf("result.effect?.stat || result.healFraction"));
-  assert.ok(textHandler.indexOf('result.blessing === "enemy_damage_doubled"') < textHandler.indexOf("result.effect?.stat || result.healFraction"));
-  assert.match(textHandler, /result\.effect\?\.stat \? `下一场战斗\$\{result\.effect\.stat\.toUpperCase\(\)\}/);
-  assert.match(app, /catch \(error\) \{\s*console\.error\("选项结算失败", error\);\s*decisionBusy = false/);
-  for (const [choice, roll, expected] of [["death_note_pass", 0, null], ["death_note_open", 0, "player_damage_increased"], ["death_note_open", .9, "enemy_damage_doubled"]]) {
-    const run = makeNaruto();
-    const source = `death-${choice}-${roll}`;
-    createAdventureEventResult(run, source, "death_note", () => roll);
-    const settled = resolveAdventureEvent(run, source, choice);
-    assert.equal(settled.status, "completed");
-    assert.equal(settled.result.blessing ?? null, expected);
-    assert.equal(resolveAdventureEvent(run, source, choice), false);
-    assert.equal(run.temporaryEffects.filter((effect) => effect.statusId === "death_note").length, choice === "death_note_open" ? 1 : 0);
-  }
+  assert.match(app, /death_light", "走向光明"/);
+  assert.match(app, /death_read", "读万卷书"/);
+  assert.match(app, /death_nothing", "我什么都不想要"/);
+  assert.match(app, /result\.essenceBlockedBattles/);
 });
 
 test("Jiraiya scroll can be declined once and safely completes", () => { const run=makeNaruto(); createAdventureEventResult(run,"scroll-decline","scroll"); assert.equal(resolveAdventureEvent(run,"scroll-decline","scroll_leave").status,"completed"); assert.deepEqual(run.learnedActiveSkills,["shadow-clone-rush"]); });

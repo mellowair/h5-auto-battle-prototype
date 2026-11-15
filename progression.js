@@ -5,7 +5,7 @@ const copy = (value) => value == null ? value : JSON.parse(JSON.stringify(value)
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 const rngIndex = (length, random) => Math.min(length - 1, Math.floor(Math.max(0, Math.min(0.999999999999, finite(random(), 0))) * length));
 const has = (list, value) => Array.isArray(list) && list.includes(value);
-const SINGLE_ENCOUNTER_EVENTS = new Set(["death_note", "fate_gate", "giant_encirclement", "kings_treasury", "gamble", "gamble_2", "found_money", "devil_bargain"]);
+const SINGLE_ENCOUNTER_EVENTS = new Set(["death_note", "death_note_2", "fate_gate", "fate_gate_2", "giant_encirclement", "kings_treasury", "gamble", "gamble_2", "found_money", "devil_bargain"]);
 
 function ensureRunState(state) {
   if (!state || typeof state !== "object") throw new TypeError("runCharacterState is required");
@@ -136,7 +136,9 @@ export function createTreasureOffer(runState, sourceId, tier, random = Math.rand
   const record = runState.eventResults[sourceId];
   if (record?.eventId !== "kings_treasury" || !["small", "royal"].includes(tier)) return false;
   if (record.data.treasureOffer) return copy(record.data.treasureOffer);
-  const pool = Object.values(TREASURE_DATA).filter((treasure) => treasure.tier === tier).map((treasure) => treasure.id);
+  const grade = { small: "common", royal: "legendary" }[tier];
+  const pool = Object.values(TREASURE_DATA).filter((treasure) => treasure.grade === grade).map((treasure) => treasure.id);
+  if (pool.length < 2) return false;
   const choices = [];
   while (choices.length < 2) choices.push(pool.splice(rngIndex(pool.length, random), 1)[0]);
   record.data.treasureOffer = { tier, choices, claimed: false };
@@ -150,7 +152,7 @@ export function claimTreasure(runState, sourceId, treasureId, recipientState, re
   const offer = record?.data?.treasureOffer;
   const treasure = TREASURE_DATA[treasureId];
   if (record?.eventId !== "kings_treasury" || !offer || offer.claimed ||
-    !offer.choices.includes(treasureId) || treasure?.tier !== offer.tier ||
+    !offer.choices.includes(treasureId) || treasure?.grade !== { small: "common", royal: "legendary" }[offer.tier] ||
     !["awaiting_treasure", "awaiting_reward"].includes(record.status) || !recipientId ||
     recipientState.characterId !== recipientId) return false;
   const key = makeActionKey("treasure", sourceId);
@@ -175,6 +177,27 @@ export function claimTreasure(runState, sourceId, treasureId, recipientState, re
   offer.recipientId = recipientId;
   if (record.status === "awaiting_treasure") record.status = "completed";
   return { treasureId, recipientId, name: treasure.name, currentHp: recipientState.currentHp, maxHp: recipientState.maxHp };
+}
+
+export function grantEventTreasure(member, sourceId, treasureId, stageId, sourceLabel) {
+  const before = member.permanentEffects.length;
+  let result;
+  if (treasureId === GIANT_SPINAL_FLUID.id) result = grantGiantSpinalFluid(member, sourceId, stageId);
+  else if (treasureId === GUN_DEVIL_FRAGMENT.id) result = grantGunDevilFragment(member, sourceId, stageId);
+  else if (treasureId === "sukuna_finger") result = grantEliteSukunaFinger(member, sourceId, stageId);
+  else {
+    const treasure = TREASURE_DATA[treasureId];
+    if (!treasure) return false;
+    const key = `${sourceId}:treasure`;
+    member.eventResults[key] = { eventId: "kings_treasury", status: "awaiting_treasure", data: {
+      stageId, treasureOffer: { tier: treasure.grade === "common" ? "small" : "royal", choices: [treasureId], claimed: false } } };
+    result = claimTreasure(member, key, treasureId, member, member.characterId);
+    delete member.eventResults[key];
+  }
+  if (!result) return false;
+  const effect = member.permanentEffects.slice(before).find((entry) => entry.id === treasureId);
+  if (effect) { effect.sourceLabel = sourceLabel; effect.stageId = stageId; }
+  return result;
 }
 
 function grantGambleTreasure(member, sourceId, treasureId, stageId) {
@@ -312,7 +335,9 @@ export function getAvailableAdventureEventIds(runState, step = 1, partyStates = 
       record.eventId === "gamble" && record.status === "completed" && record.data.stageId < stageId) &&
       !Object.values(runState.eventResults).some((record) => record.eventId === "gamble_2"))
     && (eventId !== "kings_treasury" || stageId === 2)
-    && (stageId !== 3 || !["death_note", "fate_gate", "giant_encirclement"].includes(eventId))
+    && (stageId !== 3 || eventId !== "giant_encirclement")
+    && (eventId !== "death_note_2" || Boolean(series.deathNote?.sequelUnlocked) && !series.deathNote?.chapter2Completed)
+    && (eventId !== "fate_gate_2" || Boolean(series.fateGate?.sequelUnlocked) && !series.fateGate?.chapter2Completed)
     && (eventId !== "giant_encirclement" || step >= 8)
     && (eventId !== "scroll" || eligible("scroll", 1, partyStates.some((state) => getUnlearnedActiveSkills(state).length > 0)))
     && (eventId !== "old_scroll_2" || eligible("scroll", 2, partyStates.some((state) =>
@@ -327,8 +352,8 @@ export function getAvailableAdventureEventIds(runState, step = 1, partyStates = 
     && (eventId !== "sea_beyond_2" || eligible("sea", 2, (sea.rewards?.length ?? 0) > 0)));
 }
 
-export function chooseAdventureEventId(runState, random = Math.random, step = 1, partyStates = [runState], stageId = 1) {
-  const ids = getAvailableAdventureEventIds(runState, step, partyStates, stageId);
+export function chooseAdventureEventId(runState, random = Math.random, step = 1, partyStates = [runState], stageId = 1, excludedIds = []) {
+  const ids = getAvailableAdventureEventIds(runState, step, partyStates, stageId).filter((id) => !excludedIds.includes(id));
   if (stageId >= 2 && ids.length > 1) {
     const chosenInStageOne = (chapterId, firstId, choiceId) => ids.includes(chapterId) &&
       Object.values(runState.eventResults).some((record) => record.eventId === firstId &&
@@ -361,10 +386,11 @@ export function getTemporaryCombatModifiers(runState) {
   ensureRunState(runState);
   return runState.temporaryEffects.reduce((modifiers, effect) => {
     if (hasTemporaryDuration(effect) && (effect.stat === "spd" || effect.stat === "def")) modifiers[effect.stat] += effect.amount;
+    if (hasTemporaryDuration(effect) && effect.effectKind === "attack_multiplier") modifiers.atkMultiplier *= effect.multiplier ?? 1;
     if (hasTemporaryDuration(effect) && effect.effectKind === "damage_taken_multiplier") modifiers.damageTakenMultiplier *= effect.multiplier ?? 1;
     if (hasTemporaryDuration(effect) && effect.effectKind === "damage_dealt_multiplier") modifiers.damageDealtMultiplier *= effect.multiplier ?? 1;
     return modifiers;
-  }, { spd: 0, def: 0, damageTakenMultiplier: 1, damageDealtMultiplier: 1 });
+  }, { spd: 0, def: 0, atkMultiplier: 1, damageTakenMultiplier: 1, damageDealtMultiplier: 1 });
 }
 
 export function getTemporaryEffects(runState) {
@@ -375,14 +401,15 @@ export function getTemporaryEffects(runState) {
 export function getTemporaryEffectDisplayRows(runState) {
   const statNames = { atk: "攻击", def: "防御", spd: "速度", maxHp: "最大生命" };
   return getTemporaryEffects(runState).map((effect) => {
+    const isAttackMultiplier = effect.effectKind === "attack_multiplier";
     const isDamageTaken = effect.effectKind === "damage_taken_multiplier";
     const isDamageDealt = effect.effectKind === "damage_dealt_multiplier";
     return {
       id: effect.statusId ?? (effect.name === "巨石减益" ? "big_rock" : effect.name === "咖啡店增益" ? "coffee_shop" : null),
       name: effect.name ?? "临时效果",
-      statName: isDamageTaken ? "受到伤害" : isDamageDealt ? "造成伤害" : statNames[effect.stat] ?? effect.stat,
+      statName: isAttackMultiplier ? "攻击" : isDamageTaken ? "受到伤害" : isDamageDealt ? "造成伤害" : statNames[effect.stat] ?? effect.stat,
       amount: effect.amount,
-      amountText: isDamageTaken || isDamageDealt
+      amountText: isAttackMultiplier || isDamageTaken || isDamageDealt
         ? `×${effect.multiplier ?? 1}`
         : `${effect.amount > 0 ? "+" : ""}${effect.amount}`,
       durationText: effect.roundsRemaining > 0
@@ -390,7 +417,7 @@ export function getTemporaryEffectDisplayRows(runState) {
         : effect.stat === "def" && effect.battlesRemaining === 1
         ? "下一场战斗生效"
         : `剩余 ${effect.battlesRemaining} 场战斗`,
-      polarity: isDamageTaken || effect.amount < 0 ? "debuff" : "buff",
+      polarity: isAttackMultiplier || isDamageTaken || effect.amount < 0 ? "debuff" : "buff",
     };
   });
 }
@@ -620,6 +647,8 @@ export function createAdventureEventResult(runState, sourceId, eventId, random =
   if (!config) throw new RangeError(`unknown adventure event: ${eventId}`);
   if (SINGLE_ENCOUNTER_EVENTS.has(eventId) && Object.values(runState.eventResults).some((record) => record.eventId === eventId)) return null;
   if (eventId === "gamble_2" && !getAvailableAdventureEventIds(runState, 1, partyStates, stageId).includes(eventId)) return null;
+  if (["death_note_2", "fate_gate_2"].includes(eventId) &&
+    !getAvailableAdventureEventIds(runState, 1, partyStates, stageId).includes(eventId)) return null;
   if (eventId === "scroll" && !partyStates.some((state) => getUnlearnedActiveSkills(state).length)) return null;
   if (eventId === "fall_rock" && (runState.fallRockCompleted || runState.fallRockCount >= config.stages.length)) return null;
   if (eventId === "sea_beyond" && Object.values(runState.eventResults).some((event) => event.eventId === "sea_beyond")) return null;
@@ -655,18 +684,13 @@ export function createAdventureEventResult(runState, sourceId, eventId, random =
     });
   }
   if (eventId === "sea_beyond_2") record.data.previousRewards = copy(runState.eventSeries.sea.rewards);
-  if (eventId === "death_note") record.data.blessing = random() < 0.5 ? "player_vulnerable" : "enemy_vulnerable";
+  if (eventId === "fate_gate") record.data.experiment = ["long", "medium", "short"][rngIndex(3, random)];
+  if (eventId === "fate_gate_2") record.data.phase = "choice";
   if (eventId === "scroll") {
     const choices = [...new Set(partyStates.flatMap((state) => getUnlearnedActiveSkills(state)))];
     record.type = "learn_skill";
     record.data.skillChoices = choices;
     record.data.scrollPhase = "intro";
-  }
-  if (eventId === "fate_gate") {
-    record.data.skillChoices = runState.learnedActiveSkills
-      .map((skillId) => getSkillAtLevel(runState, skillId))
-      .filter((skill) => skill && Number.isFinite(skill.chance))
-      .map((skill) => skill.id);
   }
   runState.eventResults[sourceId] = record;
   return copy(record);
@@ -699,6 +723,22 @@ function applySharedEventEffect(runState, sourceId, result) {
   if (result.gains) for (const gain of result.gains) runState[gain.stat] += gain.amount;
 }
 
+const FATE_EXPERIMENTS = Object.freeze({ long: { battles: 10, multiplier: .75 },
+  medium: { battles: 5, multiplier: .8 }, short: { battles: 3, multiplier: .9 } });
+
+function startFateExperiment(runState, partyStates, sourceId, type) {
+  const rule = FATE_EXPERIMENTS[type];
+  if (!rule || runState.fateExperiment?.battlesRemaining > 0) return false;
+  for (const member of new Set(partyStates)) {
+    ensureRunState(member);
+    member.temporaryEffects = member.temporaryEffects.filter((effect) => effect.statusId !== "fate_banana");
+    member.temporaryEffects.push({ sourceId, statusId: "fate_banana", name: "绿色果冻香蕉",
+      effectKind: "attack_multiplier", multiplier: rule.multiplier, battlesRemaining: rule.battles });
+  }
+  runState.fateExperiment = { sourceId, type, battlesRemaining: rule.battles, rewardClaimed: false };
+  return { type, battlesRemaining: rule.battles, atkMultiplier: rule.multiplier };
+}
+
 export function resolveAdventureEvent(runState, sourceId, choiceId = null, random = Math.random, recipientState = runState,
   partyStates = [runState, recipientState]) {
   ensureRunState(runState);
@@ -712,6 +752,7 @@ export function resolveAdventureEvent(runState, sourceId, choiceId = null, rando
     if (!["money_take", "money_leave"].includes(choiceId)) return false;
     result = { essenceGain: choiceId === "money_take" ? 5 : 0, skipped: choiceId === "money_leave" };
     record.data.choiceId = choiceId;
+    if (choiceId === "money_leave") series.foundMoneyTreasury = { pending: true, forced: false };
   } else if (record.eventId === "devil_bargain") {
     if (!["devil_trade", "devil_leave"].includes(choiceId)) return false;
     const requestedHpLoss = choiceId === "devil_trade" ? Math.floor(runState.maxHp * .5) : 0;
@@ -964,22 +1005,62 @@ export function resolveAdventureEvent(runState, sourceId, choiceId = null, rando
     if (sequel) series.rock.chapter2Completed = true;
     else { series.rock.chapter1Completed = true; series.rock.chapter2Unlocked = choiceId === "rock_move"; }
     series.rock.lastChoice = choiceId;
-  } else if (record.eventId === "death_note") {
-    if (choiceId === "death_note_pass") result = { skipped: true };
-    else if (choiceId === "death_note_open") {
-      const negative = record.data.blessing === "player_vulnerable";
-      runState.temporaryEffects = runState.temporaryEffects.filter(effect => effect.statusId !== "death_note");
-      const effect = { statusId: "death_note", name: "死亡笔记", effectKind: negative ? "damage_taken_multiplier" : "damage_dealt_multiplier", multiplier: negative ? 1.5 : 2, battlesRemaining: 2, sourceId };
-      runState.temporaryEffects.push(effect); result = { blessing: negative ? "player_damage_increased" : "enemy_damage_doubled", effect };
+  } else if (record.eventId === "death_note" || record.eventId === "death_note_2") {
+    const sequel = record.eventId === "death_note_2";
+    series.deathNote ??= {};
+    if (choiceId === "death_light") {
+      const battles = sequel ? 3 : 5;
+      runState.essenceBlockedBattles = battles;
+      series.deathNote.curse = { stageId, eliteHpMultiplier: sequel ? .75 : .8, bossHpMultiplier: sequel ? .85 : .9 };
+      result = { essenceBlockedBattles: battles, ...series.deathNote.curse };
+    } else if (!sequel && choiceId === "death_temptation") {
+      series.deathNote.sequelUnlocked = true;
+      result = { sequelUnlocked: true };
+    } else if (sequel && choiceId === "death_read") {
+      const before = runState.maxHp;
+      runState.maxHp = Math.max(1, Math.floor(before * .56));
+      const maxHpLoss = before - runState.maxHp;
+      runState.currentHp = Math.min(runState.currentHp, runState.maxHp);
+      const ids = [GIANT_SPINAL_FLUID.id, GUN_DEVIL_FRAGMENT.id, "sukuna_finger"];
+      const treasureId = ids[rngIndex(ids.length, random)];
+      const treasure = grantEventTreasure(runState, `${sourceId}:rare`, treasureId, stageId, "死亡笔记奇遇");
+      if (!treasure) return false;
+      result = { maxHpLoss, treasureId, currentHp: runState.currentHp };
+    } else if (sequel && choiceId === "death_nothing") {
+      const before = runState.currentHp;
+      if (!(runState.divinePunishment?.battlesLeft > 0) && !hasStoneMask(runState))
+        runState.currentHp = Math.min(runState.maxHp, before + Math.floor(runState.maxHp * .44));
+      result = { restored: runState.currentHp - before, currentHp: runState.currentHp, maxHp: runState.maxHp };
     } else return false;
-  } else if (record.eventId === "fate_gate") {
-    if (choiceId !== "fate_accept") return false;
-    const eligibleSkillIds = record.data.skillChoices.filter((skillId) => getSkillAtLevel(runState, skillId)?.chance !== undefined);
-    if (!eligibleSkillIds.length) result = { noEligibleSkills: true };
-    else {
-      runState.nextBattleSkillGuarantee = { sourceId, skillIds: [...eligibleSkillIds] };
-      result = { guaranteeArmed: true, skillCount: eligibleSkillIds.length };
-    }
+    series.deathNote.chapter1Completed = true;
+    if (sequel) series.deathNote.chapter2Completed = true;
+    record.data.choiceId = choiceId;
+  } else if (record.eventId === "fate_gate" || record.eventId === "fate_gate_2") {
+    const sequel = record.eventId === "fate_gate_2";
+    series.fateGate ??= {};
+    if (!sequel && choiceId === "fate_experiment") {
+      result = startFateExperiment(runState, partyStates, sourceId, record.data.experiment);
+      if (!result) return false;
+      series.fateGate.shownResult = record.data.experiment;
+    } else if (!sequel && choiceId === "fate_continue") {
+      series.fateGate.sequelUnlocked = true;
+      series.fateGate.shownResult = record.data.experiment;
+      result = { sequelUnlocked: true, shownResult: record.data.experiment };
+    } else if (sequel && record.data.phase === "choice" && choiceId === "fate_choose") {
+      record.data.phase = "select";
+      keepPending = true;
+      result = { continued: true };
+    } else if (sequel && record.data.phase === "select" && choiceId?.startsWith("fate_experiment|")) {
+      const type = choiceId.split("|")[1];
+      if (type === series.fateGate.shownResult) return false;
+      result = startFateExperiment(runState, partyStates, sourceId, type);
+      if (!result) return false;
+    } else if (sequel && choiceId === "fate_vip") {
+      result = { vipTicket: true, multiplier: .6 };
+    } else return false;
+    series.fateGate.chapter1Completed = true;
+    if (sequel && !keepPending) series.fateGate.chapter2Completed = true;
+    record.data.choiceId = choiceId;
   } else if (record.eventId === "fall_rock") {
     if (record.data.stage !== runState.fallRockCount + 1) return false;
     const rule = ADVENTURE_EVENT_DATA.fall_rock.stages[record.data.stage - 1];

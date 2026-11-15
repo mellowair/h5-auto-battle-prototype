@@ -14,11 +14,11 @@ test("new stage-one elites, hidden bosses, and Heracles use the requested panel 
   assert.deepEqual([enemy("swamp-giant").hp, enemy("swamp-giant").atk,
     enemy("swamp-giant").def, enemy("swamp-giant").spd], [1300, 80, 60, 30]);
   assert.deepEqual([enemy("eternity-devil").hp, enemy("eternity-devil").atk,
-    enemy("eternity-devil").def, enemy("eternity-devil").spd], [1600, 40, 20, 20]);
+    enemy("eternity-devil").def, enemy("eternity-devil").spd], [1600, 40, 50, 20]);
   assert.ok(["swamp-giant", "eternity-devil"].every((id) => enemy(id).row === "front"));
   assert.deepEqual([GUN_DEVIL.hp, GUN_DEVIL.atk, GUN_DEVIL.def, GUN_DEVIL.spd], [4500, 999, 220, 300]);
   assert.deepEqual([YORU.hp, YORU.atk, YORU.def, YORU.spd], [6500, 1444, 300, 250]);
-  assert.deepEqual([TRIAL_ENEMY_DATA.heracles.atk, TRIAL_ENEMY_DATA.heracles.def], [520, 160]);
+  assert.deepEqual([TRIAL_ENEMY_DATA.heracles.atk, TRIAL_ENEMY_DATA.heracles.def], [520, 180]);
   assert.equal(eliteDropId({ currentBattle: { type: "elite", enemies: ["swamp-giant"] } }), "giant_spinal_fluid");
 });
 
@@ -55,13 +55,13 @@ test("poison reduces combat ATK and DEF by two percent per layer", () => {
   assert.ok(strongerHit.actualDamage > baseHit.actualDamage);
 });
 
-test("Eternity grows through round eight and applies suffocation after round seven", () => {
+test("Eternity grows through round eight and applies suffocation from round five", () => {
   const result = simulateBattle([ally({ def: 50 }), enemy("eternity-devil")], () => .99);
   const growth = result.events.filter((event) => event.type === "eternity-growth");
   assert.deepEqual(growth.map((event) => event.round), [2, 3, 4, 5, 6, 7, 8]);
   assert.ok(Math.abs(growth.at(-1).scaleFactor - 3.1) < 1e-9);
   assert.equal(result.events.filter((event) => event.type === "eternity-suffocation").length, 1);
-  assert.equal(result.events.find((event) => event.type === "eternity-suffocation").round, 7);
+  assert.equal(result.events.find((event) => event.type === "eternity-suffocation").round, 5);
   const state = initializeBattle([ally({ def: 0 }), enemy("eternity-devil")]);
   state.round = 8;
   state.characters[0].suffocating = true;

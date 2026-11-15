@@ -30,7 +30,7 @@ function eventCampaign(eventId, series = {}, heroId = "naruto", partnerId = "ere
 }
 
 test("single-chapter adventures appear only once per run, including declines and pending battles", () => {
-  for (const [eventId, choiceId] of [["death_note", "death_note_pass"], ["fate_gate", "fate_accept"],
+  for (const [eventId, choiceId] of [["death_note", "death_temptation"], ["fate_gate", "fate_continue"],
     ["giant_encirclement", "giant_escape"], ["kings_treasury", "treasury_leave"]]) {
     const state = run();
     const source = `first:${eventId}`;

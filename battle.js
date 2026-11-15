@@ -431,7 +431,7 @@ export function resolveFallingRoundEnd(state) {
     let reduced = afterDefense;
     if (target.id === "tang" && state.characters.some((unit) => unit.summonerId === "tang" && unit.alive && unit.currentHp > 0))
       reduced = Math.max(1, Math.floor(reduced * .8));
-    if (target.damageTakenMultiplier > 1) reduced = Math.floor(reduced * target.damageTakenMultiplier);
+    if (Number.isFinite(target.damageTakenMultiplier) && target.damageTakenMultiplier !== 1) reduced = Math.floor(reduced * target.damageTakenMultiplier);
     reduced = applyNormalDamageReduction(target, reduced);
     const shieldAbsorbed = Math.min(reduced, target.shieldHp ?? 0);
     target.shieldHp = Math.max(0, (target.shieldHp ?? 0) - shieldAbsorbed);
@@ -965,7 +965,7 @@ export function executeAttack(state, attacker, target, random = Math.random, att
       if (passiveTriggered) damage = passiveTriggered.damageImmune ? 0 : Math.max(1, passiveTriggered.finalDamage ?? damage);
     }
   }
-  if (!dodged && target.damageTakenMultiplier > 1) damage = Math.floor(damage * target.damageTakenMultiplier);
+  if (!dodged && Number.isFinite(target.damageTakenMultiplier) && target.damageTakenMultiplier !== 1) damage = Math.floor(damage * target.damageTakenMultiplier);
   if (damage > 0 && !dodged && target.bulletHoleStacks > 0) damage = Math.max(1, Math.floor(damage * (1 + target.bulletHoleStacks * .1)));
   if (damage > 0 && target.borosPhase === 1) damage = Math.max(1, Math.floor(damage * .9));
   if (damage > 0 && target.id === "tang" && state.characters.some((unit) => unit.summonerId === "tang" && unit.alive && unit.currentHp > 0))
@@ -1230,7 +1230,7 @@ function resolveAttackTitanHpDamage(state, attacker, target, attackKind = "norma
   let damage = calculateDamage({ atk: power }, { def: combatDefense(target, state.round) });
   if (attacker.weaknessRound === state.round) damage = Math.max(1, Math.floor(damage * .5));
   if (attacker.damageDealtMultiplier > 1) damage = Math.floor(damage * attacker.damageDealtMultiplier);
-  if (target.damageTakenMultiplier > 1) damage = Math.floor(damage * target.damageTakenMultiplier);
+  if (Number.isFinite(target.damageTakenMultiplier) && target.damageTakenMultiplier !== 1) damage = Math.floor(damage * target.damageTakenMultiplier);
   if (target.borosPhase === 1) damage = Math.max(1, Math.floor(damage * .9));
   if (target.id === "tang" && state.characters.some((unit) => unit.summonerId === "tang" && unit.alive))
     damage = Math.max(1, Math.floor(damage * .8));
@@ -1503,7 +1503,7 @@ function resolveTrialRoundEnd(state) {
       if (died) resolveAhFuDefeat(state, unit, events);
     }
   }
-  if (state.round >= 7 && state.characters.some((unit) => unit.id === "eternity-devil" && unit.alive)) {
+  if (state.round >= 5 && state.characters.some((unit) => unit.id === "eternity-devil" && unit.alive)) {
     const targets = state.characters.filter((unit) => unit.team === "ally" && unit.alive && unit.currentHp > 0 && !unit.suffocating);
     for (const target of targets) target.suffocating = true;
     if (targets.length) events.push({ type: "eternity-suffocation", round: state.round,
