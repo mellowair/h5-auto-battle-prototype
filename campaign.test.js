@@ -674,7 +674,7 @@ test("Boss follows the shared campfire and battle tail at the actual encounter s
   assert.equal(deidara.role, "爆破艺术家");
   assert.equal(deidara.asset, "assets/deidara-v2/idle/idle_1.png", "the boss battle uses the new Deidara sprite");
   assert.equal(deidara.c0DamagePerRound, 70);
-  assert.deepEqual([deidara.maxHp, deidara.atk, deidara.def, deidara.spd], [1400, 130, 40, 75]);
+  assert.deepEqual([deidara.maxHp, deidara.atk, deidara.def, deidara.spd], [1700, 130, 40, 75]);
   assert.equal(deidara.skill.id, "c4-garuda");
   assert.equal(deidara.skill.chance, 1);
   assert.equal(deidara.skill.multiplier, 1.2);

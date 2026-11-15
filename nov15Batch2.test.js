@@ -61,7 +61,10 @@ test("Eternity grows through round eight and applies suffocation from round five
   assert.deepEqual(growth.map((event) => event.round), [2, 3, 4, 5, 6, 7, 8]);
   assert.ok(Math.abs(growth.at(-1).scaleFactor - 3.1) < 1e-9);
   assert.equal(result.events.filter((event) => event.type === "eternity-suffocation").length, 1);
-  assert.equal(result.events.find((event) => event.type === "eternity-suffocation").round, 5);
+  const awakening = result.events.find((event) => event.type === "eternity-suffocation");
+  assert.deepEqual([awakening.round, awakening.attackBonus, awakening.effectiveAtk], [5, 50, 90]);
+  assert.equal(result.finalCharacters.find((unit) => unit.id === "eternity-devil").atk, 90,
+    "the awakening ATK bonus applies only once");
   const state = initializeBattle([ally({ def: 0 }), enemy("eternity-devil")]);
   state.round = 8;
   state.characters[0].suffocating = true;

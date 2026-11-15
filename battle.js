@@ -963,7 +963,7 @@ export function executeAttack(state, attacker, target, random = Math.random, att
   let skillAttackPower = skill?.attackFormula === "atk_plus_current_def"
     ? currentAtk + currentDef
     : skill?.attackFormula === "scaled_atk_def"
-      ? currentAtk * 1.3 + currentDef * .6
+      ? currentAtk * 1.2 + currentDef * .5
     : skill?.attackFormula === "atk_plus_scaled_def"
       ? currentAtk + currentDef * skill.defenseScale
     : skill?.attackFormula === "scaled_def"
@@ -1542,11 +1542,21 @@ function resolveTrialRoundEnd(state) {
       if (died) resolveAhFuDefeat(state, unit, events);
     }
   }
-  if (state.round >= 5 && state.characters.some((unit) => unit.id === "eternity-devil" && unit.alive)) {
+  const eternity = state.round >= 5
+    ? state.characters.find((unit) => unit.id === "eternity-devil" && unit.alive) : null;
+  if (eternity) {
     const targets = state.characters.filter((unit) => unit.team === "ally" && unit.alive && unit.currentHp > 0 && !unit.suffocating);
     for (const target of targets) target.suffocating = true;
-    if (targets.length) events.push({ type: "eternity-suffocation", round: state.round,
-      attackerId: "eternity-devil", targets: targets.map((unit) => unit.id) });
+    if (targets.length) {
+      const attackBonus = eternity.suffocationAwakened ? 0 : 50;
+      if (attackBonus) {
+        eternity.atk += attackBonus;
+        eternity.suffocationAwakened = true;
+      }
+      events.push({ type: "eternity-suffocation", round: state.round,
+        attackerId: eternity.id, targets: targets.map((unit) => unit.id),
+        attackBonus, effectiveAtk: eternity.atk });
+    }
   }
   if (state.round >= 5) for (const unit of state.characters.filter((item) => item.trialPassive === "ah_fu" && item.alive && item.currentHp > 0)) {
     unit.alive = false; unit.currentHp = 0;

@@ -170,8 +170,8 @@ test("Warhammer penetration uses the fixed entry DEF snapshot", () => {
   eren.def = 600;
   const hit = executeAttack(state, eren, foe, () => .99, { skill });
   assert.equal(eren.entryDef, 300);
-  assert.equal(hit.skillAttackPower, 490);
-  assert.equal(hit.damage, Math.floor(490 * 1.9 * 100 / (100 + 80)));
+  assert.equal(hit.skillAttackPower, 420);
+  assert.equal(hit.damage, Math.floor(420 * 1.9 * 100 / (100 + 80)));
 });
 
 test("Hogyoku grants one whole-party attribute reward per elite win and caps at ten", () => {

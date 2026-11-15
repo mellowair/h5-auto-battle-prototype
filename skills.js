@@ -82,7 +82,7 @@ export const SKILL_DATA = {
     levels: Object.fromEntries([[.5,10,.8,false],[.6,15,.8,false],[.6,20,1,false],[.7,25,1,true]].map(([chance,defenseBonus,reflectMultiplier,taunt], index) =>
       [index + 1, { chance, defenseBonus, reflectMultiplier, maxDefenseStacks: 4, reflectTurns: 2, taunt, healEveryCasts: 3, healMaxHpRatio: .1, effectType: "hardening" }])) },
   "eren-warhammer": { id: "eren-warhammer", name: "战锤之力", type: "active", triggerType: "on_action", maxLevel: 4,
-    description: "以 ATK×1.3＋DEF×0.6 为基础攻击；按等级无视入场自身 DEF 的 10%/20%/30%/40% 点目标防御。释放后到下一完整回合结束，受到伤害增加 20%。",
+    description: "以 ATK×1.2＋DEF×0.5 为基础攻击；按等级无视入场自身 DEF 的 10%/20%/30%/40% 点目标防御。释放后到下一完整回合结束，受到伤害增加 20%。",
     levels: Object.fromEntries([[.4,1.7,.1],[.5,1.8,.2],[.5,1.9,.3],[.6,1.9,.4]].map(([chance,multiplier,ignoreDefenseFromOwnDef], index) =>
       [index + 1, { chance, multiplier, ignoreDefenseFromOwnDef, attackFormula: "scaled_atk_def", effectType: "damage", attackType: "melee" }])) },
   "kaneki-one-eye-king": { id: "kaneki-one-eye-king", name: "独眼之王", type: "passive", passive: true, maxLevel: 1,
@@ -285,7 +285,7 @@ export const SKILL_DATA = {
     },
   },
   "eren-tatakae": {
-    id: "eren-tatakae", name: "塔塔开", type: "active", description: "以当前 ATK×1.3＋DEF×0.6 为基础造成倍率伤害；下回合嘲讽敌方单体攻击。Lv.4 将每名存活队友的护盾刷新至最多 200 点，不叠加。",
+    id: "eren-tatakae", name: "塔塔开", type: "active", description: "以当前 ATK×1.2＋DEF×0.5 为基础造成倍率伤害；下回合嘲讽敌方单体攻击。Lv.4 将每名存活队友的护盾刷新至最多 200 点，不叠加。",
     triggerType: "on_action", targetRule: "front_priority_random", passive: false, unlockMethod: "character_choice", maxLevel: 4,
     levels: {
       1: { chance: 0.30, multiplier: 1.7, attackFormula: "scaled_atk_def", effectType: "damage", tauntNextRound: true },

@@ -246,7 +246,7 @@ function displaySkillEffect(skill, context = {}) {
   if (skill?.id === "kaneki-predator") return `${chance} · (ATK + SPD×1.3) × ${skill.multiplier ?? 1} · 目标 HP 严格低于 ${Math.round(skill.guaranteedCritBelowHpRatio * 100)}% 时命中必定暴击`;
   if (["kaneki-1000-7", "kaneki-2000-14"].includes(skill?.id)) return `每受到 ${skill.hitsPerTrigger} 次有效伤害：本场 ATK +${skill.attackBonus ?? 0}、SPD +${skill.speedBonus ?? 0}；每攻击 ${skill.attacksPerTrigger} 次暴击伤害 +${Math.round(skill.critDamagePerAttack * 100)}%${skill.counterDamageEvery ? `；每累计受击 ${skill.counterDamageEvery} 次追加反击` : ""}`;
   if (skill?.id === "eren-free-will") return `${chance} · (当前 ATK + 当前 DEF)×${skill.multiplier} 伤害 · DEF +${skill.defenseBonus ?? 0}（本场最多 ${skill.maxDefenseStacks} 层） · 每触发 ${skill.healEveryTriggers} 次恢复最大 HP 的 ${Math.round(skill.healMaxHpFraction * 100)}%${skill.extraTrueDamageEvery ? ` · 每第 ${skill.extraTrueDamageEvery} 次释放追加当前 DEF×${skill.extraTrueDamageDefRatio} 真实伤害` : ""}`;
-  if (skill?.id === "eren-tatakae") return `${chance} · (ATK×1.3 + 当前 DEF×0.6)×${skill.multiplier ?? 1} 伤害 · 下回合嘲讽敌方单体攻击${skill.teamShield ? ` · 每名存活队友护盾刷新至最多 ${skill.teamShield} 点（不叠加）` : ""}`;
+  if (skill?.id === "eren-tatakae") return `${chance} · (ATK×1.2 + 当前 DEF×0.5)×${skill.multiplier ?? 1} 伤害 · 下回合嘲讽敌方单体攻击${skill.teamShield ? ` · 每名存活队友护盾刷新至最多 ${skill.teamShield} 点（不叠加）` : ""}`;
   if (skill?.id === "eren-2000-years") return "Lv.1 每场免疫首次受击；Lv.2 每场免疫前两次受击，并一次性增加最大 HP 400。";
   if (skill?.id === "journey-west") {
     const [horse, bajie, shaseng, wukong] = TANG_SUMMON_WEIGHTS[skill.level ?? 1];
@@ -344,7 +344,7 @@ function renderSkillDetailView(skillIndex = 0, level = null) {
     .split(/(?:[；。，]\s*)?Lv\.\d+/)[0].replace(/[；。，\s]+$/, "");
   add("技能描述", introduction || "随等级提升获得不同效果");
   const details = [];
-  if (effect.attackFormula) details.push(`伤害来源 ${({ atk_plus_spd: "ATK + SPD", atk_plus_scaled_spd: "ATK + SPD×1.3", atk_plus_current_def: "ATK + 当前 DEF", atk_plus_scaled_def: `ATK + 当前 DEF×${effect.defenseScale}`, scaled_def: `当前 DEF×${effect.defenseScale}`, scaled_atk_def: "ATK×1.3 + 当前 DEF×0.6" })[effect.attackFormula] ?? effect.attackFormula}`);
+  if (effect.attackFormula) details.push(`伤害来源 ${({ atk_plus_spd: "ATK + SPD", atk_plus_scaled_spd: "ATK + SPD×1.3", atk_plus_current_def: "ATK + 当前 DEF", atk_plus_scaled_def: `ATK + 当前 DEF×${effect.defenseScale}`, scaled_def: `当前 DEF×${effect.defenseScale}`, scaled_atk_def: "ATK×1.2 + 当前 DEF×0.5" })[effect.attackFormula] ?? effect.attackFormula}`);
   if (Number.isFinite(effect.multiplier)) details.push(`伤害 ${effect.multiplier}×`);
   if (Number.isFinite(effect.guaranteedCritBelowHpRatio)) details.push(`目标 HP 低于 ${Math.round(effect.guaranteedCritBelowHpRatio * 100)}% 时必暴击`);
   if (effect.killMaxHpBonus) details.push(`击杀后本局最大 HP +${effect.killMaxHpBonus}`);
@@ -3164,12 +3164,14 @@ function playEvent(event, finish) {
     return;
   }
   if (event.type === "eternity-suffocation") {
+    const eternity = viewState.characters.find((unit) => unit.id === event.attackerId);
+    if (eternity) eternity.atk = event.effectiveAtk;
     for (const id of event.targets) {
       const target = viewState.characters.find((unit) => unit.id === id);
       if (target) target.suffocating = true;
     }
     renderAllyStatusIcons();
-    addLog(`<span class="round-label">R${event.round}</span> <b>永恒恶魔</b> 令全体存活友方陷入 <span class="skill-name">窒息</span>。`, "log-enemy");
+    addLog(`<span class="round-label">R${event.round}</span> <b>永恒恶魔</b> 令全体存活友方陷入 <span class="skill-name">窒息</span>${event.attackBonus ? `，自身 ATK +${event.attackBonus}（当前 ${event.effectiveAtk}）` : ""}。`, "log-enemy");
     return finish();
   }
   if (event.type === "evolution-clone-gain") {

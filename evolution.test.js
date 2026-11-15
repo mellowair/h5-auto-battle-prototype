@@ -105,7 +105,7 @@ test("hardening caps DEF at four casts; warhammer retains own DEF", () => {
   const hit = executeAttack(state, eren, foe, () => .99, { skill: effect("eren-warhammer", 3) });
   assert.equal(hit.damage > 0, true);
   assert.equal(eren.def, 300);
-  assert.equal(hit.skillAttackPower, 370);
+  assert.equal(hit.skillAttackPower, 320);
 });
 
 test("both base and evolved Eren and Naruto roll each action skill independently", () => {
