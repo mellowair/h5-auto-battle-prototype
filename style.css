@@ -236,6 +236,11 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 @keyframes cannot-act-pulse { from { opacity: .75; } to { opacity: 1; } }
 .fighter[data-team="enemy"][data-controlled-by-makima="true"] .sprite-visual { transform: scaleX(-1); }
 .fighter[data-character="falling-devil"] .sprite-visual { transform: scaleX(-1); }
+.fighter[data-character="swamp-giant"] .sprite-action-frame[data-frame-name="raise"],
+.fighter[data-character="swamp-giant"] .sprite-action-frame[data-frame-name="release"] { transform: scaleX(-1); transform-origin: center bottom; }
+.swamp-flask-projectile { width: clamp(32px, 7vw, 60px); image-rendering: pixelated; }
+.fighter[data-character="eternity-devil"][data-team="enemy"] { left: calc(60% - 45px); }
+.fighter[data-character="eternity-devil"] .sprite-visual { transition: scale .5s ease-out; }
 .sprite { position: relative; z-index: 2; display: block; width: calc(var(--visual-frame-width, 84px) * .952381); height: var(--visual-frame-height, 98px); object-fit: contain; object-position: center bottom; image-rendering: pixelated; filter: drop-shadow(2px 3px 0 rgba(40,49,67,.2)); }
 .ground-shadow { position: absolute; z-index: 1; bottom: 8px; width: 60px; height: 9px; background: rgba(56,91,72,.22); border-radius: 50%; }
 .gravity-circle { position: absolute; z-index: 1; left: 50%; bottom: 7px; width: 165%; height: 78px; max-width: none; object-fit: contain; transform: translateX(-50%); image-rendering: pixelated; pointer-events: none; }
@@ -318,10 +323,6 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .fighter.is-ranged-attacking .sprite, .fighter.has-action-sprite.is-ranged-attacking .sprite-action { animation: ranged-ready var(--attack-duration, .78s) ease-out both; }
 .fighter.is-magic-attacking .sprite { animation: magic-ready var(--attack-duration, .9s) ease-out both; }
 .fighter.is-hit-recoil .sprite, .fighter.has-action-sprite.is-hit-recoil .sprite-action { animation: hurt var(--hit-shake-duration, .11s) steps(2) 2; }
-.hit-eyes { position: absolute; z-index: 6; top: 39px; left: 50%; width: 32px; height: 12px; transform: translateX(-50%); opacity: 0; filter: drop-shadow(1px 1px #fff2c7); pointer-events: none; }
-.fighter.is-hit-stun .hit-eyes { animation: hit-eyes var(--hit-duration, .38s) steps(2) both; }
-.fighter[data-appearance] .hit-eyes { display: none; }
-.fighter.has-action-sprite.is-hit-stun .hit-eyes, .fighter.has-authored-hit .hit-eyes { display: none; }
 .sprite-action { position: relative; z-index: 2; display: none; width: var(--visual-frame-width, 84px); height: var(--visual-frame-height, 98px); background-repeat: no-repeat; image-rendering: pixelated; }
 .sprite-action.active { display: block; }
 .sprite-action-frame { position: absolute; inset: 0; display: none; width: 100%; height: 100%; object-fit: contain; object-position: center bottom; translate: 0 var(--action-frame-foot-shift, 0px); transform: scale(var(--action-frame-scale, 1)); transform-origin: center bottom; image-rendering: pixelated; pointer-events: none; }
@@ -559,7 +560,6 @@ h2 { margin: 0; color: #3a455c; font-size: 11px; font-weight: 900; }
 @keyframes domain-banner-in { 0% { opacity: 0; scale: .45; } 18%,78% { opacity: 1; scale: 1; } 100% { opacity: 0; scale: 1.12; } }
 @keyframes deidara-bird-flight { 0% { opacity: 1; translate: 0 0; } 72% { opacity: 1; } 100% { opacity: .2; translate: var(--bird-flight-x, -120px) var(--bird-flight-y, 0); } }
 @keyframes punch-snap { 0%,100% { transform: scale(1) rotate(0); } 45% { transform: translateY(-2px) scale(1.09,.94) rotate(-7deg); } }
-@keyframes hit-eyes { 0%,100% { opacity: 0; } 24%,78% { opacity: 1; } }
 @keyframes ranged-ready { 45% { transform: translateY(-3px) scale(1.04); } }
 @keyframes magic-ready { 45% { transform: translateY(-4px) scale(1.06); filter: brightness(1.2) saturate(1.25); } }
 @keyframes impact-burst { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.3) rotate(-12deg); } 30% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%,-50%) scale(1.15) rotate(12deg); } }

@@ -60,6 +60,27 @@ test("Bomb Demon keeps stat reward and replaces skill training with one Gun Devi
   assert.equal(claimCampaignEliteDrop(campaign, "naruto"), false);
 });
 
+test("Swamp Giant awards one Giant Spinal Fluid through the elite reward flow", () => {
+  const campaign = startHero(95);
+  campaign.activeNode = { id: "test:swamp-giant", type: "elite", status: "in_progress" };
+  campaign.currentBattle = { id: "test:swamp-giant", type: "elite", step: 4, enemies: ["swamp-giant"] };
+  campaign.status = "combat";
+  const prepared = prepareBattle(campaign);
+  const giant = prepared.roster.find((unit) => unit.id === "swamp-giant");
+  assert.deepEqual([giant.maxHp, giant.atk, giant.def, giant.spd], [1300, 80, 60, 30]);
+  assert.equal(finishBattle(campaign, "victory", 1200).next, "reward");
+  const offer = getCampaignRewardOffer(campaign);
+  assert.equal(claimCampaignReward(campaign, offer.statChoices.slice(0, 2)).phase, "elite_drop");
+  const before = { maxHp: campaign.runCharacterState.maxHp, currentHp: campaign.runCharacterState.currentHp,
+    def: campaign.runCharacterState.def };
+  const claim = claimCampaignEliteDrop(campaign, "naruto");
+  assert.equal(claim.effect.id, "giant_spinal_fluid");
+  assert.equal(campaign.runCharacterState.maxHp, before.maxHp + 150);
+  assert.equal(campaign.runCharacterState.currentHp, Math.min(before.maxHp + 150, before.currentHp + 150));
+  assert.equal(campaign.runCharacterState.def, before.def + 20);
+  assert.equal(claimCampaignEliteDrop(campaign, "naruto"), false);
+});
+
 test("Mahito drop remains claimable when the hero has no skills left to upgrade", () => {
   const campaign = startHero(94);
   const hero = campaign.runCharacterState;
@@ -110,7 +131,7 @@ test("Gun Devil fragment can finish a Tang reward restored from an interrupted s
   campaign.stageStep = elite.step;
   campaign.routeOptions = [elite];
   elite.status = "pending";
-  campaign.random = () => .99;
+  campaign.random = () => .49;
   assert.ok(chooseRoute(campaign, elite.id));
   assert.deepEqual(campaign.currentBattle.enemies, ["bomb-demon"]);
   assert.ok(prepareBattle(campaign));

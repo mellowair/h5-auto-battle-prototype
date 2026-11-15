@@ -193,7 +193,7 @@ function encounterFor(campaign, type, node, forcedEncounterId = null) {
       enemies: enemies.map((entry) => entry.id),
       enemyNames: Object.fromEntries(enemies.map((entry) => [entry.id, entry.name])),
       enemyBaseStats: Object.fromEntries(enemies.map((entry) => [entry.id, { hp: entry.hp, atk: entry.atk, def: entry.def, spd: entry.spd }])),
-      ...(campaign.stageId >= 2 ? { enemyGrowthExemptIds: enemies.map((entry) => entry.id) } : {}),
+      enemyGrowthExemptIds: enemies.map((entry) => entry.id),
     };
   }
   if (campaign.stageId >= 2) {
@@ -484,7 +484,7 @@ export function prepareBattle(campaign) {
       : battle.enemyBaseStats?.[enemyId] ?? (campaign.stageId === 1 && battle.type === "normal"
         ? { ...template, atk: template.atk + 10 } : template);
     const baseHp = baseStats.hp ?? baseStats.maxHp;
-    const enemyGrowth = stageTwoNormal || stageThreeNormal || (campaign.stageId >= 2 && battle.type === "elite") ||
+    const enemyGrowth = stageTwoNormal || stageThreeNormal || battle.type === "elite" ||
       battle.enemyGrowthExemptIds?.includes(enemyId) ? { hp: 1, atk: 1, def: 1 } : routeGrowth;
     const normalScale = campaign.stageId <= 2 && battle.type === "normal" ? EARLY_NORMAL_ENEMY_STAT_SCALE : 1;
     const trialScale = trialNormal ? .8 : 1;
@@ -889,6 +889,7 @@ export function eliteDropId(campaign) {
   const enemies = campaign.currentBattle.enemies ?? [];
   if (enemies.includes("mahito") || enemies.includes("toji")) return "sukuna_finger";
   if (enemies.some((id) => id === "bomb-demon" || /devil/i.test(id))) return "gun_devil_fragment";
+  if (enemies.includes("swamp-giant")) return "giant_spinal_fluid";
   if (campaign.stageId === 2 && enemies.includes("armored-titan") && enemies.includes("colossal-titan"))
     return "giant_spinal_fluid";
   return null;

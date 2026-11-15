@@ -104,7 +104,7 @@ export const EVENT_ENEMY_DATA = Object.freeze({
 // Their stage-two row-template stats are assigned in campaign.js.
 export const TRIAL_ENEMY_DATA = Object.freeze({
   heracles: { id: "heracles", name: "赫拉克勒斯", team: "enemy", type: "elite", role: "诸神试炼 · 力量", row: "front", position: "front",
-    hp: 3000, atk: 580, def: 200, spd: 100, asset: "assets/trial-enemies/赫拉克勒斯.png", visualId: "heracles", attackType: "melee",
+    hp: 3000, atk: 520, def: 160, spd: 100, asset: "assets/trial-enemies/赫拉克勒斯.png", visualId: "heracles", attackType: "melee",
     activeSkills: ["heracles-nine-heads"], trialPassive: "heracles", trialPassiveSkill: { name: "不死试炼", description: "首次倒地后进入不死模式，抵挡接下来的 12 次攻击。" }, rosterOrder: 2,
     skillAnimationMap: { "heracles-nine-heads": "nineHeads" },
     animations: { idle: { type: "frames", frames: { idle: "assets/trial-enemies/赫拉克勒斯.png" } },
@@ -402,6 +402,24 @@ export const ELITE_ENEMY_DATA = [
       }, durationsMs: [900, 300], loop: false },
       death: { type: "frames", frames: { escape: "assets/elites/bomb_demon_escape.png" } },
     },
+  },
+  {
+    id: "swamp-giant", name: "沼气巨人", type: "elite", stageId: 1, role: "毒气巨人", row: "front", position: "front",
+    hp: 1300, atk: 80, def: 60, spd: 30, attackType: "melee", visualId: "swamp-giant",
+    asset: "assets/elites/swamp_giant_idle.png", activeSkills: ["swamp-poison-flask"],
+    projectileAsset: "assets/elites/swamp_giant_flask.png", skillAnimationMap: { "swamp-poison-flask": "poisonThrow" },
+    animations: {
+      idle: { type: "frames", frames: { idle: "assets/elites/swamp_giant_idle.png" } },
+      poisonThrow: { type: "frames", frames: { raise: "assets/elites/swamp_giant_throw_1.png",
+        release: "assets/elites/swamp_giant_throw_2.png" }, loop: false },
+      death: { type: "frames", frames: { down: "assets/elites/swamp_giant_death.png" } },
+    },
+  },
+  {
+    id: "eternity-devil", name: "永恒恶魔", type: "elite", stageId: 1, role: "永恒恶魔", row: "front", position: "front",
+    hp: 1600, atk: 40, def: 20, spd: 20, attackType: "melee", visualId: "eternity-devil",
+    asset: "assets/elites/eternity_devil_idle.png",
+    animations: { idle: { type: "frames", frames: { idle: "assets/elites/eternity_devil_idle.png" } } },
   },
   {
     id: "toji", name: "伏黑甚尔", type: "elite", stageId: 2, role: "术师杀手", row: "front", position: "front",

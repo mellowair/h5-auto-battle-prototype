@@ -15,7 +15,7 @@ const unit = (id, team, extras = {}) => ({ id, team, name: id, row: "front", pos
   skills: [], ...extras });
 
 test("four skill books have battle artwork, battle-start presentation, and their own shop prices", () => {
-  const books = SHOP_RULES.books;
+  const books = SHOP_RULES.books.filter((book) => book.skillType === "passive");
   assert.deepEqual(books.map((book) => book.price), [40, 30, 40, 40]);
   for (const book of books) assert.ok(existsSync(book.effectImage), book.name);
   const ally = unit("hero", "ally", { extraPassiveSkillIds: books.map((book) => book.skillId) });

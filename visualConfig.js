@@ -63,6 +63,8 @@ export const CHARACTER_VISUALS = Object.freeze({
     animationFrameScales: { skill1: { cast: 1.22 } } },
   heracles: { scale: 1.45, offsetX: 0, offsetY: 0, frameWidth: 112, frameHeight: 128,
     animationFrameScales: { phase2MeleeAttack: { punch: 1.1 } } },
+  "swamp-giant": { scale: 1.25, offsetX: 0, offsetY: -8, frameWidth: 112, frameHeight: 128 },
+  "eternity-devil": { scale: 0.6, offsetX: 0, offsetY: 0, frameWidth: 112, frameHeight: 128 },
   odin: { scale: 1.7, offsetX: 0, offsetY: -13, frameWidth: 112, frameHeight: 128,
     animationFrameScales: { idle: { idle: 1.15 }, magicAttack: { cast: 1.5 }, gungnir: { cast: 1.5 } },
     frameFootShifts: { magicAttack: { cast: 29 }, gungnir: { cast: 29 }, passive1: { trigger: -3 }, passive2: { trigger: 6 } } },

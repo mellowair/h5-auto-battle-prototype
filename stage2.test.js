@@ -172,7 +172,7 @@ test("elite encounters prefer unseen stage entries and reuse the pool only after
   chooseStartingSkill(first, "shadow-clone-rush");
   beginJourney(first);
   const second = stageTwoRun(731).campaign;
-  for (const [campaign, expected] of [[first, ["mahito", "bomb-demon", "mahito"]],
+  for (const [campaign, expected] of [[first, ["mahito", "bomb-demon", "swamp-giant", "eternity-devil", "mahito"]],
     [second, ["toji", "kira", "titan-duo", "toji"]]]) {
     const elite = campaign.routeMap.nodes.find((node) => node.type === "elite");
     const parent = campaign.routeMap.nodes.find((node) => node.nextNodeIds.includes(elite.id));

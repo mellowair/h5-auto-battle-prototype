@@ -16,6 +16,7 @@ export const TRIAL_RULES = Object.freeze({
   odinPointTiePriority: ["maxHp", "atk", "def", "spd"],
   bleedFractionPerStack: .01,
   burnFractionPerStack: .01,
+  poisonFractionPerStack: .01,
   burnStacksPerHit: 5,
   bleedTick: "round-end",
   burnTick: "round-end",

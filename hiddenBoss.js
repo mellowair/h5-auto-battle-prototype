@@ -20,7 +20,7 @@ export const HIDDEN_BOSS_RULES = Object.freeze({
 
 export const GUN_DEVIL = Object.freeze({
   id: "gun-devil", name: "枪之恶魔", type: "boss", team: "enemy", role: "隐藏首领",
-  row: "back", position: "back", hp: 4000, atk: 999, def: 180, spd: 300,
+  row: "back", position: "back", hp: 4500, atk: 999, def: 220, spd: 300,
   attackType: "ranged", asset: asset("gun-idle"), visualId: "gun-devil",
   activeSkills: ["gun-devil-charged-shot"], attackAnimation: "normalAttack",
   skillAnimationMap: { "gun-devil-charged-shot": "charge" },
@@ -35,7 +35,7 @@ export const GUN_DEVIL = Object.freeze({
 
 export const YORU = Object.freeze({
   id: "yoru", name: "战争恶魔·夜", type: "boss", team: "enemy", role: "隐藏首领",
-  row: "back", position: "back", hp: 5500, atk: 1444, def: 250, spd: 250,
+  row: "back", position: "back", hp: 6500, atk: 1444, def: 300, spd: 250,
   attackType: "ranged", asset: asset("yoru-idle"), visualId: "yoru",
   activeSkills: ["yoru-gun-summon"], attackAnimation: "pointUp",
   skillAnimationMap: { "yoru-gun-summon": "pointAtTarget" },

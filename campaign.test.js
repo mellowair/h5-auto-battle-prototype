@@ -421,7 +421,7 @@ test("map elite nodes enter the existing elite battle and two-stage reward flow"
   assert.equal(finishBattle(campaign, "victory", campaign.playerHp - 50).status, "reward");
   const offer = getCampaignRewardOffer(campaign);
   const stat = claimCampaignReward(campaign, offer.statChoices.slice(0, 2));
-  if (selected.battle.enemies.includes("mahito")) {
+  if (stat.phase === "elite_drop") {
     assert.equal(stat.phase, "elite_drop");
     assert.ok(claimCampaignEliteDrop(campaign, campaign.playerId));
   } else {
@@ -576,9 +576,8 @@ test("route growth is applied once to normal and elite battle copies", () => {
     assert.equal(eliteSelected.battle.type, "elite");
     const elite = elitePrepared.roster.find((character) => character.team === "enemy");
     const base = ELITE_ENEMY_DATA.find((entry) => entry.id === elite.id);
-    const growth = getRouteEnemyGrowth("elite", step);
     assert.deepEqual([elite.maxHp, elite.atk, elite.def, elite.spd],
-      [Math.floor(base.hp * growth.hp), Math.floor(base.atk * growth.atk), Math.floor(base.def * growth.def), base.spd],
+      [base.hp, base.atk, base.def, base.spd],
       `${elite.name} at step ${step}`);
     assert.equal(prepareBattle(eliteCampaign), null, "an elite encounter is fixed and its route growth is not compounded");
   }

@@ -593,16 +593,16 @@ test("Naruto v2 action assets are standalone 96 by 112 transparent SVG frames", 
   assert.equal(new Set(runFrames.map((frame) => frame.toString("base64"))).size, 2, "run cycle must use distinct poses");
 });
 
-test("opening and hit feedback use smooth sky tint and pixel eye marks rather than text symbols", () => {
+test("opening and hit feedback use smooth sky tint without old eye marks", () => {
   const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
   const css = readFileSync(new URL("./style.css", import.meta.url), "utf8");
   assert.match(html, /class="sky-redness"/);
-  assert.equal((html.match(/class="hit-eyes"/g) ?? []).length, 3);
+  assert.equal((html.match(/class="hit-eyes"/g) ?? []).length, 0);
   assert.doesNotMatch(html, /×\s*×/);
   assert.match(css, /\.opening-redshift \.sky-redness/);
   assert.doesNotMatch(css, /red-sky-pulses/);
   assert.doesNotMatch(css, /@keyframes naruto-run-cycle/);
-  assert.doesNotMatch(css, /\.fighter\.has-action-sprite \.hit-eyes/);
+  assert.doesNotMatch(css, /hit-eyes/);
   assert.match(css, /\.route-player img[^}]*transform: translateY\(8px\)/);
   const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
   assert.match(app, /animationFrameNames\(character, "run"\)/);

@@ -96,7 +96,7 @@ test("one continuous battle carries bullet holes into Yoru and absorbs partner s
   assert.equal(beginHiddenBossChallenge(campaign), true);
   const prepared = prepareBattle(campaign);
   const gun = prepared.roster.find((unit) => unit.id === GUN_DEVIL.id);
-  assert.deepEqual([gun.hp, gun.atk, gun.def, gun.spd], [4000, 999, 180, 300]);
+  assert.deepEqual([gun.hp, gun.atk, gun.def, gun.spd], [4500, 999, 220, 300]);
   gun.hp = gun.maxHp = gun.currentHp = 15000;
   assert.equal(prepared.roster.find((unit) => unit.id === campaign.playerId).currentHp, 100000);
   const result = simulateBattle(prepared.roster, () => .5, prepared.combatOptions);

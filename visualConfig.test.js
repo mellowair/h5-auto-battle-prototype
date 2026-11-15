@@ -33,7 +33,7 @@ test("normal enemy appearances share foot-anchored visuals without humanoid hit 
   }
   const css = readFileSync(new URL("./style.css", import.meta.url), "utf8");
   assert.match(css, /\.sprite-visual\s*\{[^}]*transform-origin:\s*center bottom/);
-  assert.match(css, /\.fighter\[data-appearance\] \.hit-eyes\s*\{\s*display:\s*none/);
+  assert.doesNotMatch(css, /hit-eyes/);
   assert.match(css, /\.fighter\.is-hit-stun \.stun-stars\s*\{\s*animation:/);
 });
 

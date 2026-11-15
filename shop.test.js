@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { STARTING_CHARACTERS } from "./characters.js";
-import { simulateBattle } from "./battle.js";
+import { executeAttack, initializeBattle, simulateBattle } from "./battle.js";
 import { beginJourney, buyShopItem, chooseRoute, createCampaign, finishBattle, getRouteOptions, getShopRouteOptions, leaveShop, prepareBattle, selectStartingCharacter, startCampaign } from "./campaign.js";
-import { createRunCharacterState, grantGiantSpinalFluid } from "./progression.js";
+import { createRunCharacterState, grantGiantSpinalFluid, upgradePassiveSkill } from "./progression.js";
 import { analyzeRouteMap, generateRouteMap, validateRouteMap } from "./routeMap.js";
 import { essenceRewardForBattle, generateShopInventory, previewShopItem, refreshShopPrices } from "./shop.js";
 import { SHOP_RULES } from "./shopConfig.js";
@@ -54,6 +54,22 @@ test("seven independent slots are deterministic and obey stage medicine prices",
     assert.ok(a.filter((slot) => slot.categoryId === "book").every((slot) => [30, 40].includes(slot.price)));
     assert.ok(a.filter((slot) => slot.categoryId === "rare").every((slot) => slot.price >= 30));
   }
+});
+
+test("one hundred shop rolls each contain seven distinct item IDs, even when a category runs out", () => {
+  let fireworksSeen = false;
+  for (const stageId of [1, 2, 3]) for (let seed = 0; seed < 100; seed += 1) {
+    const slots = generateShopInventory(`unique:${seed}`, stageId);
+    assert.equal(slots.length, 7);
+    assert.equal(new Set(slots.map((slot) => slot.itemId)).size, 7);
+    assert.ok(slots.every((slot) => slot.available && slot.itemId));
+    fireworksSeen ||= slots.some((slot) => slot.itemId === "lonelier_than_fireworks_book" && slot.price === 30);
+  }
+  assert.equal(fireworksSeen, true);
+  const campaign = shopFixture(1);
+  const savedSlots = structuredClone(campaign.activeShop.slots);
+  refreshShopPrices(campaign);
+  assert.deepEqual(campaign.activeShop.slots.map((slot) => slot.itemId), savedSlots.map((slot) => slot.itemId));
 });
 
 test("shop category weights and new treasure stock match the four independent pools", () => {
@@ -268,6 +284,81 @@ test("iron bell reflects half the actual damage only against a lower-defense sou
   const reflection = result.events.find((event) => event.skillId === "iron-bell");
   assert.ok(hit && reflection);
   assert.equal(reflection.requested, Math.floor(hit.actualDamage * .5));
+  assert.equal(reflection.calculatedDamage,
+    Math.max(1, Math.floor(reflection.requested * 100 / (100 + reflection.targetDefense))));
+  assert.equal(reflection.actualDamage, reflection.calculatedDamage);
   const blocked = simulateBattle([fighter("enemy", "enemy", 350), fighter("hero", "ally", 300, true)], () => .99);
   assert.equal(blocked.events.some((event) => event.skillId === "iron-bell"), false);
+  const equal = simulateBattle([fighter("enemy", "enemy", 300), fighter("hero", "ally", 300, true)], () => .99);
+  assert.equal(equal.events.some((event) => event.skillId === "iron-bell"), false);
+  assert.equal(result.events.filter((event) => event.skillId === "iron-bell").length,
+    result.events.filter((event) => event.type === "attack" && event.attackerId === "enemy" && event.actualDamage > 0).length);
+});
+
+test("iron bell grants no skill defense penetration", () => {
+  const skill = { id: "test-skill", name: "测试技能", type: "active", multiplier: 1.5 };
+  const fighter = (books) => ({ id: "hero", name: "主角", team: "ally", row: "front", position: "front",
+    hp: 1000, atk: 100, def: 300, spd: 30, critChance: 0, extraPassiveSkillIds: books });
+  const target = { id: "foe", name: "敌人", team: "enemy", row: "front", position: "front",
+    hp: 1000, atk: 1, def: 100, spd: 1, critChance: 0 };
+  const attack = (books) => {
+    const state = initializeBattle([fighter(books), target]);
+    state.round = 1;
+    return executeAttack(state, state.characters[0], state.characters[1], () => .99, { skill }).actualDamage;
+  };
+  assert.equal(attack(["iron-bell"]), attack([]));
+});
+
+test("passive upgrade uses the existing Lv2 effect exactly once and never changes active levels", () => {
+  const eren = createRunCharacterState(STARTING_CHARACTERS.find((entry) => entry.id === "eren"));
+  const initialActiveLevels = structuredClone(eren.skillLevels);
+  const oldMaxHp = eren.maxHp;
+  assert.deepEqual(upgradePassiveSkill(eren, "test:fireworks"),
+    { skillId: "eren-2000-years", level: 2, maxHpBonus: 400 });
+  assert.equal(eren.maxHp, oldMaxHp + 400);
+  assert.equal(eren.passiveLevel, 2);
+  assert.deepEqual(eren.skillLevels, initialActiveLevels);
+  assert.equal(upgradePassiveSkill(eren, "test:fireworks"), false);
+  assert.equal(upgradePassiveSkill(eren, "test:fireworks-again"), false);
+  const noLevelTwo = createRunCharacterState(STARTING_CHARACTERS.find((entry) => entry.id === "naruto"));
+  noLevelTwo.passiveSkillId = "ninja-instinct";
+  assert.equal(upgradePassiveSkill(noLevelTwo, "test:unavailable"), false);
+});
+
+test("Fireworks book costs 30 essence, upgrades only the chosen Lv1 passive, and rejects ineligible recipients", () => {
+  const campaign = shopFixture(2);
+  const eren = createRunCharacterState(STARTING_CHARACTERS.find((entry) => entry.id === "eren"));
+  campaign.partyIds.push("eren");
+  campaign.partyStates.eren = eren;
+  campaign.essence = 90;
+  const slot = replaceSlot(campaign, "book", "lonelier_than_fireworks_book", 1);
+  refreshShopPrices(campaign);
+  assert.equal(slot.price, 30);
+  const before = { maxHp: eren.maxHp, skills: structuredClone(eren.skillLevels),
+    mainPassiveLevel: campaign.runCharacterState.passiveLevel };
+  assert.equal(previewShopItem(campaign, slot, "eren").upgradeUnavailable, false);
+  const purchase = buyShopItem(campaign, slot.index, "eren");
+  assert.deepEqual(purchase, { skillId: "eren-2000-years", level: 2, maxHpBonus: 400 });
+  assert.equal(eren.maxHp, before.maxHp + 400);
+  assert.equal(eren.passiveLevel, 2);
+  assert.deepEqual(eren.skillLevels, before.skills);
+  assert.equal(campaign.runCharacterState.passiveLevel, before.mainPassiveLevel);
+  assert.equal(campaign.essence, 60);
+  assert.equal(campaign.activeShop.purchases[0].recipientId, "eren");
+  campaign.currentBattle = { type: "normal", step: 2, enemies: ["guard"], enemyNames: { guard: "守卫" } };
+  campaign.status = "combat";
+  const battleEren = prepareBattle(campaign).roster.find((unit) => unit.id === "eren");
+  assert.equal(battleEren.passiveLevel, 2);
+  assert.equal(battleEren.maxHp, eren.maxHp);
+  campaign.status = "shop";
+  const second = { ...slot, index: 1, purchased: false };
+  campaign.activeShop.slots[1] = second;
+  assert.equal(previewShopItem(campaign, second, "eren").upgradeUnavailable, true);
+  assert.equal(buyShopItem(campaign, 1, "eren"), false);
+  assert.equal(campaign.essence, 60);
+  const noPassive = createRunCharacterState(STARTING_CHARACTERS.find((entry) => entry.id === "eren"));
+  noPassive.passiveSkillId = null;
+  campaign.partyStates.eren = noPassive;
+  assert.equal(previewShopItem(campaign, second, "eren").upgradeUnavailable, true);
+  assert.equal(buyShopItem(campaign, 1, "eren"), false);
 });

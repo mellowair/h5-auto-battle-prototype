@@ -166,10 +166,16 @@ function applyBattleHeal(character, requested) {
   return restored;
 }
 
+function combatAttack(character) {
+  const multiplier = Math.max(0, 1 - (character.poisonStacks ?? 0) * .02 + (character.suffocating ? .30 : 0));
+  return Math.max(0, Math.floor(character.atk * multiplier));
+}
+
 function combatDefense(character, round) {
-  return character.def
+  const defense = character.def
     + ((character.defenseBuffUntilRound ?? -1) >= round ? character.defenseBuff ?? 0 : 0)
     + ((character.wukongDefenseBuffUntilRound ?? -1) >= round ? character.wukongDefenseBuff ?? 0 : 0);
+  return Math.floor(defense * Math.max(0, 1 - (character.poisonStacks ?? 0) * .02 - (character.suffocating ? .60 : 0)));
 }
 
 export function getDodgeChance(character) {
@@ -299,6 +305,12 @@ function applyTrialDamage(state, target, requested, kind = "attack") {
     amount = Math.max(0, before - 1);
   }
   target.currentHp = Math.max(0, before - amount);
+  const actualHpLoss = before - target.currentHp;
+  if (target.suffocating && actualHpLoss > 0) {
+    target.maxHp = Math.max(1, target.maxHp - actualHpLoss);
+    target.hp = target.maxHp;
+    target.currentHp = Math.min(target.currentHp, target.maxHp);
+  }
   if (target.trialPassive === "heracles" && !target.heraclesTrialsActive && target.currentHp === 0) {
     target.currentHp = 1;
     target.heraclesTrialsActive = true;
@@ -908,21 +920,22 @@ export function executeAttack(state, attacker, target, random = Math.random, att
     ? 1 : getCritChance(attacker);
   const critical = !dodged && random() < critChance;
   const formula = skill?.multiplierFormula;
+  const currentAtk = combatAttack(attacker);
+  const currentDef = combatDefense(attacker, state.round ?? 1);
   const skillMultiplier = !skill ? 1 : formula
-    ? (formula.base ?? 0) + (attacker[formula.stat] ?? 0) * (formula.coefficient ?? 0)
+    ? (formula.base ?? 0) + (formula.stat === "atk" ? currentAtk : attacker[formula.stat] ?? 0) * (formula.coefficient ?? 0)
     : skill.multiplier ?? 1;
-  const currentDefenseBonus = (attacker.defenseBuffUntilRound ?? -1) >= (state.round ?? 1) ? attacker.defenseBuff ?? 0 : 0;
   let skillAttackPower = skill?.attackFormula === "atk_plus_current_def"
-    ? attacker.atk + attacker.def + currentDefenseBonus
+    ? currentAtk + currentDef
     : skill?.attackFormula === "scaled_atk_def"
-      ? attacker.atk * 1.3 + (attacker.def + currentDefenseBonus) * .6
+      ? currentAtk * 1.3 + currentDef * .6
     : skill?.attackFormula === "atk_plus_scaled_def"
-      ? attacker.atk + (attacker.def + currentDefenseBonus) * skill.defenseScale
+      ? currentAtk + currentDef * skill.defenseScale
     : skill?.attackFormula === "scaled_def"
-      ? (attacker.def + currentDefenseBonus) * skill.defenseScale
-    : skill?.attackFormula === "atk_plus_spd" ? attacker.atk + attacker.spd
-    : skill?.attackFormula === "atk_plus_scaled_spd" ? attacker.atk + attacker.spd * 1.3
-    : skill?.attackFormula === "atk_plus_current_hp_fraction" ? attacker.atk + Math.floor(attacker.currentHp * skill.hpFraction) : attacker.atk;
+      ? currentDef * skill.defenseScale
+    : skill?.attackFormula === "atk_plus_spd" ? currentAtk + attacker.spd
+    : skill?.attackFormula === "atk_plus_scaled_spd" ? currentAtk + attacker.spd * 1.3
+    : skill?.attackFormula === "atk_plus_current_hp_fraction" ? currentAtk + Math.floor(attacker.currentHp * skill.hpFraction) : currentAtk;
   if (attacker.normalPassiveId === "lubu" && state.round === 1 && isNormalAttack) skillAttackPower *= 2;
   if (attacker.stageThreeKind === "quanxi") skillAttackPower += Math.floor((target.maxHp - target.currentHp) * .5);
   const armamentTrueDamage = !skill && attacker.extraPassiveSkillIds?.includes("armament-haki");
@@ -936,8 +949,7 @@ export function executeAttack(state, attacker, target, random = Math.random, att
   let damage = dodged ? 0 : calculateDamage({ ...attacker, atk: skillAttackPower },
     { ...target, def: skill?.ignoreDefenseFromOwnDef ? Math.max(0, targetEffectiveDef - ignoredDef)
       : targetEffectiveDef * (1 - (attacker.stageThreeKind === "arima" && (attacker.arimaHits?.[target.id] ?? 0) >= 3 ? .8
-        : Math.max(skill?.ignoreDefenseFraction ?? 0,
-          skill && attacker.extraPassiveSkillIds?.includes("iron-bell") && combatDefense(attacker, state.round) > targetEffectiveDef ? .3 : 0))) },
+        : (skill?.ignoreDefenseFraction ?? 0))) },
     skillMultiplier * (critical ? critMultiplier : 1));
   if (damage > 0 && Number.isInteger(attacker.weaknessRound) && attacker.weaknessRound === state.round)
     damage = Math.max(1, Math.floor(damage * .5));
@@ -1056,7 +1068,7 @@ export function executeAttack(state, attacker, target, random = Math.random, att
   if (defenseReduced > 0) target.def = nextDefense;
   let extraTrueDamage = null;
   if (skill?.id === "eren-free-will" && skill.extraTrueDamageEvery && attacker.freeWillTriggers % skill.extraTrueDamageEvery === 0 && target.alive) {
-    const requested = Math.max(0, Math.floor((attacker.def + currentDefenseBonus) * skill.extraTrueDamageDefRatio));
+    const requested = Math.max(0, Math.floor(currentDef * skill.extraTrueDamageDefRatio));
     const hpBefore = target.currentHp;
     const exhaustedDamage = applyTojiExhaustion(target, requested);
     const absorbed = Math.min(exhaustedDamage, target.shieldHp ?? 0);
@@ -1471,23 +1483,31 @@ function resolveTrialRoundEnd(state) {
       const effect = applyTrialDamage(state, unit, item.amount, "due");
       const died = handleDeath(unit);
       events.push({ type: "trial-delayed-hit", targetId: unit.id, round: state.round,
-        requested: item.amount, damage: before - unit.currentHp, hpAfter: unit.currentHp, targetDied: died, effect });
+        requested: item.amount, damage: before - unit.currentHp, hpAfter: unit.currentHp,
+        maxHpAfter: unit.maxHp, targetDied: died, effect });
       if (died) resolveAhFuDefeat(state, unit, events);
       if (died) break;
     }
     if (!unit.alive) continue;
-    for (const [effect, stacks] of [["流血", unit.bleedStacks ?? 0], ["灼烧", unit.burnStacks ?? 0]]) {
-      for (let index = 0; index < stacks && unit.alive; index += 1) {
-        const before = unit.currentHp;
-        const ratio = effect === "流血" ? TRIAL_RULES.bleedFractionPerStack : TRIAL_RULES.burnFractionPerStack;
-        const amount = Math.max(1, Math.floor(unit.maxHp * ratio));
-        const result = applyTrialDamage(state, unit, amount, "dot");
-        const died = handleDeath(unit);
-        events.push({ type: "trial-dot", targetId: unit.id, round: state.round, name: effect,
-          stack: index + 1, damage: before - unit.currentHp, hpAfter: unit.currentHp, targetDied: died, effect: result });
-        if (died) resolveAhFuDefeat(state, unit, events);
-      }
+    for (const [effect, stacks, ratio] of [["流血", unit.bleedStacks ?? 0, TRIAL_RULES.bleedFractionPerStack],
+      ["灼烧", unit.burnStacks ?? 0, TRIAL_RULES.burnFractionPerStack],
+      ["中毒", unit.poisonStacks ?? 0, TRIAL_RULES.poisonFractionPerStack]]) {
+      if (stacks <= 0 || !unit.alive) continue;
+      const before = unit.currentHp;
+      const amount = Math.max(1, Math.floor(unit.maxHp * ratio * stacks));
+      const result = applyTrialDamage(state, unit, amount, "dot");
+      const died = handleDeath(unit);
+      events.push({ type: "trial-dot", targetId: unit.id, round: state.round, name: effect,
+        stacks, damage: before - unit.currentHp, hpAfter: unit.currentHp,
+        maxHpAfter: unit.maxHp, targetDied: died, effect: result });
+      if (died) resolveAhFuDefeat(state, unit, events);
     }
+  }
+  if (state.round >= 7 && state.characters.some((unit) => unit.id === "eternity-devil" && unit.alive)) {
+    const targets = state.characters.filter((unit) => unit.team === "ally" && unit.alive && unit.currentHp > 0 && !unit.suffocating);
+    for (const target of targets) target.suffocating = true;
+    if (targets.length) events.push({ type: "eternity-suffocation", round: state.round,
+      attackerId: "eternity-devil", targets: targets.map((unit) => unit.id) });
   }
   if (state.round >= 5) for (const unit of state.characters.filter((item) => item.trialPassive === "ah_fu" && item.alive && item.currentHp > 0)) {
     unit.alive = false; unit.currentHp = 0;
@@ -1519,6 +1539,11 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
   let outcome = null;
   while (!outcome) {
     state.round += 1;
+    if (state.round >= 2 && state.round <= 8 &&
+        state.characters.some((unit) => unit.id === "eternity-devil" && unit.alive)) {
+      events.push({ type: "eternity-growth", attackerId: "eternity-devil", round: state.round,
+        scaleFactor: 1 + .3 * (state.round - 1) });
+    }
     for (const character of state.characters) if (character.elitePassiveId === "killer-queen" && character.alive)
       character.hpSnapshots.push({ round: state.round, hp: character.currentHp });
     // Summons join before this round's speed ordering and can act immediately.
@@ -1586,6 +1611,14 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
       const selectedSkill = (attacker.silencedThroughRound ?? 0) >= state.round ? null
         : hiddenPhaseRound != null ? hiddenSkillTurn ? attacker.skills?.[0] ?? null : null
           : triggeredSkill(attacker, random, state.round);
+      if (selectedSkill?.id === "swamp-poison-flask") {
+        const targets = state.characters.filter((unit) => unit.team !== attacker.team && unit.alive && unit.currentHp > 0);
+        for (const target of targets) target.poisonStacks = (target.poisonStacks ?? 0) + selectedSkill.stacks;
+        events.push({ type: "swamp-poison", round: state.round, attackerId: attacker.id,
+          skillId: selectedSkill.id, skillName: selectedSkill.name,
+          targets: targets.map((unit) => ({ id: unit.id, stacks: unit.poisonStacks })) });
+        continue;
+      }
       if (selectedSkill?.id === "noi-heal") {
         const healed = [];
         for (const unit of state.characters.filter((entry) => entry.team === attacker.team && entry.alive && entry.currentHp > 0)) {
@@ -1753,13 +1786,16 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
             struck.extraPassiveSkillIds?.includes("iron-bell") &&
             combatDefense(struck, state.round) > combatDefense(attacker, state.round)) {
           const requested = Math.floor(event.actualDamage * .5);
+          const calculatedDamage = requested > 0 ? calculateDamage({ atk: requested },
+            { def: combatDefense(attacker, state.round) }) : 0;
           const before = attacker.currentHp;
-          const shieldAbsorbed = Math.min(requested, attacker.shieldHp ?? 0);
+          const shieldAbsorbed = Math.min(calculatedDamage, attacker.shieldHp ?? 0);
           attacker.shieldHp = Math.max(0, (attacker.shieldHp ?? 0) - shieldAbsorbed);
-          applyTrialDamage(state, attacker, requested - shieldAbsorbed, "attached");
+          applyTrialDamage(state, attacker, calculatedDamage - shieldAbsorbed, "attached");
           events.push({ type: "normal-passive-reflect", round: state.round, attackerId: struck.id,
             targetId: attacker.id, skillId: "iron-bell", skillName: "金钟罩铁布衫",
-            requested, actualDamage: before - attacker.currentHp, targetHp: attacker.currentHp,
+            requested, calculatedDamage, targetDefense: combatDefense(attacker, state.round),
+            actualDamage: before - attacker.currentHp, targetHp: attacker.currentHp,
             targetMaxHp: attacker.maxHp, targetShield: attacker.shieldHp, targetDied: handleDeath(attacker) });
           resolveStageThreeDeaths(state, events);
         }

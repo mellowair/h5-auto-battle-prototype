@@ -1,6 +1,6 @@
 import { createSeededRandom } from "./routeMap.js";
-import { GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT, TREASURE_DATA } from "./skills.js";
-import { applyRockLeeWeight, grantAdventureSpecialReward, grantEliteSukunaFinger, grantGiantSpinalFluid, grantGunDevilFragment, grantQuinque, hasStoneMask, learnActiveSkill, previewGrowingDrop } from "./progression.js";
+import { GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT, SKILL_DATA, TREASURE_DATA } from "./skills.js";
+import { applyRockLeeWeight, grantAdventureSpecialReward, grantEliteSukunaFinger, grantGiantSpinalFluid, grantGunDevilFragment, grantQuinque, hasStoneMask, learnActiveSkill, previewGrowingDrop, upgradePassiveSkill } from "./progression.js";
 import { SHOP_RULES } from "./shopConfig.js";
 
 export const SHOP_TREASURES = Object.freeze({ ...TREASURE_DATA,
@@ -18,7 +18,10 @@ export function essenceRewardForBattle(battle) {
 
 function draw(random, items) { return items[Math.min(items.length - 1, Math.floor(random() * items.length))]; }
 const GROWING_SHOP_IDS = new Set(["sukuna_finger", "gun_devil_fragment", "giant_spinal_fluid"]);
-function shopPrice(item, category) { return item?.price ?? (GROWING_SHOP_IDS.has(item?.id) ? 20 : category.price); }
+function shopPrice(item, category) {
+  if (category.id === "book" && item?.price == null) return null;
+  return item?.price ?? (GROWING_SHOP_IDS.has(item?.id) ? 20 : category.price);
+}
 
 export function refreshShopPrices(campaign) {
   for (const slot of campaign?.activeShop?.slots ?? []) {
@@ -36,19 +39,25 @@ export function refreshShopPrices(campaign) {
 export function generateShopInventory(seed, stageId) {
   const random = createSeededRandom(`shop:${seed}`);
   const categories = SHOP_RULES.categories;
-  const totalWeight = categories.reduce((sum, category) => sum + category.weight, 0);
+  const selectedIds = new Set();
   return Array.from({ length: SHOP_RULES.slots }, (_, index) => {
+    const available = categories.map((category) => ({ category,
+      pool: (category.id === "book" ? SHOP_RULES.books : category.id === "medicine" ? SHOP_RULES.medicines.filter((item) => item.stageId === stageId)
+        : category.ids.map((id) => SHOP_TREASURES[id]).filter((item) => item &&
+          (category.id !== "rare" || shopPrice(item, category) >= 30)))
+        .filter((item) => !selectedIds.has(item.id) && Number.isFinite(shopPrice(item, category)))
+    })).filter((entry) => entry.pool.length > 0);
+    if (!available.length) throw new Error("商店可用商品不足 7 件");
+    const totalWeight = available.reduce((sum, entry) => sum + entry.category.weight, 0);
     let roll = random() * totalWeight;
-    const category = categories.find((entry) => (roll -= entry.weight) < 0) ?? categories.at(-1);
-    const pool = category.id === "book" ? SHOP_RULES.books : category.id === "medicine" ? SHOP_RULES.medicines.filter((item) => item.stageId === stageId)
-      : category.ids.map((id) => SHOP_TREASURES[id]).filter((item) => item &&
-        (category.id !== "rare" || shopPrice(item, category) >= 30));
-    const item = pool.length ? draw(random, pool) : null;
+    const { category, pool } = available.find((entry) => (roll -= entry.category.weight) < 0) ?? available.at(-1);
+    const item = draw(random, pool);
+    selectedIds.add(item.id);
     return { index, categoryId: category.id, itemId: item?.id ?? null,
       name: item?.name ?? (category.id === "book" ? "技能书待配置" : "状态药物待配置"),
       image: item?.image ?? null, description: item?.description ?? "待配置／不可购买",
       price: category.id === "medicine" ? SHOP_RULES.medicinePriceByStage[stageId] : shopPrice(item, category),
-      available: Boolean(item), placeholderArt: ["book", "medicine"].includes(category.id), purchased: false };
+      available: true, placeholderArt: ["book", "medicine"].includes(category.id), purchased: false };
   });
 }
 
@@ -59,8 +68,12 @@ export function previewShopItem(campaign, slot, recipientId = campaign?.playerId
   const count = member.permanentEffects?.filter((effect) => effect.id === slot.itemId).length ?? 0;
   const alreadyOwned = slot.categoryId === "medicine" && (campaign.shopMedicines ?? [])
     .some((effect) => effect.recipientId === recipientId && effect.id === slot.itemId && effect.battlesLeft > 0);
+  const upgradeBook = slot.itemId === "lonelier_than_fireworks_book";
+  const passive = SKILL_DATA[member.passiveSkillId];
+  const upgradeUnavailable = upgradeBook && (!passive?.passive || !passive.levels?.[2] ||
+    (passive.maxLevel ?? 1) < 2 || (member.passiveLevel ?? 1) !== 1);
   const growth = GROWING_SHOP_IDS.has(slot.itemId) ? previewGrowingDrop(member, slot.itemId, 1) : null;
-  return { ...slot, ownedCount: count, alreadyOwned, recipientId,
+  return { ...slot, ownedCount: count, alreadyOwned, upgradeUnavailable, recipientId,
     expectedGains: growth ? { atk: growth.atk, def: growth.def, maxHp: growth.maxHp } : null,
     fullDescription: growth ? `${item.description} 本次购买预计：${growth.description.replace(/^第 1 关/, "商店")}` : slot.description };
 }
@@ -102,14 +115,17 @@ export function buyShopItem(campaign, index, recipientId = campaign?.playerId) {
   if (!slot?.available || slot.purchased || !member || !campaign.partyIds.includes(recipientId) ||
       (slot.categoryId === "medicine" && (campaign.shopMedicines ?? []).some((effect) =>
         effect.recipientId === recipientId && effect.id === slot.itemId && effect.battlesLeft > 0)) ||
-      (campaign.essence ?? 0) < slot.price) return false;
+      !Number.isFinite(slot.price) || slot.price <= 0 || (campaign.essence ?? 0) < slot.price) return false;
   const sourceId = `shop:${campaign.stageId}:${campaign.activeShop.nodeId}:${index}`;
   let result;
   if (["common", "growing", "rare"].includes(slot.categoryId)) result = grantTreasure(member, slot, sourceId, campaign.stageId);
   else if (slot.categoryId === "book") {
     const book = SHOP_RULES.books.find((item) => item.id === slot.itemId);
     if (book && (!book.characterIds || book.characterIds.includes(recipientId))) {
-      if (book.skillType === "active") result = learnActiveSkill(member, book.skillId, sourceId);
+      if (book.skillType === "passive-upgrade") {
+        result = upgradePassiveSkill(member, sourceId);
+        if (result) member.skillHistory.push({ skillId: result.skillId, level: result.level, sourceId, kind: "passive-upgrade" });
+      } else if (book.skillType === "active") result = learnActiveSkill(member, book.skillId, sourceId);
       else if (book.skillType === "passive" && !(member.extraPassiveSkillIds ?? []).includes(book.skillId)) {
         member.extraPassiveSkillIds ??= [];
         member.extraPassiveSkillIds.push(book.skillId);

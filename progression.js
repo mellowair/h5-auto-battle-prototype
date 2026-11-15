@@ -253,7 +253,8 @@ export function upgradePassiveSkill(runState, sourceId) {
   ensureRunState(runState);
   const skill = SKILL_DATA[runState.passiveSkillId];
   const key = makeActionKey("passive-upgrade", sourceId);
-  if (!skill?.passive || (runState.passiveLevel ?? 1) >= (skill.maxLevel ?? 1) || !recordAction(runState, key)) return false;
+  if (!skill?.passive || !skill.levels?.[2] || (runState.passiveLevel ?? 1) !== 1 ||
+      (skill.maxLevel ?? 1) < 2 || !recordAction(runState, key)) return false;
   runState.passiveLevel = 2;
   const maxHpBonus = skill.levels[2]?.maxHpBonus ?? 0;
   if (maxHpBonus) runState.maxHp += maxHpBonus;

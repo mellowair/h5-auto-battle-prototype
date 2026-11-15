@@ -1248,10 +1248,16 @@ function renderAllyStatusIcons() {
     if (unit.bereavementActive && unit.bereavementDefenseBonus > 0)
       statuses.push({ id: `bereavement-${unit.id}`, name: `${unit.name} · 同伴倒地`, image: unit.asset, tone: "buff",
         description: `${unit.name} 因${unit.bereavementSourceId === "shin" ? "心" : "能井"}倒地，当前 ATK 翻倍、DEF +${unit.bereavementDefenseBonus}；同伴复活后移除。` });
-    if (unit.burnStacks > 0) statuses.push({ id: `burn-${unit.id}`, name: "烧伤", image: "assets/status-burn.svg", tone: "danger",
+    if (unit.burnStacks > 0) statuses.push({ id: `burn-${unit.id}`, name: `灼烧 ×${unit.burnStacks}`, image: "assets/status-burn.svg", tone: "danger",
       description: `${unit.name}：${unit.burnStacks} 层烧伤，每层在完整战斗回合结束时结算持续伤害。` });
-    if (unit.bleedStacks > 0) statuses.push({ id: `bleed-${unit.id}`, name: "流血", image: "assets/status-bleed.svg", tone: "danger",
+    if (unit.bleedStacks > 0) statuses.push({ id: `bleed-${unit.id}`, name: `流血 ×${unit.bleedStacks}`, image: "assets/status-bleed.svg", tone: "danger",
       description: `${unit.name}：${unit.bleedStacks} 层流血，每层在完整战斗回合结束时结算持续伤害。` });
+    if (unit.poisonStacks > 0) statuses.push({ id: `poison-${unit.id}`, name: `中毒 ×${unit.poisonStacks}`,
+      image: "assets/status-poison.svg", tone: "danger",
+      description: `${unit.name}：中毒 ${unit.poisonStacks} 层，每层 ATK、DEF -2%，每回合结束受到最大 HP 1% 的真实伤害。` });
+    if (unit.suffocating) statuses.push({ id: `suffocation-${unit.id}`, name: "窒息",
+      image: "assets/status-suffocation.svg", tone: "danger",
+      description: `${unit.name}：ATK +30%、DEF -60%；受到的实际伤害等额扣减本场最大 HP。` });
   }
   if (campaign?.trial?.divinePunishmentBattlesLeft > 0) {
     allyStatuses.push({ id: "divine-punishment", name: "神罚", image: "assets/route-signs/question.png", tone: "danger",
@@ -2235,7 +2241,9 @@ function playEvent(event, finish) {
         if (frames.length) startFrameCycle(fighter, target, "death", frames, ANIMATION_TIMING.attack.deathMs / frames.length, false);
       }
     }
-    addLog(`<b>${event.skillName ?? "摄魂怪"}</b> 反弹 ${event.actualDamage} 点伤害。`, "log-skill");
+    addLog(event.skillId === "iron-bell"
+      ? `<b>金钟罩铁布衫</b> 以实际承伤的 50%（${event.requested} 点）反击，经目标 DEF 减免后造成 ${event.actualDamage} 点伤害。`
+      : `<b>${event.skillName ?? "摄魂怪"}</b> 反弹 ${event.actualDamage} 点伤害。`, "log-skill");
     return finish();
   }
   if (event.type === "normal-passive-stun") {
@@ -2917,6 +2925,57 @@ function playEvent(event, finish) {
     } else addLog(`<b>${actor?.name ?? "角色"}</b> 触发 <span class="skill-name">${event.skillName}</span>，防御提高 ${event.defenseBonus}。`, "log-skill");
     return finish();
   }
+  if (event.type === "swamp-poison") {
+    const actor = viewState.characters.find((unit) => unit.id === event.attackerId);
+    const fighter = document.querySelector(`[data-character="${event.attackerId}"]`);
+    const target = event.targets.map(({ id }) => viewState.characters.find((unit) => unit.id === id)).find(Boolean);
+    const targetFighter = target && document.querySelector(`[data-character="${target.id}"]`);
+    if (fighter && actor) showFighterFrame(fighter, actor, "poisonThrow", "raise");
+    timer = window.setTimeout(() => {
+      timer = null;
+      if (fighter && actor) showFighterFrame(fighter, actor, "poisonThrow", "release");
+      timer = window.setTimeout(() => {
+        timer = null;
+        const flask = fighter && targetFighter && launchTrialProjectile(fighter, targetFighter,
+          actor?.projectileAsset, scaled(560));
+        flask?.classList.add("swamp-flask-projectile");
+        timer = window.setTimeout(() => {
+          timer = null;
+          flask?.remove();
+          for (const change of event.targets) {
+            const unit = viewState.characters.find((entry) => entry.id === change.id);
+            if (unit) unit.poisonStacks = change.stacks;
+          }
+          renderAllyStatusIcons();
+          if (fighter && actor) startIdleCycle(fighter, actor);
+          addLog(`<b>${actor?.name ?? "沼气巨人"}</b> 投掷 <span class="skill-name">毒气药剂</span>，全体存活友方中毒 +1 层。`, "log-enemy");
+          finish();
+        }, scaled(560));
+      }, scaled(180));
+    }, scaled(400));
+    return;
+  }
+  if (event.type === "eternity-growth") {
+    const actor = viewState.characters.find((unit) => unit.id === event.attackerId);
+    const fighter = document.querySelector(`[data-character="${event.attackerId}"]`);
+    const visual = fighter?.querySelector(".sprite-visual");
+    if (visual && actor) {
+      const baseScale = getCharacterVisual(actor).scale;
+      visual.style.setProperty("--visual-scale", String(baseScale * event.scaleFactor));
+    }
+    addLog(`<span class="round-label">R${event.round}</span> <b>永恒恶魔</b> 持续膨胀。`, "log-enemy");
+    timer = window.setTimeout(() => { timer = null; finish(); }, scaled(520));
+    return;
+  }
+  if (event.type === "eternity-suffocation") {
+    for (const id of event.targets) {
+      const target = viewState.characters.find((unit) => unit.id === id);
+      if (target) target.suffocating = true;
+    }
+    renderAllyStatusIcons();
+    addLog(`<span class="round-label">R${event.round}</span> <b>永恒恶魔</b> 令全体存活友方陷入 <span class="skill-name">窒息</span>。`, "log-enemy");
+    return finish();
+  }
   if (event.type === "evolution-clone-gain") {
     const actor = viewState.characters.find((unit) => unit.id === event.attackerId);
     if (actor) actor.chakraClones = event.count;
@@ -2984,6 +3043,7 @@ function playEvent(event, finish) {
     } else if (target) {
       target.currentHp = event.hpAfter;
       target.alive = event.hpAfter > 0;
+      if (Number.isFinite(event.maxHpAfter)) target.maxHp = event.maxHpAfter;
       updateHealth(target);
       const fighter = document.querySelector(`[data-character="${target.id}"]`);
       const number = fighter?.querySelector(".damage-number");
@@ -3450,6 +3510,7 @@ function playEvent(event, finish) {
     if (kiraStand) scheduleBorosVisual(() => { kiraStand?.remove(); kiraStand = null; }, scaled(130));
     target.currentHp = event.targetHp;
     target.alive = event.targetHp > 0;
+    if (Number.isFinite(event.targetMaxHp)) target.maxHp = event.targetMaxHp;
     target.burnStacks = event.burnStacks ?? target.burnStacks ?? 0;
     target.bleedStacks = event.bleedStacks ?? target.bleedStacks ?? 0;
     if (event.trialDamage?.undyingTriggered) {
@@ -4455,9 +4516,10 @@ function chooseShopRecipient() {
       const preview = previewShopItem(campaign, slot, id);
       $("#shop-detail-description").textContent = preview?.fullDescription ?? slot.description;
       $("#shop-detail-price").textContent = preview?.alreadyOwned ? "该角色已拥有此药剂" :
+        preview?.upgradeUnavailable ? "该角色没有可升级的 Lv.1 被动" :
         slot.categoryId === "medicine" ? `◆ ${slot.price} 精华` : `◆ ${slot.price} 精华 · 此角色已有 ${preview?.ownedCount ?? 0} 件`;
-      $("#shop-detail-buy").disabled = Boolean(preview?.alreadyOwned);
-      $("#shop-detail-buy").textContent = preview?.alreadyOwned ? "已拥有" : "确认购买";
+      $("#shop-detail-buy").disabled = Boolean(preview?.alreadyOwned || preview?.upgradeUnavailable);
+      $("#shop-detail-buy").textContent = preview?.alreadyOwned ? "已拥有" : preview?.upgradeUnavailable ? "无法升级" : "确认购买";
     });
     recipients.append(choice);
   }
