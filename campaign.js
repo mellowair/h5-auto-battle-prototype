@@ -946,13 +946,6 @@ export function claimCampaignEliteDrop(campaign, recipientId) {
     generateRouteOptions(campaign);
     return { effect, recipientId, status: campaign.status };
   }
-  // The new first-stage elite keeps its ordinary skill reward in addition to the item.
-  if (campaign.stageId === 1 && campaign.currentBattle?.enemies?.includes("swamp-giant") &&
-      offer?.status === "awaiting_bonus") {
-    campaign.rewardPhase = "bonus";
-    if (campaign.activeNode) campaign.activeNode.rewardStatus = "bonus";
-    return { effect, recipientId, status: "reward", phase: "bonus" };
-  }
   const status = finishRewardAndAdvance(campaign);
   if (!status) return false;
   if (offer?.status === "awaiting_bonus") offer.status = "applied";

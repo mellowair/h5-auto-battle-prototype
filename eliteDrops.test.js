@@ -60,7 +60,7 @@ test("Bomb Demon keeps stat reward and replaces skill training with one Gun Devi
   assert.equal(claimCampaignEliteDrop(campaign, "naruto"), false);
 });
 
-test("Swamp Giant awards one Giant Spinal Fluid through the elite reward flow", () => {
+test("Swamp Giant awards two stat choices and one Giant Spinal Fluid without skill training", () => {
   const campaign = startHero(95);
   campaign.activeNode = { id: "test:swamp-giant", type: "elite", status: "in_progress" };
   campaign.currentBattle = { id: "test:swamp-giant", type: "elite", step: 4, enemies: ["swamp-giant"] };
@@ -70,22 +70,42 @@ test("Swamp Giant awards one Giant Spinal Fluid through the elite reward flow", 
   assert.deepEqual([giant.maxHp, giant.atk, giant.def, giant.spd], [1300, 80, 60, 30]);
   assert.equal(finishBattle(campaign, "victory", 1200).next, "reward");
   const offer = getCampaignRewardOffer(campaign);
-  assert.equal(claimCampaignReward(campaign, offer.statChoices.slice(0, 2)).phase, "elite_drop");
+  const skillLevels = structuredClone(campaign.runCharacterState.skillLevels);
+  const stats = claimCampaignReward(campaign, offer.statChoices.slice(0, 2));
+  assert.equal(stats.phase, "elite_drop");
+  assert.equal(stats.result.selectedStatIds.length, 2);
   const before = { maxHp: campaign.runCharacterState.maxHp, currentHp: campaign.runCharacterState.currentHp,
     def: campaign.runCharacterState.def };
   const claim = claimCampaignEliteDrop(campaign, "naruto");
   assert.equal(claim.effect.id, "giant_spinal_fluid");
-  assert.equal(claim.phase, "bonus", "the treasure must be additional to the usual elite skill reward");
-  assert.equal(campaign.rewardPhase, "bonus");
+  assert.equal(claim.status, "route");
   assert.equal(campaign.runCharacterState.maxHp, before.maxHp + 150);
   assert.equal(campaign.runCharacterState.currentHp, Math.min(before.maxHp + 150, before.currentHp + 150));
   assert.equal(campaign.runCharacterState.def, before.def + 20);
   assert.equal(claimCampaignEliteDrop(campaign, "naruto"), false);
-  const skillId = offer.upgradeableSkills[0];
-  const oldLevel = campaign.runCharacterState.skillLevels[skillId] ?? 1;
-  assert.equal(claimCampaignReward(campaign, "skill_upgrade", null, skillId).phase, "complete");
-  assert.equal(campaign.runCharacterState.skillLevels[skillId], oldLevel + 1);
+  assert.deepEqual(campaign.runCharacterState.skillLevels, skillLevels);
   assert.equal(campaign.status, "route");
+});
+
+test("Eternity Devil awards two stat choices and one Gun Devil fragment without skill training", () => {
+  const campaign = startHero(96);
+  campaign.activeNode = { id: "test:eternity-devil", type: "elite", status: "in_progress" };
+  campaign.currentBattle = { id: "test:eternity-devil", type: "elite", step: 5, enemies: ["eternity-devil"] };
+  campaign.status = "combat";
+  assert.ok(prepareBattle(campaign));
+  assert.equal(finishBattle(campaign, "victory", 1200).next, "reward");
+  const offer = getCampaignRewardOffer(campaign);
+  const skillLevels = structuredClone(campaign.runCharacterState.skillLevels);
+  const stats = claimCampaignReward(campaign, offer.statChoices.slice(0, 2));
+  assert.equal(stats.phase, "elite_drop");
+  assert.equal(stats.result.selectedStatIds.length, 2);
+  const beforeHp = campaign.runCharacterState.maxHp;
+  const claim = claimCampaignEliteDrop(campaign, campaign.playerId);
+  assert.equal(claim.effect.id, GUN_DEVIL_FRAGMENT.id);
+  assert.equal(claim.status, "route");
+  assert.equal(campaign.runCharacterState.maxHp, beforeHp + 200);
+  assert.deepEqual(campaign.runCharacterState.skillLevels, skillLevels);
+  assert.equal(claimCampaignEliteDrop(campaign, campaign.playerId), false);
 });
 
 test("Mahito drop remains claimable when the hero has no skills left to upgrade", () => {

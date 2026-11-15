@@ -135,10 +135,7 @@ function winCurrentBattle(campaign) {
     const offer = getCampaignRewardOffer(campaign);
     const stat = claimCampaignReward(campaign, offer.statChoices.slice(0, 2));
     if (stat.phase === "bonus") claimCampaignReward(campaign, "skill_upgrade", null, offer.upgradeableSkills[0]);
-    if (stat.phase === "elite_drop") {
-      const drop = claimCampaignEliteDrop(campaign, campaign.playerId);
-      if (drop?.phase === "bonus") claimCampaignReward(campaign, "skill_upgrade", null, offer.upgradeableSkills[0]);
-    }
+    if (stat.phase === "elite_drop") claimCampaignEliteDrop(campaign, campaign.playerId);
     return campaign.status;
   }
   return completeSettlement(campaign);
