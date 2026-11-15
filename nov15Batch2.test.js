@@ -14,7 +14,7 @@ test("new stage-one elites, hidden bosses, and Heracles use the requested panel 
   assert.deepEqual([enemy("swamp-giant").hp, enemy("swamp-giant").atk,
     enemy("swamp-giant").def, enemy("swamp-giant").spd], [1300, 80, 60, 30]);
   assert.deepEqual([enemy("eternity-devil").hp, enemy("eternity-devil").atk,
-    enemy("eternity-devil").def, enemy("eternity-devil").spd], [1600, 40, 50, 20]);
+    enemy("eternity-devil").def, enemy("eternity-devil").spd], [1900, 40, 50, 20]);
   assert.ok(["swamp-giant", "eternity-devil"].every((id) => enemy(id).row === "front"));
   assert.deepEqual([GUN_DEVIL.hp, GUN_DEVIL.atk, GUN_DEVIL.def, GUN_DEVIL.spd], [4500, 999, 220, 300]);
   assert.deepEqual([YORU.hp, YORU.atk, YORU.def, YORU.spd], [6500, 1444, 300, 250]);

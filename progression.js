@@ -168,7 +168,6 @@ export function claimTreasure(runState, sourceId, treasureId, recipientState, re
   if (gains.maxHp) recipientState.maxHp = Math.max(1, recipientState.maxHp + gains.maxHp);
   recipientState.currentHp = Math.min(recipientState.currentHp, recipientState.maxHp);
   if (gains.critRateBonus) recipientState.critRate = Math.min(COMBAT_RULES.maxCritChance, recipientState.critRate + gains.critRateBonus);
-  if (treasure.id === "angel_breath" && !(recipientState.divinePunishment?.battlesLeft > 0) && !hasStoneMask(recipientState)) recipientState.currentHp = recipientState.maxHp;
   const effect = { id: treasure.id, name: treasure.name,
     description: specialPreview?.description ?? repeatedTreasureDescription(treasure, multiplier, gains), sourceId, sourceLabel: "王之宝库奇遇", stageId: record.data.stageId ?? 1, acquisitionCount: recipientState.permanentEffects.filter((effect) => effect.id === treasureId).length + 1, ...gains };
   recipientState.permanentEffects.push(applyRockLeeWeight(recipientState, effect));
@@ -472,7 +471,7 @@ export function applyStatUpgrade(runState, sourceId, upgradeId) {
 export function healRunCharacter(runState, amount, sourceId) {
   ensureRunState(runState);
   if (!sourceId || !actionAvailable(runState, makeActionKey("heal", sourceId))) return null;
-  const healing = runState.divinePunishment?.battlesLeft > 0 || hasStoneMask(runState) ? 0 : Math.max(0, Math.floor(finite(amount)));
+  const healing = hasStoneMask(runState) ? 0 : Math.max(0, Math.floor(finite(amount)));
   const before = runState.currentHp;
   runState.currentHp = Math.min(getMaxHp(runState), before + healing);
   recordAction(runState, makeActionKey("heal", sourceId));
@@ -506,8 +505,7 @@ export function upgradeActiveSkill(runState, skillId, sourceId) {
 
 export function getCampfireOptions(runState) {
   ensureRunState(runState);
-  const blockedByDivine = runState.divinePunishment?.battlesLeft > 0;
-  const cannotHeal = blockedByDivine || runState.permanentEffects.some((effect) => effect.id === "stone_mask");
+  const cannotHeal = runState.permanentEffects.some((effect) => effect.id === "stone_mask");
   const healFraction = CAMPFIRE_RULES.rest.healFraction +
     (runState.permanentEffects.some((effect) => effect.id === "drip_coffee") ? .15 : 0);
   const eligible = getSkillTrainingChoices(runState).map((id) => ({
@@ -516,7 +514,7 @@ export function getCampfireOptions(runState) {
     nextEffect: copy(SKILL_DATA[id].levels[(runState.skillLevels[id] ?? 0) + 1]),
   }));
   return [
-    { id: CAMPFIRE_RULES.rest.id, name: CAMPFIRE_RULES.rest.name, enabled: true, healAmount: cannotHeal ? 0 : Math.floor(getMaxHp(runState) * healFraction), blockedBy: cannotHeal ? (blockedByDivine ? "divine_punishment" : "stone_mask") : null },
+    { id: CAMPFIRE_RULES.rest.id, name: CAMPFIRE_RULES.rest.name, enabled: true, healAmount: cannotHeal ? 0 : Math.floor(getMaxHp(runState) * healFraction), blockedBy: cannotHeal ? "stone_mask" : null },
     { id: CAMPFIRE_RULES.skillUpgrade.id, name: CAMPFIRE_RULES.skillUpgrade.name, enabled: eligible.length > 0, skills: eligible, reason: eligible.length ? null : "主动技能已全部学习并达到各自最高等级。" },
   ];
 }
@@ -544,7 +542,7 @@ export function resolveCampfire(runState, sourceId, choiceId, skillId = null) {
   if (!skill) return false;
   let capsuleRestored = 0;
   if (runState.permanentEffects.some((effect) => effect.id === "universal_capsule") &&
-      !hasStoneMask(runState) && !(runState.divinePunishment?.battlesLeft > 0)) {
+      !hasStoneMask(runState)) {
     const before = runState.currentHp;
     runState.currentHp = Math.min(runState.maxHp, before + Math.floor(runState.maxHp * .2));
     capsuleRestored = runState.currentHp - before;
@@ -704,9 +702,9 @@ function applySharedEventEffect(runState, sourceId, result) {
   if (result.effect && !runState.temporaryEffects.some((effect) => effect.sourceId === sourceId))
     runState.temporaryEffects.push(copy(result.effect));
   if (result.healFraction) {
-    if (runState.divinePunishment?.battlesLeft > 0 || hasStoneMask(runState)) {
+    if (hasStoneMask(runState)) {
       result.restored = 0;
-      result.healBlockedBy = hasStoneMask(runState) ? "stone_mask" : "divine_punishment";
+      result.healBlockedBy = "stone_mask";
     } else {
       const restored = Math.min(runState.maxHp - runState.currentHp, Math.floor(runState.maxHp * result.healFraction));
       runState.currentHp += restored;
@@ -1028,7 +1026,7 @@ export function resolveAdventureEvent(runState, sourceId, choiceId = null, rando
       result = { maxHpLoss, treasureId, currentHp: runState.currentHp };
     } else if (sequel && choiceId === "death_nothing") {
       const before = runState.currentHp;
-      if (!(runState.divinePunishment?.battlesLeft > 0) && !hasStoneMask(runState))
+      if (!hasStoneMask(runState))
         runState.currentHp = Math.min(runState.maxHp, before + Math.floor(runState.maxHp * .44));
       result = { restored: runState.currentHp - before, currentHp: runState.currentHp, maxHp: runState.maxHp };
     } else return false;

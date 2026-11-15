@@ -17,7 +17,7 @@ test("v9 uses local stage-two growth with the confirmed ninth-step cap", () => {
   assert.deepEqual(getRouteEnemyGrowth("normal", 1, 2), { hp: .8, atk: .8, def: .8 });
   assert.deepEqual(getRouteEnemyGrowth("elite", 6, 2), { hp: 1.15, atk: 1.1, def: 1.05 });
   assert.deepEqual(getRouteEnemyGrowth("normal", 14, 2), getRouteEnemyGrowth("normal", 9, 2));
-  assert.deepEqual([STAGE_TWO_BOSS_DATA.hp, STAGE_TWO_BOSS_DATA.def], [5000, 160]);
+  assert.deepEqual([STAGE_TWO_BOSS_DATA.hp, STAGE_TWO_BOSS_DATA.def], [5000, 210]);
   assert.equal(STARTING_CHARACTERS.find((entry) => entry.id === "kaneki").row, "front");
 });
 

@@ -32,7 +32,7 @@ function setEvent(campaign, eventId, stageId = campaign.stageId) {
 
 test("latest elite panels and Eternity threshold use the new values", () => {
   assert.equal(elite("eternity-devil").def, 50);
-  assert.equal(elite("falling-devil").def, 160);
+  assert.equal(elite("falling-devil").def, 180);
   assert.equal(TRIAL_ENEMY_DATA.odin.def, 120);
   assert.equal(TRIAL_ENEMY_DATA.heracles.def, 180);
 });
@@ -82,7 +82,7 @@ test("death note sequel is gated and light reduces current-stage elite HP while 
   campaign.status = "combat";
   campaign.currentBattle = { id: "elite", type: "elite", enemies: ["falling-devil"], enemyGrowthExemptIds: ["falling-devil"] };
   const prepared = prepareBattle(campaign);
-  assert.equal(prepared.roster.find((entry) => entry.id === "falling-devil").maxHp, 4500);
+  assert.equal(prepared.roster.find((entry) => entry.id === "falling-devil").maxHp, 4725);
   const essenceBefore = campaign.essence;
   finishBattle(campaign, "victory", campaign.runCharacterState.currentHp);
   assert.equal(campaign.essence, essenceBefore);

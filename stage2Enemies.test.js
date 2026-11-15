@@ -14,11 +14,11 @@ const foe = (data, extra = {}) => ({ ...data, team: "enemy", maxHp: data.hp, cur
   critChance: 0, rosterOrder: 2, ...extra });
 
 test("stage-two enemy definitions, formal Boros assets, and skills use the latest base values", () => {
-  assert.deepEqual([STAGE_TWO_BOSS_DATA.hp, STAGE_TWO_BOSS_DATA.atk, STAGE_TWO_BOSS_DATA.def, STAGE_TWO_BOSS_DATA.spd], [5000, 550, 160, 150]);
+  assert.deepEqual([STAGE_TWO_BOSS_DATA.hp, STAGE_TWO_BOSS_DATA.atk, STAGE_TWO_BOSS_DATA.def, STAGE_TWO_BOSS_DATA.spd], [5000, 550, 210, 150]);
   const toji = ELITE_ENEMY_DATA.find((entry) => entry.id === "toji");
   const kira = ELITE_ENEMY_DATA.find((entry) => entry.id === "kira");
-  assert.deepEqual([toji.hp, toji.atk, toji.def, toji.spd], [2600, 330, 120, 220]);
-  assert.deepEqual([kira.hp, kira.atk, kira.def, kira.spd], [2700, 350, 120, 100]);
+  assert.deepEqual([toji.hp, toji.atk, toji.def, toji.spd], [2600, 360, 120, 220]);
+  assert.deepEqual([kira.hp, kira.atk, kira.def, kira.spd], [2700, 450, 120, 100]);
   assert.equal(SKILL_DATA["boros-meteor-burst"].levels[1].chance, 1);
   assert.equal(SKILL_DATA["boros-collapsing-star"].levels[1].chance, 1);
   assert.equal(SKILL_DATA["bites-the-dust"].levels[1].chance, .40);
@@ -100,9 +100,9 @@ test("Boros thresholds are strict, phases never reverse, and crossing both thres
   boss.currentHp = 2001;
   assert.equal(changeBorosPhase(state, boss), null);
   boss.currentHp = 2000;
-  assert.deepEqual(changeBorosPhase(state, boss), { phase: 3, atk: 630, def: 120, spd: 250, lifesteal: .1 });
+  assert.deepEqual(changeBorosPhase(state, boss), { phase: 3, atk: 630, def: 170, spd: 250, lifesteal: .1 });
   assert.equal(changeBorosPhase(state, boss), null);
-  assert.deepEqual([boss.atk, boss.def, boss.spd], [630, 120, 250]);
+  assert.deepEqual([boss.atk, boss.def, boss.spd], [630, 170, 250]);
   assert.equal(boss.lifesteal, .1);
   const hero = state.characters[0];
   const hpBeforeAttack = boss.currentHp;
@@ -112,7 +112,7 @@ test("Boros thresholds are strict, phases never reverse, and crossing both thres
   const skipped = initializeBattle([ally("hero"), foe(STAGE_TWO_BOSS_DATA)]);
   skipped.round = 1; skipped.characters[1].currentHp = 1500;
   assert.equal(changeBorosPhase(skipped, skipped.characters[1]).phase, 3);
-  assert.deepEqual([skipped.characters[1].atk, skipped.characters[1].def, skipped.characters[1].spd], [630, 120, 250]);
+  assert.deepEqual([skipped.characters[1].atk, skipped.characters[1].def, skipped.characters[1].spd], [630, 170, 250]);
   const dead = initializeBattle([ally("hero"), foe(STAGE_TWO_BOSS_DATA)]);
   dead.characters[1].currentHp = 0;
   assert.equal(changeBorosPhase(dead, dead.characters[1]), null);
@@ -123,7 +123,7 @@ test("Boros phase one reduces damage; phase two grows SPD once per full round; p
   const [hero, boss] = state.characters;
   state.round = 1;
   const hit = executeAttack(state, hero, boss, () => .9);
-  assert.equal(hit.damage, 68); // 200 ATK through 100/(100+160), then 10% reduction.
+  assert.equal(hit.damage, 57); // 200 ATK through 100/(100+210), then 10% reduction.
   boss.currentHp = 3900;
   changeBorosPhase(state, boss);
   const hpAtTransition = boss.currentHp;
@@ -139,7 +139,7 @@ test("Boros phase one reduces damage; phase two grows SPD once per full round; p
   boss.currentHp = 1600;
   changeBorosPhase(state, boss);
   assert.deepEqual(advanceBorosRound(state), []);
-  assert.deepEqual([boss.atk, boss.def, boss.spd], [630, 120, 280]);
+  assert.deepEqual([boss.atk, boss.def, boss.spd], [630, 170, 280]);
   state.round = 5;
   assert.equal(advanceBorosRound(state)[0].effectiveAtk, 660);
   assert.deepEqual(advanceBorosRound(state), []);
@@ -308,5 +308,5 @@ test("stage-two elite and Boss combat copies apply only the correct growth once"
   campaign.combatLaunched = false;
   campaign.currentBattle = { type: "boss", step: 24, enemies: ["boros"], enemyNames: { boros: "波罗斯" }, enemyGrowthExemptIds: ["boros"] };
   const boss = prepareBattle(campaign).roster.find((entry) => entry.id === "boros");
-  assert.deepEqual([boss.maxHp, boss.atk, boss.def, boss.spd], [5000, 550, 160, 150]);
+  assert.deepEqual([boss.maxHp, boss.atk, boss.def, boss.spd], [5000, 550, 210, 150]);
 });

@@ -523,7 +523,7 @@ function showFighterFrame(fighter, character, animationName, frameName) {
   visualLayer?.style.setProperty("--visual-action-offset-x", `${offset.offsetX ?? 0}px`);
   visualLayer?.style.setProperty("--visual-action-offset-y", `${offset.offsetY ?? 0}px`);
   node.style.setProperty("--action-frame-scale", getAnimationFrameVisualScale(character, animationName, frameName));
-  node.style.setProperty("--action-frame-foot-shift", `${fighter.closest(".battle-screen.stage-two") || ["tang-shaseng", "bomb-demon", "shin", "noi"].includes(character.visualId ?? character.id) ? getAnimationFrameFootShift(character, animationName, frameName) : 0}px`);
+  node.style.setProperty("--action-frame-foot-shift", `${fighter.closest(".battle-screen.stage-two") || ["tang-shaseng", "bomb-demon", "shin", "noi", "gold-king", "silver-king"].includes(character.visualId ?? character.id) ? getAnimationFrameFootShift(character, animationName, frameName) : 0}px`);
   const hasLoadedCurrent = [...(spriteFrameLayers.get(node)?.values() ?? [])].some(image => image.complete && image.naturalWidth > 0 && image.classList.contains("is-current"));
   if (hasLoadedCurrent || node?.dataset.framePending !== "true") fighter.classList.add("has-action-sprite");
   return true;
@@ -1254,7 +1254,7 @@ function renderAllyStatusIcons() {
       statuses.push({ id: `bereavement-${unit.id}`, name: `${unit.name} · 同伴倒地`, image: unit.asset, tone: "buff",
         description: `${unit.name} 因${unit.bereavementSourceId === "shin" ? "心" : "能井"}倒地，当前 ATK 翻倍、DEF +${unit.bereavementDefenseBonus}；同伴复活后移除。` });
     if (unit.burnStacks > 0) statuses.push({ id: `burn-${unit.id}`, name: `灼烧 ×${unit.burnStacks}`, image: "assets/status-burn.svg", tone: "danger",
-      description: `${unit.name}：${unit.burnStacks} 层烧伤，每层在完整战斗回合结束时结算持续伤害。` });
+      description: `${unit.name}：${unit.burnStacks} 层烧伤，本场战斗持续；每层在完整战斗回合结束时结算伤害，眩晕时灼烧伤害翻倍。` });
     if (unit.bleedStacks > 0) statuses.push({ id: `bleed-${unit.id}`, name: `流血 ×${unit.bleedStacks}`, image: "assets/status-bleed.svg", tone: "danger",
       description: `${unit.name}：${unit.bleedStacks} 层流血，每层在完整战斗回合结束时结算持续伤害。` });
     if (unit.poisonStacks > 0) statuses.push({ id: `poison-${unit.id}`, name: `中毒 ×${unit.poisonStacks}`,
@@ -1264,10 +1264,27 @@ function renderAllyStatusIcons() {
       image: "assets/status-suffocation.svg", tone: "danger",
       description: `${unit.name}：ATK +30%、DEF -60%；受到的实际伤害等额扣减本场最大 HP。` });
   }
-  if (campaign?.trial?.divinePunishmentBattlesLeft > 0) {
-    allyStatuses.push({ id: "divine-punishment", name: "神罚", image: "assets/route-signs/question.png", tone: "danger",
-      description: `全队最大 HP 临时 -20%，连续三场战斗中无法恢复生命；结束后恢复原最大 HP，当前 HP 继续保留。还需完成 ${campaign.trial.divinePunishmentBattlesLeft} 场战斗。` });
+  const makima = viewState?.characters?.find((unit) => unit.id === "makima" && unit.alive);
+  if (makima && viewState.characters.some((unit) => unit.stageThreeMinion && unit.alive && unit.currentHp > 0))
+    enemyStatuses.push({ id: "makima-minion-guard", name: "恶魔眷属", image: makima.asset, tone: "buff",
+      description: "存在存活的恶魔眷属时，受到的伤害减少50%。" });
+  if (viewState?.characters?.some((unit) => unit.id === "aging-devil" && unit.alive)) {
+    for (const unit of viewState.characters.filter((entry) => entry.team === "ally" && campaign?.partyIds?.includes(entry.id))) {
+      allyStatuses.push({ id: `aging-skill-${unit.id}`,
+        name: `${unit.name} · 衰老`, image: "assets/stage3-elites/aging/idle.png", tone: "debuff",
+        description: "受到衰老恶魔影响，本场战斗所有主动技能和被动技能均按照 Lv1 效果计算。" });
+    }
   }
+  if (campaign?.trial?.divinePunishmentBattlesLeft > 0) {
+    allyStatuses.push({ id: "divine-punishment", name: "永恒的枷锁", image: "assets/route-signs/question.png", tone: "danger",
+      description: `本项试炼最大 HP 临时 -20%，仍可正常吸血；完成后恢复原最大 HP，当前 HP 不额外恢复。剩余 ${campaign.trial.divinePunishmentBattlesLeft} 场。` });
+  }
+  if (campaign?.trialBattle?.taskId === "strength")
+    allyStatuses.push({ id: "trial-strength", name: "力量试炼", image: "assets/route-signs/question.png", tone: "debuff",
+      description: "本场试炼我方 ATK 降低 20%。" });
+  if (campaign?.trialBattle?.taskId === "wisdom")
+    allyStatuses.push({ id: "trial-wisdom", name: "智慧试炼", image: "assets/route-signs/question.png", tone: "debuff",
+      description: "本场试炼我方 DEF 降低 20%。" });
   const heracles = viewState?.characters?.find((unit) => unit.id === "heracles" && unit.alive);
   if (heracles?.heraclesTrialsActive) {
     enemyStatuses.push({ id: "heracles-twelve-trials", name: "十二试炼", image: heracles.asset, tone: "passive",
@@ -1296,7 +1313,7 @@ function renderAllyStatusIcons() {
     allyStatuses.push({
       id: effect.id ?? effect.name,
       name: isBanana ? "绿色果冻香蕉" : isDeathNote ? "死亡笔记" : isCafe ? "安定区" : "路遇巨石",
-      image: isBanana ? "assets/status-green-banana.svg" : isDeathNote ? "assets/events/event_death_note.png" : isCafe ? "assets/events/event_coffee_shop.png" : "assets/events/event_big_rock.png",
+      image: isBanana ? "assets/events/green-banana.png" : isDeathNote ? "assets/events/event_death_note.png" : isCafe ? "assets/events/event_coffee_shop.png" : "assets/events/event_big_rock.png",
       tone: effect.polarity,
       description: `${effect.statName} ${effect.amountText} · ${effect.durationText}`,
     });
@@ -1607,7 +1624,7 @@ function renderTrialProgress() {
     return row;
   }));
   $("#trial-punishment-note").textContent = trial.divinePunishmentBattlesLeft > 0
-    ? `神罚：剩余 ${trial.divinePunishmentBattlesLeft} 场战斗，最大 HP -20%，连续战斗中无法恢复生命；三场结束后恢复原最大 HP，保留当前 HP。` : "";
+    ? `永恒的枷锁：剩余 ${trial.divinePunishmentBattlesLeft} 场战斗，最大 HP -20%；结束后恢复上限，保留当前 HP。` : "";
 }
 
 function updateBossProgress() {
@@ -1684,7 +1701,7 @@ function clearEffects() {
   clearBorosVisuals();
   lastBorosVisualCastId = null;
   lastGilgameshVisualCastId = null;
-  document.querySelectorAll(".colossal-battle-smoke, .gilgamesh-visual, .trial-projectile, .shin-hammer-projectile, .eren-warhammer-strike, .evolution-entrance, .clone-protect-effect, .summon-portal, .arima-weakpoint, .cannot-act-effect, .skill-book-opening, .gravity-circle, .gravity-dish, .hidden-yoru-entrance, .hidden-spinal-sword, .hidden-boss-projectile, .hidden-boss-ground-effect, .hidden-yoru-summoned-gun, .hidden-yoru-tank").forEach((node) => node.remove());
+  document.querySelectorAll(".colossal-battle-smoke, .gilgamesh-visual, .trial-projectile, .shin-hammer-projectile, .eren-warhammer-strike, .evolution-entrance, .clone-protect-effect, .summon-portal, .arima-weakpoint, .cannot-act-effect, .skill-book-opening, .gravity-circle, .gravity-dish, .hidden-yoru-entrance, .hidden-spinal-sword, .hidden-boss-projectile, .hidden-boss-ground-effect, .hidden-yoru-summoned-gun, .hidden-yoru-tank, .aging-choice-overlay, .aging-projectile, .aging-absorbed, .aging-passive-effect").forEach((node) => node.remove());
   document.querySelectorAll(".fighter.is-yoru-countering").forEach((node) => node.classList.remove("is-yoru-countering"));
   clearAllSpriteFrameCycles();
   timer = null;
@@ -1697,6 +1714,7 @@ function clearEffects() {
   document.querySelectorAll(".kira-stand").forEach((stand) => stand.remove());
   document.querySelectorAll(".fighter").forEach((fighter) => {
     delete fighter.dataset.armorPoseRound;
+    fighter.style.removeProperty("visibility");
     fighter.classList.remove("is-portal-pending", "is-portal-rising");
     fighter.style.removeProperty("--summon-rise-duration");
     fighter.classList.remove("is-attacking", "is-melee-rushing", "is-clone-melee-approaching", "is-kaneki-glutton-approaching", "is-clone-melee-returning", "is-melee-at-target", "is-melee-returning", "is-melee-running", "is-quanxi-hidden", "is-quanxi-behind", "is-makima-landing", "is-toji-approaching", "is-toji-at-target", "is-toji-returning", "is-skill-posing", "is-punching", "is-hit", "is-hit-stun", "is-hit-recoil", "is-casting", "is-dodging", "is-critical", "is-impact", "is-magic-attacking", "is-ranged-attacking", "is-elite-escape", "is-domain-active", "is-kaneki-normal-approach", "is-kaneki-normal-at-target", "is-kaneki-predator-launch", "is-kaneki-predator-strike", "is-kaneki-predator-hold", "is-kaneki-predator-return", "is-kaneki-reactive", "is-steam-casting", "gravity-lift", "gravity-hover", "gravity-drop", "is-gravity-dish");
@@ -1977,6 +1995,120 @@ function playHiddenBossCounter(event, finish) {
   });
 }
 
+function playGoldGourd(event, finish) {
+  const arena = document.querySelector(".arena");
+  const source = document.querySelector('[data-character="gold-king"]');
+  const targetEl = document.querySelector(`[data-character="${event.targetId}"]`);
+  const attacker = viewState.characters.find((unit) => unit.id === "gold-king");
+  const target = viewState.characters.find((unit) => unit.id === event.targetId);
+  if (!arena || !source || !targetEl || !target) return finish();
+  showFighterFrame(source, attacker, "skill1", "cast");
+  const area = arena.getBoundingClientRect();
+  const a = source.getBoundingClientRect();
+  const b = targetEl.getBoundingClientRect();
+  const projectile = document.createElement("img");
+  projectile.className = "aging-projectile";
+  projectile.src = attacker.projectileAsset;
+  projectile.alt = "";
+  projectile.style.opacity = "0";
+  projectile.style.left = `${a.left - area.left + a.width * .5}px`;
+  projectile.style.top = `${a.top - area.top + a.height * .4}px`;
+  arena.append(projectile);
+  const travel = playbackDelay(650, 320);
+  const dx = b.left + b.width * .45 - a.left - a.width * .5;
+  const dy = b.top + b.height * .4 - a.top - a.height * .4;
+  timer = window.setTimeout(() => {
+    timer = null;
+    projectile.style.opacity = "1";
+    projectile.style.transition = `transform ${travel}ms linear`;
+    projectile.style.transform = `translate(${dx}px, ${dy}px)`;
+    timer = window.setTimeout(() => {
+      timer = window.setTimeout(() => {
+        target.burnStacks = event.stacks;
+        target.currentHp = event.targetHp;
+        target.alive = !event.targetDied;
+        updateHealth(target);
+        renderAllyStatusIcons();
+        const number = targetEl.querySelector(".damage-number");
+        if (number && event.actualDamage > 0) {
+          number.textContent = `-${event.actualDamage}`;
+          number.classList.remove("pop"); void number.offsetWidth; number.classList.add("pop");
+        }
+        addLog(`<b>金角大王</b> 的葫芦使 ${target.name} 灼烧 +${event.stacksApplied} 层（共 ${event.stacks} 层），立即造成 ${event.actualDamage} 点真实伤害${event.stunnedBurn ? "；眩晕使灼烧翻倍" : ""}。`, "log-enemy");
+        projectile.remove();
+        if (attacker?.alive) startIdleCycle(source, attacker);
+        timer = null;
+        finish();
+      }, playbackDelay(180, 90));
+    }, travel);
+  }, playbackDelay(220, 120));
+}
+
+function playSilverBottle(event, finish) {
+  const arena = document.querySelector(".arena");
+  const source = document.querySelector('[data-character="silver-king"]');
+  const targetEl = document.querySelector(`[data-character="${event.targetId}"]`);
+  const silver = viewState.characters.find((unit) => unit.id === "silver-king");
+  const target = viewState.characters.find((unit) => unit.id === event.targetId);
+  if (!arena || !source || !targetEl || !target) return finish();
+  showFighterFrame(source, silver, "bottleThrow", "cast");
+  const area = arena.getBoundingClientRect();
+  const a = source.getBoundingClientRect();
+  const b = targetEl.getBoundingClientRect();
+  const centerX = area.width * .5;
+  const centerY = area.height * .46;
+  const bottle = document.createElement("img");
+  bottle.className = "aging-projectile";
+  bottle.src = silver.projectileAsset;
+  bottle.alt = "";
+  bottle.style.opacity = "0";
+  const fromX = a.left - area.left + a.width * .5;
+  const fromY = a.top - area.top + a.height * .4;
+  bottle.style.left = `${fromX}px`;
+  bottle.style.top = `${fromY}px`;
+  arena.append(bottle);
+  const flyMs = playbackDelay(600, 300);
+  timer = window.setTimeout(() => {
+    timer = null;
+    bottle.style.opacity = "1";
+    bottle.style.transition = `transform ${flyMs}ms ease-out`;
+    bottle.style.transform = `translate(${centerX - fromX}px, ${centerY - fromY}px) scale(1.14)`;
+    timer = window.setTimeout(() => {
+      const clone = document.createElement("img");
+      clone.className = "aging-absorbed";
+      clone.src = targetEl.querySelector(".sprite")?.src ?? target.asset;
+      clone.alt = "";
+      clone.style.left = `${b.left - area.left}px`;
+      clone.style.top = `${b.top - area.top}px`;
+      clone.style.width = `${b.width}px`;
+      clone.style.height = `${b.height}px`;
+      arena.append(clone);
+      targetEl.style.visibility = "hidden";
+      const absorbMs = playbackDelay(850, 420);
+      requestAnimationFrame(() => {
+        clone.style.transition = `transform ${absorbMs}ms ease-in, opacity ${absorbMs}ms ease-in`;
+        clone.style.transform = `translate(${centerX - (b.left - area.left) - b.width * .5}px, ${centerY - (b.top - area.top) - b.height * .5}px) rotate(720deg) scale(.05)`;
+        clone.style.opacity = "0";
+      });
+      timer = window.setTimeout(() => {
+        clone.remove();
+        target.alive = false;
+        target.absorbedByBottle = true;
+        updateHealth(target);
+        for (const id of event.dismissedIds ?? []) {
+          const summon = viewState.characters.find((unit) => unit.id === id);
+          if (summon) { summon.alive = false; updateHealth(summon); }
+          document.querySelector(`[data-character="${id}"]`)?.style.setProperty("visibility", "hidden");
+        }
+        renderAllyStatusIcons();
+        addLog(`<b>银角大王</b> 的「叫你一声」吸入了本场造成实际伤害最高的 ${target.name}（${event.damageDealt} 点），其退出本场战斗。`, "log-enemy");
+        bottle.style.opacity = "0";
+        timer = window.setTimeout(() => { bottle.remove(); timer = null; if (silver?.alive) startIdleCycle(source, silver); finish(); }, playbackDelay(180, 90));
+      }, absorbMs);
+    }, flyMs);
+  }, playbackDelay(250, 120));
+}
+
 function playEvent(event, finish) {
   if (Number.isFinite(event.round) && event.round !== battleStatusState.currentRound) {
     battleStatusState.currentRound = event.round;
@@ -1992,6 +2124,48 @@ function playEvent(event, finish) {
     }
     renderAllyStatusIcons();
     viewState?.characters?.forEach((character) => { if (Number.isInteger(character.weaknessRound)) updateHealth(character); });
+  }
+  if (event.type === "gold-gourd") return playGoldGourd(event, finish);
+  if (event.type === "silver-bottle") return playSilverBottle(event, finish);
+  if (event.type === "aging-suppression") {
+    addLog("<b>衰老恶魔</b> 压制全场技能：本战主动与被动技能均按 Lv.1 生效，存档技能等级保持不变。", "log-enemy");
+    renderAllyStatusIcons();
+    return finish();
+  }
+  if (event.type === "aging-choice-result") {
+    if (event.removedTreasure) {
+      const { ownerId, id, combatStats } = event.removedTreasure;
+      const unit = viewState.characters.find((entry) => entry.id === ownerId);
+      if (unit) { Object.assign(unit, combatStats); updateHealth(unit); }
+      for (const affected of event.removedTreasure.affectedAllies ?? []) {
+        const ally = viewState.characters.find((entry) => entry.id === affected.targetId);
+        if (ally) { Object.assign(ally, affected.combatStats); updateHealth(ally); }
+      }
+      if (["vip_card", "premium_vip_card"].includes(id) && campaign.shopDiscount?.type === id &&
+          !campaign.partyIds.some((partyId) => campaign.partyStates[partyId]?.permanentEffects?.some((effect) => effect.id === id)))
+        campaign.shopDiscount.expired = true;
+    }
+    addLog(event.removedTreasure
+      ? `<b>衰老</b>：牺牲了 ${event.removedTreasure.name}，免除第 ${event.round} 回合阶段惩罚。`
+      : `<b>衰老</b>：选择了${event.choiceId === "battle" ? "仅本战生效的惩罚" : "永久属性扣除"}，从下一回合开始每回合结算。`, "log-enemy");
+    renderAllyStatusIcons();
+    return finish();
+  }
+  if (event.type === "aging-penalty") {
+    for (const change of event.changes) {
+      const unit = viewState.characters.find((entry) => entry.id === change.targetId);
+      if (!unit) continue;
+      Object.assign(unit, { currentHp: change.currentHp, maxHp: change.maxHp, def: change.def, atk: change.atk,
+        alive: !change.died });
+      updateHealth(unit);
+      if (change.stat === "currentHp") {
+        const number = document.querySelector(`[data-character="${unit.id}"] .damage-number`);
+        if (number) { number.textContent = `-${change.amount}`; number.classList.remove("pop"); void number.offsetWidth; number.classList.add("pop"); }
+      }
+    }
+    addLog(`<b>衰老</b> 第 ${event.phaseRound} 回合阶段惩罚：本回合${event.changes.map((change) => `${viewState.characters.find((unit) => unit.id === change.targetId)?.name ?? change.targetId} ${change.stat.toUpperCase()} -${change.amount}`).join("、")}。`, "log-enemy");
+    renderAllyStatusIcons();
+    return finish();
   }
   if (event.type === "hidden-boss-phase") return playHiddenBossPhase(event, finish);
   if (event.type === "hidden-boss-counter") return playHiddenBossCounter(event, finish);
@@ -3077,7 +3251,7 @@ function playEvent(event, finish) {
       }
       if (event.targetDied) fighter?.classList.add("is-dead");
       if (event.type === "trial-dot") renderAllyStatusIcons();
-      addLog(`<span class="round-label">R${event.round}</span> <b>${target.name}</b> ${event.type === "trial-dot" ? event.name : "延迟伤害"}：HP -${event.damage}。`, "log-enemy");
+      addLog(`<span class="round-label">R${event.round}</span> <b>${target.name}</b> ${event.type === "trial-dot" ? event.name : "延迟伤害"}：HP -${event.damage}${event.stunnedBurn ? "（眩晕灼烧翻倍）" : ""}。`, "log-enemy");
     }
     return finish();
   }
@@ -3935,12 +4109,95 @@ function playEvent(event, finish) {
 function playNext(token) {
   if (token !== generation || !playback || playbackPaused) return;
   if (playback.index >= playback.events.length) {
+    if (pendingResult?.pendingChoice?.type === "aging") return renderAgingChoice(token);
     playback = null;
     setBattleControls(false);
     return;
   }
   const event = playback.events[playback.index++];
   playEvent(event, () => playNext(token));
+}
+
+function playAgingChoiceCast(token, choiceId) {
+  const state = pendingResult?.resumeState;
+  if (!state || token !== generation) return;
+  const aging = viewState?.characters.find((unit) => unit.id === "aging-devil");
+  const fighter = document.querySelector('[data-character="aging-devil"]');
+  const wrap = fighter?.querySelector(".sprite-wrap");
+  if (fighter && aging) showFighterFrame(fighter, aging, "agingPassive", "cast");
+  const effect = wrap && aging?.passiveEffectAsset ? document.createElement("img") : null;
+  const duration = playbackDelay(1000, 600);
+  if (effect) {
+    effect.className = "aging-passive-effect";
+    effect.src = aging.passiveEffectAsset;
+    effect.alt = "";
+    effect.style.setProperty("--aging-passive-ms", `${duration}ms`);
+    wrap.append(effect);
+  }
+  timer = window.setTimeout(() => {
+    timer = null;
+    effect?.remove();
+    clearSpriteFrame(fighter);
+    if (fighter && aging?.alive) startIdleCycle(fighter, aging);
+    if (token !== generation) return;
+    state.runCharacterState = campaign.runCharacterState;
+    state.runCharacterStates = campaign.partyStates;
+    const previousCount = pendingResult.events.length;
+    try {
+      pendingResult = simulateBattle(null, Math.random, { resumeState: state,
+        previousEvents: pendingResult.events, agingChoice: choiceId });
+    } catch (error) { console.error("衰老选择结算失败", error); return; }
+    playback = { ...pendingResult, index: previousCount };
+    saveCampaign();
+    setStatus("战斗中", "fighting");
+    setBattleControls(true);
+    playNext(token);
+  }, duration);
+}
+
+function renderAgingChoice(token) {
+  if (document.querySelector(".aging-choice-overlay") || token !== generation) return;
+  const pending = pendingResult?.pendingChoice;
+  if (!pending) return;
+  setBattleControls(false);
+  const arena = document.querySelector(".arena");
+  const overlay = document.createElement("div");
+  overlay.className = "aging-choice-overlay";
+  const stamp = document.createElement("strong");
+  stamp.className = "aging-choice-stamp";
+  stamp.textContent = "衰老";
+  const panel = document.createElement("div");
+  panel.className = "aging-choice-panel";
+  panel.hidden = true;
+  const heading = document.createElement("h3");
+  heading.textContent = `第 ${pending.round} 回合 · 衰老选择`;
+  panel.append(heading);
+  const options = pending.round === 3
+    ? [["battle", "承受本场惩罚：此后每回合当前 HP -最大 HP 的 5%"],
+      ["permanent", "永久扣除：此后每回合 DEF -3"],
+      ["treasure", "牺牲一件随机普通宝物，免除本阶段惩罚"]]
+    : pending.round === 10
+    ? [["battle", "承受本场惩罚：此后每回合 DEF -20"],
+      ["permanent", "永久扣除：此后每回合最大 HP -3%"],
+      ["treasure", "牺牲一件随机稀有宝物，免除本阶段惩罚"]]
+    : [["battle", "承受本场惩罚：此后每回合当前 HP -最大 HP 的 15%"],
+      ["permanent", "永久扣除：此后每回合 ATK -10"],
+      ["treasure", "牺牲一件随机传说宝物，免除本阶段惩罚"]];
+  for (const [id, label] of options) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = label;
+    button.disabled = id === "treasure" && !pending.treasureAvailable;
+    button.addEventListener("click", () => {
+      if (token !== generation || !pendingResult?.resumeState) return;
+      overlay.remove();
+      playAgingChoiceCast(token, id);
+    });
+    panel.append(button);
+  }
+  overlay.append(stamp, panel);
+  arena.append(overlay);
+  timer = window.setTimeout(() => { timer = null; stamp.remove(); panel.hidden = false; }, 1100);
 }
 
 function removeEnemyEntranceVisuals() {
@@ -4066,6 +4323,7 @@ function beginBattle() {
   $("#battle-screen .brand-copy .eyebrow").textContent = `PIXEL ROGUELIKE · ACT 0${campaign.stageId}`;
   const prepared = restoredBattle?.prepared ?? prepareBattle(campaign);
   if (!prepared) return false;
+  $("#battle-screen").classList.toggle("aging-battle", prepared.battle.enemies?.includes("aging-devil"));
   const initialMakimaSummons = restoredBattle?.result ? [] : prepared.roster.filter((unit) => unit.stageThreeMinion && unit.team === "enemy");
   if (restoredBattle) campaign.combatLaunched = true;
   lastPreparedBattle = prepared;
@@ -4292,6 +4550,9 @@ function renderTrialMap() {
     button.textContent = `${TRIAL_TASKS[id].kind} · ${TRIAL_TASKS[id].name}`;
     const label = document.createElement("small"); label.textContent = state;
     button.append(label);
+    const penalty = document.createElement("small");
+    penalty.textContent = ({ will: "最大 HP -20%", strength: "ATK -20%", wisdom: "DEF -20%" })[id];
+    button.append(penalty);
     button.addEventListener("click", () => {
       const selected = chooseTrialNode(campaign, id);
       if (!selected) return;
@@ -4306,7 +4567,7 @@ function renderTrialMap() {
 function renderTrialWill() {
   if (campaign?.status !== "trial_event") return;
   renderDecisionScreen(TRIAL_TASKS.will.eventName, "高加素山上的铁链，永恒的痛苦。", [
-    decisionChoice("will_accept", "我来承受这一切！", ""),
+    decisionChoice("will_accept", "我来承受这一切！", "本项试炼最大 HP 临时 -20%，可正常吸血。"),
     decisionChoice("will_leave", "转身离开", ""),
   ], "确认", (id) => {
     const result = resolveTrialWill(campaign, id);
@@ -5666,7 +5927,7 @@ function renderAdventureEvent() {
   const choices = [];
   if (record.eventId === "found_money") {
     choices.push(decisionChoice("money_take", "天上掉馅饼", ""));
-    choices.push(decisionChoice("money_leave", "不是我的不能拿", ""));
+    choices.push(decisionChoice("money_leave", "不是我的不能拿", "第二关第 3 次奇遇将遇见王之宝库；由此挑战金闪闪时，造成伤害 +20%、受到伤害 -20%。"));
   } else if (record.eventId === "devil_bargain") {
     choices.push(decisionChoice("devil_trade", "接受交易", "主角当前 HP 减少相当于最大 HP 的 50%，最低保留 1 HP；获得 5 点精华。"));
     choices.push(decisionChoice("devil_leave", "拒绝交易并离开", "获得 1 点精华，不扣除 HP。"));
@@ -5755,7 +6016,12 @@ function renderAdventureEvent() {
     choices.push(decisionChoice("death_read", "读万卷书", "永久失去 44% 最大 HP，随机获得一件稀有宝物。"));
     choices.push(decisionChoice("death_nothing", "我什么都不想要", "恢复相当于最大 HP 44% 的生命。"));
   } else if (record.eventId === "fate_gate") {
-    choices.push(decisionChoice("fate_experiment", "这一切都是命运石之门的选择", "随机开始一项实验。"));
+    const experimentPreview = {
+      long: "ATK -25%，持续 10 场战斗；完成后获得随机技能书，可选择学习角色。",
+      medium: "ATK -20%，持续 5 场战斗；完成后从脊髓液、枪魔碎片、宿傩手指中选一件。",
+      short: "ATK -10%，持续 3 场战斗；完成后获得随机普通宝物。",
+    };
+    choices.push(decisionChoice("fate_experiment", "这一切都是命运石之门的选择", experimentPreview[record.data.experiment]));
     choices.push(decisionChoice("fate_continue", "继续实验", "开启命运石之门（2）。"));
   } else if (record.eventId === "fate_gate_2") {
     if (record.data.phase === "select") for (const type of ["long", "medium", "short"].filter((type) => type !== campaign.runCharacterState.eventSeries.fateGate?.shownResult))
@@ -5766,9 +6032,8 @@ function renderAdventureEvent() {
     }
   }
   else choices.push(decisionChoice("__confirm__", "继续前进", record.effectText));
-  // Event choices reveal outcomes only after selection; phase-two skill lists
-  // are shown after the initial decision and still expose only names.
-  if (!["devil_bargain", "death_note", "death_note_2", "fate_gate", "fate_gate_2"].includes(record.eventId)) for (const choice of choices) choice.description = "";
+  // Event choices reveal outcomes only after selection; found money keeps a vague hint.
+  if (!["found_money", "devil_bargain", "death_note", "death_note_2", "fate_gate", "fate_gate_2"].includes(record.eventId)) for (const choice of choices) choice.description = "";
   const eventDescription = record.type === "gamble"
     ? record.data.phase === "recipient" ? `${record.description}\n请选择本次赌博的角色。`
       : `${record.data.round === 3 ? "贪心不足蛇吞象" : record.description}\n第 ${record.data.round} 轮 · ${partyPresentation(record.data.recipientId)?.name ?? "角色"}`

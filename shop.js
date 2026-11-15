@@ -1,6 +1,6 @@
 import { createSeededRandom } from "./routeMap.js";
 import { GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT, SKILL_DATA, TREASURE_DATA } from "./skills.js";
-import { applyRockLeeWeight, grantAdventureSpecialReward, grantEliteSukunaFinger, grantGiantSpinalFluid, grantGunDevilFragment, grantQuinque, hasStoneMask, learnActiveSkill, previewGrowingDrop, upgradePassiveSkill } from "./progression.js";
+import { applyRockLeeWeight, grantAdventureSpecialReward, grantEliteSukunaFinger, grantGiantSpinalFluid, grantGunDevilFragment, grantQuinque, learnActiveSkill, previewGrowingDrop, upgradePassiveSkill } from "./progression.js";
 import { SHOP_RULES } from "./shopConfig.js";
 
 export const SHOP_TREASURES = Object.freeze({ ...TREASURE_DATA,
@@ -132,7 +132,6 @@ function grantTreasure(member, slot, sourceId, stageId) {
     member.maxHp = Math.max(1, member.maxHp + (gains.maxHp ?? 0));
     member.currentHp = Math.min(member.currentHp, member.maxHp);
     if (gains.critRateBonus) member.critRate = Math.min(1, member.critRate + gains.critRateBonus);
-    if (item.id === "angel_breath" && !(member.divinePunishment?.battlesLeft > 0) && !hasStoneMask(member)) member.currentHp = member.maxHp;
     effect = applyRockLeeWeight(member, { ...item, ...gains, sourceId });
     member.permanentEffects.push(effect);
   }

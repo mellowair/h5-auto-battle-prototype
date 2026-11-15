@@ -41,6 +41,11 @@ test("Makima and follower panels use the updated base DEF in both summon waves",
   const state = initializeBattle(prepared.roster, prepared.combatOptions);
   const boss = state.characters.find((unit) => unit.id === "makima");
   boss.currentHp = Math.floor(boss.maxHp / 2) - 1;
+  assert.equal(resolveStageThreeDeaths(state, []).filter((event) => event.type === "summon").length, 0);
+  for (const id of ["makima-bomb", "flamethrower-devil"]) {
+    const minion = state.characters.find((unit) => unit.id === id);
+    minion.currentHp = 0; minion.alive = false;
+  }
   const summons = resolveStageThreeDeaths(state, []).filter((event) => event.type === "summon");
   assert.deepEqual(summons.map((event) => event.character.id), ["katana-devil", "quanxi"]);
   for (const { character } of summons)
@@ -78,7 +83,7 @@ test("Makima's fire and katana followers add one status stack per landed hit", (
   }
 });
 
-test("Makima summons once below half, counts true deaths, controls only partner once, and fires Bang on round four", () => {
+test("Makima summons after both first-wave deaths, controls only partner once, and fires Bang on round four", () => {
   const state = initializeBattle([hero(), hero("partner"), STAGE_THREE_BOSS_DATA,
     ...["makima-bomb", "flamethrower-devil"].map((id) => STAGE_THREE_MINIONS[id])], { playerId: "hero" });
   state.round = 2;
@@ -86,8 +91,7 @@ test("Makima summons once below half, counts true deaths, controls only partner 
   boss.currentHp = 1850;
   assert.equal(resolveStageThreeDeaths(state, []).length, 0);
   boss.currentHp = 1849;
-  const summoned = resolveStageThreeDeaths(state, []);
-  assert.deepEqual(summoned.map((event) => event.character.id), ["katana-devil", "quanxi"]);
+  assert.equal(resolveStageThreeDeaths(state, []).length, 0);
   assert.equal(resolveStageThreeDeaths(state, []).length, 0);
   const control = stageThreeRoundStart(state, () => 0);
   assert.equal(control.find((event) => event.type === "stage3-control")?.targetId, "partner");
@@ -99,6 +103,11 @@ test("Makima summons once below half, counts true deaths, controls only partner 
   minion.currentHp = 0; minion.alive = false;
   assert.equal(resolveStageThreeDeaths(state, []).filter((event) => event.type === "stage3-minion-death").length, 1);
   assert.equal(boss.atk, 400);
+  const flame = state.characters.find((unit) => unit.id === "flamethrower-devil");
+  flame.currentHp = 0; flame.alive = false;
+  const secondWave = resolveStageThreeDeaths(state, []);
+  assert.deepEqual(secondWave.filter((event) => event.type === "summon").map((event) => event.character.id), ["katana-devil", "quanxi"]);
+  assert.equal(boss.atk, 550);
   assert.equal(resolveStageThreeDeaths(state, []).length, 0);
   state.round = 4;
   const roundFour = stageThreeRoundStart(state, () => .99);
@@ -107,14 +116,14 @@ test("Makima summons once below half, counts true deaths, controls only partner 
   assert.equal(roundFour.filter((event) => event.type === "stage3-control").length, 0);
   const bang = roundFour.find((event) => event.skillId === "makima-bang");
   assert.equal(bang.round, 4);
-  assert.equal(bang.bangBaseDamage, 160);
+  assert.equal(bang.bangBaseDamage, 220);
   assert.ok(bang.actualDamage > 0);
-  for (const id of ["flamethrower-devil", "katana-devil", "quanxi"]) {
+  for (const id of ["katana-devil", "quanxi"]) {
     const unit = state.characters.find((entry) => entry.id === id);
     unit.currentHp = 0; unit.alive = false;
   }
   const deaths = resolveStageThreeDeaths(state, []);
-  assert.equal(deaths.filter((event) => event.type === "stage3-minion-death").length, 3);
+  assert.equal(deaths.filter((event) => event.type === "stage3-minion-death").length, 2);
   assert.equal(deaths.filter((event) => event.type === "stage3-lifesteal").length, 1);
   assert.equal(deaths.filter((event) => event.type === "stage3-minion-wipe-stun").length, 1);
   assert.deepEqual(deaths.find((event) => event.type === "stage3-minion-wipe-stun").targetIds, ["hero", "partner"]);

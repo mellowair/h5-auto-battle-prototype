@@ -390,6 +390,7 @@ export function prepareBattle(campaign) {
   if (!playerTemplate) return null;
   const run = campaign.runCharacterState;
   if (!run || run.characterId !== playerTemplate.id) return null;
+  const agingBattle = battle.enemies.includes("aging-devil");
   const battleStartEffects = [];
   const routeStep = campaign.stageId >= 2 ? campaign.stageStep ?? battle.stageStep : battle.step;
   const routeGrowth = getRouteEnemyGrowth(battle.type, routeStep, campaign.stageId);
@@ -402,6 +403,7 @@ export function prepareBattle(campaign) {
     const state = campaign.partyStates?.[id] ?? (id === campaign.playerId ? run : null);
     if (!template || !state) throw new RangeError(`Missing party member state: ${id}`);
     let skillEffects = state.learnedActiveSkills.map((skillId) => getSkillAtLevel(state, skillId)).filter(Boolean);
+    if (agingBattle) skillEffects = skillEffects.map((skill) => ({ ...SKILL_DATA[skill.id], ...SKILL_DATA[skill.id].levels[1], level: 1 }));
     const guarantee = state.nextBattleSkillGuarantee;
     if (guarantee) {
       const eligible = skillEffects.filter((skill) => guarantee.skillIds.includes(skill.id) && Number.isFinite(skill.chance));
@@ -420,14 +422,19 @@ export function prepareBattle(campaign) {
       .filter((effect) => effect.stat === "spd" && effect.roundsRemaining > 0)
       .map(({ amount, roundsRemaining }) => ({ amount, roundsRemaining }));
     const roundLimitedSpdTotal = roundLimitedSpdEffects.reduce((sum, effect) => sum + effect.amount, 0);
+    const suppressedMaxHp = agingBattle && (state.passiveLevel ?? 1) > 1
+      ? Math.max(1, state.maxHp - (SKILL_DATA[state.passiveSkillId]?.levels?.[2]?.maxHpBonus ?? 0)) : state.maxHp;
+    const suppressedActiveAttackBonus = agingBattle && id === "tang" && state.evolution?.phase === 2
+      ? SKILL_DATA["journey-west"].levels[state.skillLevels["journey-west"] ?? 1]?.attackBonus ?? 0 : 0;
+    const battlePanelAtk = Math.max(0, state.atk - suppressedActiveAttackBonus);
     const ally = {
       ...template, name: evolutionDisplayName(id, state.evolution) ?? template.name,
       ...(state.evolution?.phase === 2 ? evolvedBattlePresentation(id) : {}),
       rosterOrder: index,
-      hp: state.maxHp, maxHp: state.maxHp, currentHp: state.currentHp,
+      hp: suppressedMaxHp, maxHp: suppressedMaxHp, currentHp: Math.min(state.currentHp, suppressedMaxHp),
       ...(id === "tang" ? { tangGrowth: Object.fromEntries(["maxHp", "atk", "def", "spd"].map((stat) =>
-        [stat, Math.max(0, state[stat] - template.baseStats[stat])])) } : {}),
-      atk: Math.floor(state.atk * (id === campaign.playerId ? campaign.nextAttackMultiplier : 1) * temporaryModifiers.atkMultiplier) + shopModifiers.atk,
+        [stat, Math.max(0, (stat === "atk" ? battlePanelAtk : state[stat]) - template.baseStats[stat])])) } : {}),
+      atk: Math.floor(battlePanelAtk * (id === campaign.playerId ? campaign.nextAttackMultiplier : 1) * temporaryModifiers.atkMultiplier) + shopModifiers.atk,
       def: Math.max(0, state.def + temporaryModifiers.def + shopModifiers.def), spd: Math.max(0, state.spd + temporaryModifiers.spd),
       roundLimitedSpdEffects, spdWithoutRoundEffects: Math.max(0, state.spd + temporaryModifiers.spd - roundLimitedSpdTotal),
       damageTakenMultiplier: temporaryModifiers.damageTakenMultiplier * (moneyBuff ? .8 : 1),
@@ -439,7 +446,7 @@ export function prepareBattle(campaign) {
       unavoidableAttack: treasureModifiers.unavoidableAttack,
       lifesteal: treasureModifiers.lifesteal, normalAttackCurrentHpRatio: treasureModifiers.normalAttackCurrentHpRatio,
       critChance: state.critRate, critMultiplier: state.critMultiplier,
-      passiveSkillId: state.passiveSkillId, passiveLevel: state.passiveLevel ?? 1,
+      passiveSkillId: state.passiveSkillId, passiveLevel: agingBattle ? 1 : state.passiveLevel ?? 1,
       extraPassiveSkillIds: state.extraPassiveSkillIds ?? [], evolutionPhase: state.evolution?.phase ?? 1,
       skills: skillEffects, skill: skillEffects[0] ?? null,
     };
@@ -461,7 +468,8 @@ export function prepareBattle(campaign) {
         }
       }
     }
-    if (state.divinePunishment?.battlesLeft > 0) ally.healingBlocked = true;
+    if (campaign.trialBattle?.taskId === "strength") ally.atk = Math.max(0, Math.floor(ally.atk * .8));
+    if (campaign.trialBattle?.taskId === "wisdom") ally.def = Math.max(0, Math.floor(ally.def * .8));
     ally.stoneMaskHealingBlocked = hasStoneMask(state);
     return ally;
   });
@@ -478,7 +486,7 @@ export function prepareBattle(campaign) {
     const appearance = appearanceId ? NORMAL_ENEMY_APPEARANCES[appearanceId] : null;
     const stageTwoNormal = campaign.stageId === 2 && battle.type === "normal";
     const stageThreeNormal = campaign.stageId === 3 && battle.type === "normal";
-    const trialNormal = campaign.trialBattle?.taskId === "will" && !["heracles", "odin"].includes(enemyId);
+    const trialNormal = campaign.trialBattle?.encounterKind === "ordinary";
     const dinaStageMultiplier = 1 + DINA_STAGE_GROWTH * (campaign.stageId - 1);
     const baseStats = enemyId === "dina" ? Object.fromEntries(["hp", "atk", "def", "spd"].map((stat) =>
       [stat, Math.max(1, Math.floor(template[stat] * dinaStageMultiplier))]))
@@ -649,6 +657,17 @@ function advanceFateExperiment(campaign) {
   campaign.pendingFateReward = offer;
 }
 
+function applyAngelBreathBattleRecovery(campaign) {
+  for (const id of campaign.partyIds) {
+    const state = campaign.partyStates[id];
+    if (!state || state.currentHp <= 0 || hasStoneMask(state) ||
+        !state.permanentEffects?.some((effect) => effect.id === "angel_breath")) continue;
+    const before = state.currentHp;
+    state.currentHp = Math.min(state.maxHp, before + Math.floor(state.maxHp * TREASURE_DATA.angel_breath.battleEndHealRatio));
+    campaign.lastBattleRecovery.push({ characterId: id, kind: "angel_breath", restored: state.currentHp - before, currentHp: state.currentHp });
+  }
+}
+
 export function finishBattle(campaign, outcome, playerHp, battleEvents = [], finalCharacters = null) {
   if (!campaign || campaign.status !== "combat" || !campaign.combatLaunched) return false;
   campaign.combatLaunched = false;
@@ -717,6 +736,7 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
     const completedTrialBattle = campaign.currentBattle;
     if (outcome === "victory") applyVictoryTreasureGrowth(campaign);
     const result = settleTrialBattle(campaign, outcome);
+    if (result) applyAngelBreathBattleRecovery(campaign);
     if (outcome === "victory" && result) awardBattleEssence(campaign, completedTrialBattle);
     if (outcome === "victory" && result?.trialOutcome === "completed") {
       // Restore only after the final trial; carry current HP between tasks.
@@ -740,6 +760,7 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
   }
   if (campaign.currentBattle?.hiddenBoss) {
     applyVictoryTreasureGrowth(campaign);
+    applyAngelBreathBattleRecovery(campaign);
     campaign.hiddenBoss ??= { unlocked: true, storyShown: true, resolved: false, makimaCleared: false };
     campaign.playerHp = campaign.runCharacterState.currentHp;
     campaign.completedBattles += 1;
@@ -767,13 +788,7 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
       campaign.lastBattleRecovery.push({ characterId: id, kind: "revive", restored: state.currentHp, currentHp: state.currentHp });
     }
   }
-  for (const id of campaign.partyIds) {
-    const state = campaign.partyStates[id];
-    if (!state || state.currentHp <= 0 || hasStoneMask(state) || !state.permanentEffects?.some((effect) => effect.id === "angel_breath")) continue;
-    const before = state.currentHp;
-    state.currentHp = Math.min(state.maxHp, before + Math.floor(state.maxHp * TREASURE_DATA.angel_breath.battleEndHealRatio));
-    campaign.lastBattleRecovery.push({ characterId: id, kind: "angel_breath", restored: state.currentHp - before, currentHp: state.currentHp });
-  }
+  applyAngelBreathBattleRecovery(campaign);
   campaign.playerHp = campaign.runCharacterState.currentHp;
   applyVictoryTreasureGrowth(campaign);
   campaign.completedBattles += 1;
@@ -1749,12 +1764,26 @@ export function enterTrialMap(campaign) {
   return true;
 }
 
+function assignTrialEncounter(campaign, taskId) {
+  const trial = campaign.trial;
+  trial.encounterByTask ??= {};
+  trial.usedEncounterKinds ??= Object.values(trial.encounterByTask);
+  if (trial.encounterByTask[taskId]) return trial.encounterByTask[taskId];
+  const available = ["odin", "heracles", "ordinary"].filter((kind) => !trial.usedEncounterKinds.includes(kind));
+  if (!available.length) throw new RangeError("No unused trial encounter remains");
+  const kind = available[Math.min(available.length - 1,
+    Math.floor(Math.max(0, Math.min(.999999999, campaign.random())) * available.length))];
+  trial.encounterByTask[taskId] = kind;
+  trial.usedEncounterKinds.push(kind);
+  return kind;
+}
+
 function beginTrialBattle(campaign, taskId) {
   const trial = campaign.trial;
   if (trial?.status !== "active" || trial.currentTask !== taskId || campaign.trialBattle) return false;
+  const encounterKind = assignTrialEncounter(campaign, taskId);
   let enemies;
-  if (taskId === "strength") enemies = ["heracles"];
-  else if (taskId === "wisdom") enemies = ["odin"];
+  if (encounterKind !== "ordinary") enemies = [encounterKind];
   else {
     const front = pickTrialEnemies(["jogo", "hidan", "scorpion_lailai"], 1, trial.priorBattleEnemies, campaign.random);
     const back = pickTrialEnemies(["esdeath", "zhang_jiao", "nami"], 1, trial.priorBattleEnemies, campaign.random);
@@ -1764,9 +1793,9 @@ function beginTrialBattle(campaign, taskId) {
   }
   const title = enemies.map((id) => TRIAL_ENEMY_DATA[id]?.name ?? EVENT_ENEMY_DATA[id]?.name ?? id).join(" + ");
   const number = campaign.completedBattles + 1;
-  campaign.trialBattle = { taskId, battleIndex: taskId === "will" ? trial.battleIndex + 1 : 1, id: `trial:${trial.index}:${taskId}:${trial.battleIndex + 1}` };
+  campaign.trialBattle = { taskId, encounterKind, battleIndex: trial.battleIndex + 1, id: `trial:${trial.index}:${taskId}:${trial.battleIndex + 1}` };
   campaign.currentBattle = { id: campaign.trialBattle.id, number, step: campaign.step,
-    type: taskId === "will" ? "event" : "elite", title, location: "试炼之地", description: "完成诸神试炼。",
+    type: encounterKind === "ordinary" ? "event" : "elite", title, location: "试炼之地", description: "完成诸神试炼。",
     enemies, enemyNames: Object.fromEntries(enemies.map((id) => [id, TRIAL_ENEMY_DATA[id]?.name ?? EVENT_ENEMY_DATA[id]?.name ?? id])),
     enemyGrowthExemptIds: [...enemies] };
   campaign.battleNumber = number;
@@ -1779,6 +1808,8 @@ export function chooseTrialNode(campaign, selectedTaskId = null) {
   if (campaign?.status !== "trial_route" || campaign.trial?.status !== "active") return false;
   const taskId = startTrialTask(campaign.trial, selectedTaskId);
   if (!taskId) return false;
+  campaign.trial.battleIndex = 0;
+  campaign.trial.priorBattleEnemies = [];
   if (taskId === "will") {
     campaign.status = "trial_event";
     return { type: "event", taskId };
@@ -1794,15 +1825,16 @@ export function resolveTrialWill(campaign, choiceId) {
     campaign.status = result.status === "active" ? "trial_route" : "trial_result";
     return { ...result, declined: true };
   }
+  const encounterKind = assignTrialEncounter(campaign, "will");
   for (const id of campaign.partyIds) {
     const state = campaign.partyStates[id];
     if (state.divinePunishment?.battlesLeft > 0) continue;
     const reduction = Math.min(state.maxHp - 1, Math.floor(state.maxHp * TRIAL_RULES.divinePunishmentHpFraction));
     state.maxHp -= reduction;
     state.currentHp = Math.min(state.currentHp, state.maxHp);
-    state.divinePunishment = { reduction, battlesLeft: TRIAL_RULES.divinePunishmentBattles };
+    state.divinePunishment = { reduction, battlesLeft: encounterKind === "ordinary" ? 3 : 1 };
   }
-  campaign.trial.divinePunishmentBattlesLeft = TRIAL_RULES.divinePunishmentBattles;
+  campaign.trial.divinePunishmentBattlesLeft = encounterKind === "ordinary" ? 3 : 1;
   campaign.playerHp = campaign.runCharacterState.currentHp;
   campaign.playerMaxHp = campaign.runCharacterState.maxHp;
   return beginTrialBattle(campaign, "will");
@@ -1846,7 +1878,7 @@ function applyTrialFailurePenalty(campaign) {
 
 export function settleTrialBattle(campaign, outcome) {
   if (campaign?.trial?.status !== "active" || !campaign.trialBattle || !["victory", "defeat"].includes(outcome)) return false;
-  const { taskId } = campaign.trialBattle;
+  const { taskId, encounterKind } = campaign.trialBattle;
   campaign.trialBattle = null;
   campaign.currentBattle = null;
   if (outcome === "defeat") {
@@ -1875,11 +1907,21 @@ export function settleTrialBattle(campaign, outcome) {
     return { status: campaign.status, trialOutcome: "retry", failedCount: result.failedCount, completedCount: result.completedCount };
   }
   campaign.completedBattles += 1;
-  if (taskId === "will") {
+  if (encounterKind === "ordinary") {
     campaign.trial.battleIndex += 1;
-    if (campaign.trial.battleIndex < TRIAL_RULES.divinePunishmentBattles) {
-      return { status: "trial_next_battle", trialOutcome: "active", next: beginTrialBattle(campaign, "will") };
+    if (campaign.trial.battleIndex < 3) {
+      return { status: "trial_next_battle", trialOutcome: "active", next: beginTrialBattle(campaign, taskId) };
     }
+  } else campaign.trial.battleIndex += 1;
+  if (taskId === "will") {
+    for (const id of campaign.partyIds) {
+      const state = campaign.partyStates[id];
+      if (state?.divinePunishment?.battlesLeft > 0) {
+        state.maxHp += state.divinePunishment.reduction;
+        state.divinePunishment = null;
+      }
+    }
+    campaign.trial.divinePunishmentBattlesLeft = 0;
   }
   const result = completeTrialTask(campaign.trial, taskId);
   if (result.status === "completed") {

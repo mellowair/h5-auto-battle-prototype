@@ -27,13 +27,13 @@ test("stage-two normal enemies use exact final stats at both tier boundaries", (
 test("stage-two elites, Boss and two event enemies retain their final template stats", () => {
   const lookup = new Map(ELITE_ENEMY_DATA.map((enemy) => [enemy.id, enemy]));
   for (const [id, expected] of [
-    ["toji", [2600, 330, 120, 220]], ["kira", [2700, 350, 120, 100]],
+    ["toji", [2600, 360, 120, 220]], ["kira", [2700, 450, 120, 100]],
     ["armored-titan", [3000, 280, 180, 40]], ["colossal-titan", [2800, 0, 110, 1]],
   ]) {
     const enemy = lookup.get(id);
     assert.deepEqual([enemy.hp, enemy.atk, enemy.def, enemy.spd], expected, id);
   }
-  assert.deepEqual([STAGE_TWO_BOSS_DATA.hp, STAGE_TWO_BOSS_DATA.atk, STAGE_TWO_BOSS_DATA.def, STAGE_TWO_BOSS_DATA.spd], [5000, 550, 160, 150]);
+  assert.deepEqual([STAGE_TWO_BOSS_DATA.hp, STAGE_TWO_BOSS_DATA.atk, STAGE_TWO_BOSS_DATA.def, STAGE_TWO_BOSS_DATA.spd], [5000, 550, 210, 150]);
   assert.deepEqual([EVENT_ENEMY_DATA.gilgamesh.hp, EVENT_ENEMY_DATA.gilgamesh.atk, EVENT_ENEMY_DATA.gilgamesh.def, EVENT_ENEMY_DATA.gilgamesh.spd], [2800, 450, 120, 140]);
   assert.deepEqual([EVENT_ENEMY_DATA.suzuya.hp, EVENT_ENEMY_DATA.suzuya.atk, EVENT_ENEMY_DATA.suzuya.def, EVENT_ENEMY_DATA.suzuya.spd], [2400, 250, 130, 100]);
   assert.equal(lookup.get("colossal-titan").periodicPassive.everyRounds, 4);
@@ -41,9 +41,9 @@ test("stage-two elites, Boss and two event enemies retain their final template s
 
 test("stage-two encounter copies use the exact final stats at early and late route steps", () => {
   const expected = new Map([
-    ["boros", [5000, 550, 160, 150]],
-    ["toji", [2600, 330, 120, 220]],
-    ["kira", [2700, 350, 120, 100]],
+    ["boros", [5000, 550, 210, 150]],
+    ["toji", [2600, 360, 120, 220]],
+    ["kira", [2700, 450, 120, 100]],
     ["armored-titan", [3000, 280, 180, 40]],
     ["gilgamesh", [2800, 450, 120, 140]],
     ["suzuya", [2400, 250, 130, 100]],

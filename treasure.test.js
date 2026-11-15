@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { STARTING_CHARACTERS } from "./characters.js";
 import { executeAttack, getCritChance, getDodgeChance, initializeBattle, simulateBattle } from "./battle.js";
 import { chooseRoute, claimCampaignTreasure, completeLocation, finishBattle, getCampaignTreasureOffer, getRouteOptions, prepareBattle, resolveCampaignEvent, resolveStageTwoCampfire, restorePartyHealthForStage, startCampaignEventBattle } from "./campaign.js";
-import { claimTreasure, createAdventureEventResult, createRunCharacterState, getCampfireOptions, getTreasureCombatModifiers, grantEliteSukunaFinger, grantGiantSpinalFluid, grantGunDevilFragment, healRunCharacter, resolveAdventureEvent, resolveCampfire } from "./progression.js";
+import { claimTreasure, createAdventureEventResult, createRunCharacterState, createTreasureOffer, getCampfireOptions, getTreasureCombatModifiers, grantEliteSukunaFinger, grantEventTreasure, grantGiantSpinalFluid, grantGunDevilFragment, healRunCharacter, resolveAdventureEvent, resolveCampfire } from "./progression.js";
 import { TREASURE_DATA } from "./skills.js";
 import { createStageTwoDirectBattleCampaign, createStageTwoTestCampaign } from "./dev/stage2-config.js";
 
@@ -34,6 +34,20 @@ test("treasures have separate common, rare and legendary grades with linked artw
     ["angel_breath", "stone_mask", "nichirin_blade", "dragon_radar", "hogyoku_fragment", "shikon_fragment", "quinque_crit", "quinque_guard", "premium_vip_card"]);
   assert.ok(Object.values(TREASURE_DATA).every((item) => item.name && item.description && (!item.image || existsSync(item.image))));
   assert.ok(["universal_capsule", "rock_lee_weights", "dragon_radar", "hogyoku_fragment", "shikon_fragment", "drip_coffee", "quinque_guard", "quinque_crit"].every((id) => TREASURE_DATA[id].image && existsSync(TREASURE_DATA[id].image)));
+});
+
+test("every registered legendary treasure can appear in Gilgamesh's third-option offer and be claimed", () => {
+  const legendary = Object.values(TREASURE_DATA).filter((item) => item.grade === "legendary");
+  for (const [index, item] of legendary.entries()) {
+    const member = createRunCharacterState(hero);
+    const sourceId = `royal-${index}`;
+    createAdventureEventResult(member, sourceId, "kings_treasury");
+    member.eventResults[sourceId].status = "awaiting_treasure";
+    const offer = createTreasureOffer(member, sourceId, "royal", () => index / legendary.length);
+    assert.ok(offer.choices.includes(item.id), `${item.name} should enter the legendary pool`);
+    assert.ok(claimTreasure(member, sourceId, item.id, member, member.characterId));
+    assert.ok(member.permanentEffects.some((effect) => effect.id === item.id));
+  }
 });
 
 test("small treasure modifies only its recipient and a second claim is rejected", () => {
@@ -149,11 +163,12 @@ test("Nichirin Blade creates a separate DEF-free hit based on remaining HP after
   assert.ok(active.events.filter((event) => event.type === "treasure-damage").length > 0);
 });
 
-test("angel breath immediately fills HP and victory revives before its 20% end heal exactly once", () => {
+test("angel breath grants maximum HP on pickup and restores 30% after each victory exactly once", () => {
   const angel = offerFor("angel_breath");
   angel.member.currentHp = 200;
   assert.ok(claimTreasure(angel.owner, angel.sourceId, "angel_breath", angel.member, angel.member.characterId));
-  assert.equal(angel.member.currentHp, angel.member.maxHp);
+  assert.equal(angel.member.currentHp, 200);
+  assert.equal(angel.member.maxHp, 1650);
   const campaign = createStageTwoDirectBattleCampaign({ heroId: "naruto", partnerId: "eren", encounterId: "toji", localStep: 6, seed: 83 });
   campaign.partyStates.naruto.permanentEffects.push({ id: "angel_breath", sourceId: "event:old" });
   prepareBattle(campaign);
@@ -162,10 +177,21 @@ test("angel breath immediately fills HP and victory revives before its 20% end h
     { id: "naruto", team: "ally", currentHp: 0 }, { id: "eren", team: "ally", currentHp: 400 },
   ]);
   assert.equal(result.next, "victory");
-  assert.equal(campaign.partyStates.naruto.currentHp, Math.max(1, Math.floor(maxHp * .05)) + Math.floor(maxHp * .20));
+  assert.equal(campaign.partyStates.naruto.currentHp, Math.max(1, Math.floor(maxHp * .05)) + Math.floor(maxHp * .30));
   assert.equal(campaign.partyStates.eren.currentHp, 400);
   assert.deepEqual(campaign.lastBattleRecovery.map((entry) => entry.kind), ["revive", "angel_breath"]);
   assert.equal(finishBattle(campaign, "victory", 0, [], []), false);
+});
+
+test("repeat angel-breath pickups record their actual max HP gains", () => {
+  const member = createRunCharacterState(hero);
+  const originalMax = member.maxHp;
+  for (const number of [1, 2]) {
+    const sourceId = `angel-repeat-${number}`;
+    assert.ok(grantEventTreasure(member, sourceId, "angel_breath", 1, "测试奖励"));
+  }
+  assert.deepEqual(member.permanentEffects.filter((effect) => effect.id === "angel_breath").map((effect) => effect.maxHp), [50, 60]);
+  assert.equal(member.maxHp, originalMax + 110);
 });
 
 test("team defeat grants no revival; event battle reward tier follows its original option", () => {

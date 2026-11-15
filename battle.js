@@ -1,12 +1,14 @@
 import { CHARACTER_DATA, COMBAT_RULES, STAGE_THREE_MINIONS } from "./characters.js";
-import { evaluatePassive } from "./progression.js";
-import { SKILL_DATA } from "./skills.js";
+import { evaluatePassive, getTreasureCombatModifiers, hasStoneMask } from "./progression.js";
+import { GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT, SKILL_DATA, TREASURE_DATA } from "./skills.js";
 import { chooseTangSummon, tangSummonStats, tangSummonVisual } from "./tangSummons.js";
 import { GUN_DEVIL, HIDDEN_BOSS_RULES, SPINAL_SWORD_BY_PARTNER, YORU } from "./hiddenBoss.js";
 import { TRIAL_RULES } from "./trial.js";
 
 const MAHITO_ATTACK_BONUS = SKILL_DATA["mahito-domain"].levels[1].attackBonusPerRound;
 const GRAVITY_HEAL_PER_LAYER = 300;
+const effectivePassiveState = (state, runState) => state.agingSkillSuppression && runState
+  ? { ...runState, passiveLevel: 1 } : runState;
 
 function attachGravityHealing(state, unit, fallingDevil) {
   unit.entryPanelSpd = unit.spd;
@@ -32,6 +34,7 @@ function attachGravityHealing(state, unit, fallingDevil) {
 }
 
 export function initializeBattle(config = CHARACTER_DATA, options = {}) {
+  const agingSkillSuppression = config.some((unit) => unit.id === "aging-devil" && unit.team === "enemy");
   const characters = config.map((character) => {
     const normalBonus = {
       bull_king: { def: 50 }, headless_knight: { atk: 100, def: -50 },
@@ -44,15 +47,17 @@ export function initializeBattle(config = CHARACTER_DATA, options = {}) {
       ["kaneki-1000-7", "kaneki-2000-14"].includes(skill.id);
     const disabledSkills = heavenly ? (character.skills ?? (character.skill ? [character.skill] : []))
       .filter((skill) => skill.type !== "passive" && !retainedKanekiSkill(skill)) : [];
-    const heavenlyAttackBonus = disabledSkills.reduce((sum, skill) => sum + 15 * (skill.level ?? 1), 0);
+    const heavenlyAttackBonus = disabledSkills.reduce((sum, skill) => sum + 15 * (agingSkillSuppression ? 1 : skill.level ?? 1), 0);
     const usableSkills = (character.skills ?? (character.skill ? [character.skill] : []))
-      .filter((skill) => !disabledSkills.some((disabled) => disabled.id === skill.id));
-    return { ...character, atk: character.atk + (normalBonus.atk ?? 0) + heavenlyAttackBonus, def: character.def + (normalBonus.def ?? 0), entryDef: Math.max(0, character.def + (normalBonus.def ?? 0)), originalTeam: character.team, skill: usableSkills[0] ? { ...usableSkills[0] } : null, skills: usableSkills.map((skill) => ({ ...skill })), heavenlyAttackBonus, heavenlyDisabledSkillIds: disabledSkills.map((skill) => skill.id), heavenlyFasterActions: 0, heavenlyRestPending: false, undyingUsed: false, undyingActionHealUntilRound: 0, skillBookEffects: character.extraPassiveSkillIds?.filter((id) => ["iron-bell", "armament-haki", "heavenly-restriction-book", "undying-subspecies"].includes(id)) ?? [], maxHp, currentHp, alive: currentHp > 0, elitePassiveActive: false, elitePassiveLastRound: 0, freeWillTriggers: 0, damageTakenHits: 0, critRateBonus: (character.critRateBonus ?? 0) + (character.id === "kaneki" && ["kaneki-one-eye", "kaneki-one-eye-king"].includes(character.passiveSkillId) ? .20 : 0) + (character.passiveSkillId === "kaneki-one-eye" && character.passiveLevel >= 2 ? 0.10 : 0), dodgeRateBonus: character.dodgeRateBonus ?? 0, baseDodgeRateBonus: character.dodgeRateBonus ?? 0, battleAttackBonus: 0, shieldHp: 0, tauntRounds: [], jinchurikiActive: false, jinchurikiAttackBonus: 0,
+      .filter((skill) => !disabledSkills.some((disabled) => disabled.id === skill.id))
+      .map((skill) => agingSkillSuppression && SKILL_DATA[skill.id]?.levels?.[1]
+        ? { ...SKILL_DATA[skill.id], ...SKILL_DATA[skill.id].levels[1], level: 1 } : skill);
+    return { ...character, atk: character.atk + (normalBonus.atk ?? 0) + heavenlyAttackBonus, def: character.def + (normalBonus.def ?? 0), entryDef: Math.max(0, character.def + (normalBonus.def ?? 0)), originalTeam: character.team, passiveLevel: agingSkillSuppression ? 1 : character.passiveLevel, skillLevelSuppressed: agingSkillSuppression, skill: usableSkills[0] ? { ...usableSkills[0] } : null, skills: usableSkills.map((skill) => ({ ...skill })), heavenlyAttackBonus, heavenlyDisabledSkillIds: disabledSkills.map((skill) => skill.id), heavenlyFasterActions: 0, heavenlyRestPending: false, undyingUsed: false, undyingActionHealUntilRound: 0, skillBookEffects: character.extraPassiveSkillIds?.filter((id) => ["iron-bell", "armament-haki", "heavenly-restriction-book", "undying-subspecies"].includes(id)) ?? [], maxHp, currentHp, alive: currentHp > 0, elitePassiveActive: false, elitePassiveLastRound: 0, freeWillTriggers: 0, damageTakenHits: 0, critRateBonus: (character.critRateBonus ?? 0) + (character.id === "kaneki" && ["kaneki-one-eye", "kaneki-one-eye-king"].includes(character.passiveSkillId) ? .20 : 0) + (character.passiveSkillId === "kaneki-one-eye" && !agingSkillSuppression && character.passiveLevel >= 2 ? 0.10 : 0), dodgeRateBonus: character.dodgeRateBonus ?? 0, baseDodgeRateBonus: character.dodgeRateBonus ?? 0, battleAttackBonus: 0, shieldHp: 0, tauntRounds: [], jinchurikiActive: false, jinchurikiAttackBonus: 0,
       evolutionBaseAtk: character.atk, pathsImmuneRemaining: character.passiveSkillId === "eren-paths" ? 1 : 0,
       pathsEmergencyUsed: false, oneEyeKingEmergencyUsed: false, oneEyeKingUntilRound: 0,
       oneEyeKingCritRateBonus: 0, baseCritRateBonus: (character.critRateBonus ?? 0) +
         (character.id === "kaneki" && ["kaneki-one-eye", "kaneki-one-eye-king"].includes(character.passiveSkillId) ? .20 : 0) +
-        (character.passiveSkillId === "kaneki-one-eye" && character.passiveLevel >= 2 ? .10 : 0),
+        (character.passiveSkillId === "kaneki-one-eye" && !agingSkillSuppression && character.passiveLevel >= 2 ? .10 : 0),
       nineTailsLowHpActive: false, nineTailsLowHpBonus: 0, nineTailsTeammateBonus: 0,
       nineTailsTriggeredIds: [], chakraClones: character.extraPassiveSkillIds?.includes("naruto-chakra-clones") ? 2 : 0,
       giantRasenganCasts: 0, hardeningStacks: 0, hardeningCasts: 0, reflectStartRound: 0, reflectUntilRound: 0,
@@ -84,6 +89,7 @@ export function initializeBattle(config = CHARACTER_DATA, options = {}) {
     makima: characters.some((unit) => unit.id === "makima") ? { controlledOnce: false, controlledId: null, controlEndsAtRound: null, secondWave: false,
       deadMinions: [], minionWipeStunUsed: false, nextBangRound: 4, lastBangRound: 0 } : null,
     gravityHealEvents: [],
+    agingSkillSuppression,
     hiddenBoss: characters.some((unit) => unit.id === GUN_DEVIL.id)
       ? { phase: 1, phaseStartedRound: 1, convertedPartnerId: null } : null,
     random: Math.random,
@@ -212,6 +218,9 @@ export function handleDeath(character) {
 function applyTrialDamage(state, target, requested, kind = "attack") {
   let amount = Math.max(0, Math.floor(requested));
   if (!amount || !target.alive) return { dealt: 0 };
+  // A living weapon devil protects Makima even when it was summoned mid-battle.
+  if (target.id === "makima" && state.characters.some((unit) => unit.stageThreeMinion && unit.alive && unit.currentHp > 0))
+    amount = Math.floor(amount * .5);
   let odinReduction = null;
   let odinReductionVisual = false;
   if (target.trialPassive === "odin") {
@@ -419,6 +428,31 @@ export function isBattleOver(state) {
   return null;
 }
 
+function resolveSilverBottle(state, events) {
+  const silver = state.characters.find((unit) => unit.id === "silver-king" && unit.alive && unit.currentHp > 0);
+  if (!silver || state.round !== 4 || state.silverBottleUsed) return;
+  state.silverBottleUsed = true;
+  const allies = state.characters.filter((unit) => unit.originalTeam === "ally" && unit.alive && unit.currentHp > 0);
+  const dealtBy = new Map(allies.map((unit) => [unit.id, 0]));
+  for (const event of events) if (dealtBy.has(event.attackerId) && Number.isFinite(event.actualDamage) && event.actualDamage > 0) {
+    const victim = state.characters.find((unit) => unit.id === event.targetId);
+    if (victim && victim.originalTeam !== "ally") dealtBy.set(event.attackerId, dealtBy.get(event.attackerId) + event.actualDamage);
+  }
+  const target = allies.sort((a, b) => dealtBy.get(b.id) - dealtBy.get(a.id) || a.rosterOrder - b.rosterOrder)[0];
+  if (!target) return;
+  target.absorbedByBottle = true;
+  target.alive = false;
+  const dismissedIds = [];
+  for (const summon of state.characters.filter((unit) => unit.summonerId === target.id && unit.alive)) {
+    summon.absorbedByBottle = true;
+    summon.alive = false;
+    dismissedIds.push(summon.id);
+  }
+  events.push({ type: "silver-bottle", round: state.round, attackerId: silver.id, targetId: target.id,
+    damageDealt: dealtBy.get(target.id), dismissedIds });
+  syncTangSummons(state, events);
+}
+
 export function resolveFallingRoundEnd(state) {
   const devil = state.characters.find((unit) => unit.id === "falling-devil" && unit.team === "enemy" && unit.alive);
   if (!devil || state.round < 3 || state.round % 3 !== 0) return [];
@@ -548,7 +582,8 @@ export function resolveStageThreeDeaths(state, events = []) {
         state.round + Math.max(1, 5 - state.makima.deadMinions.length));
     }
   }
-  if (makima?.alive && !state.makima.secondWave && makima.currentHp < makima.maxHp * .5) {
+  if (makima?.alive && !state.makima.secondWave &&
+      ["makima-bomb", "flamethrower-devil"].every((id) => state.makima.deadMinions.includes(id))) {
     state.makima.secondWave = true;
     summonMakimaMinion(state, "katana-devil", events);
     summonMakimaMinion(state, "quanxi", events);
@@ -831,7 +866,7 @@ export function executeAttack(state, attacker, target, random = Math.random, att
       attacker.jinchurikiActive = false;
     }
   } else if (attackerRun && state.battleId && !attacker.jinchurikiTriggered) {
-    const passive = evaluatePassive(attackerRun, "before_attack", { battleId: state.battleId, currentHp: attacker.currentHp, maxHp: attacker.maxHp });
+    const passive = evaluatePassive(effectivePassiveState(state, attackerRun), "before_attack", { battleId: state.battleId, currentHp: attacker.currentHp, maxHp: attacker.maxHp });
     if (passive?.skillId === "jinchuriki") {
       const originalAtk = attacker.atk;
       attacker.atk = passive.rounding === "floor" ? Math.floor(originalAtk * (1 + passive.attackBonus)) : originalAtk * (1 + passive.attackBonus);
@@ -957,11 +992,11 @@ export function executeAttack(state, attacker, target, random = Math.random, att
   let passiveTriggered = null;
   if (!dodged && state.battleId) {
     if (attackerRun) {
-      const passive = evaluatePassive(attackerRun, "before_attack", { battleId: state.battleId, damage });
+      const passive = evaluatePassive(effectivePassiveState(state, attackerRun), "before_attack", { battleId: state.battleId, damage });
       if (passive) damage = Math.max(1, passive.finalDamage ?? damage);
     }
     if (targetRun) {
-      passiveTriggered = evaluatePassive(targetRun, "before_damage", { battleId: state.battleId, damage });
+      passiveTriggered = evaluatePassive(effectivePassiveState(state, targetRun), "before_damage", { battleId: state.battleId, damage });
       if (passiveTriggered) damage = passiveTriggered.damageImmune ? 0 : Math.max(1, passiveTriggered.finalDamage ?? damage);
     }
   }
@@ -1036,6 +1071,8 @@ export function executeAttack(state, attacker, target, random = Math.random, att
     target.burnStacks = (target.burnStacks ?? 0) + 1;
     target.stageThreeDot = true;
   }
+  if (actualDamage > 0 && !died && attacker.id === "gold-king")
+    target.burnStacks = (target.burnStacks ?? 0) + 1;
   if (actualDamage > 0 && attacker.stageThreeKind === "bleed") {
     target.bleedStacks = (target.bleedStacks ?? 0) + 1;
     target.stageThreeDot = true;
@@ -1049,9 +1086,10 @@ export function executeAttack(state, attacker, target, random = Math.random, att
   const arimaCritAwakened = target.stageThreeKind === "arima" && target.alive
     && targetHpBefore >= target.maxHp * .6 && target.currentHp < target.maxHp * .6;
   const medusaStun = actualDamage > 0 && !died && attacker.normalPassiveId === "medusa" && random() < .2;
+  const silverStun = actualDamage > 0 && !died && attacker.id === "silver-king" && random() < .2;
   const shijiSilence = actualDamage > 0 && !died && attacker.normalPassiveId === "shiji" && random() < .4;
   if (actualDamage > 0 && skill?.id === "arima-pierce" || shijiSilence) target.silencedThroughRound = state.round + 1;
-  if (actualDamage > 0 && skill?.id === "odin-gungnir" && target.team !== attacker.team || medusaStun)
+  if (actualDamage > 0 && skill?.id === "odin-gungnir" && target.team !== attacker.team || medusaStun || silverStun)
     target.stunNextAction = true;
   const scorpionHeals = healScorpionAllies(state, target, actualDamage);
   if (skill?.id === "gilgamesh-enuma-elish" && attackOptions.gilgameshCast === 1 && !dodged && actualDamage > 0 && !died)
@@ -1159,7 +1197,7 @@ export function executeAttack(state, attacker, target, random = Math.random, att
     trialDamage, burnStacks: target.burnStacks ?? 0, bleedStacks: target.bleedStacks ?? 0,
     burnStacksApplied: (target.burnStacks ?? 0) - burnStacksBefore,
     bleedStacksApplied: (target.bleedStacks ?? 0) - bleedStacksBefore,
-    stunApplied: actualDamage > 0 && skill?.id === "odin-gungnir" || medusaStun, scorpionHeals,
+    stunApplied: actualDamage > 0 && skill?.id === "odin-gungnir" || medusaStun || silverStun, scorpionHeals,
     tauntApplied: Boolean(skill?.tauntNextRound), jinchurikiExpired,
     jinchurikiTriggered,
     elitePassiveTriggered,
@@ -1494,11 +1532,12 @@ function resolveTrialRoundEnd(state) {
       ["中毒", unit.poisonStacks ?? 0, TRIAL_RULES.poisonFractionPerStack]]) {
       if (stacks <= 0 || !unit.alive) continue;
       const before = unit.currentHp;
-      const amount = Math.max(1, Math.floor(unit.maxHp * ratio * stacks));
+      const stunnedBurn = effect === "灼烧" && (unit.stunNextAction || unit.stunnedThisRound === state.round);
+      const amount = Math.max(1, Math.floor(unit.maxHp * ratio * stacks * (stunnedBurn ? 2 : 1)));
       const result = applyTrialDamage(state, unit, amount, "dot");
       const died = handleDeath(unit);
       events.push({ type: "trial-dot", targetId: unit.id, round: state.round, name: effect,
-        stacks, damage: before - unit.currentHp, hpAfter: unit.currentHp,
+        stacks, stunnedBurn, damage: before - unit.currentHp, hpAfter: unit.currentHp,
         maxHpAfter: unit.maxHp, targetDied: died, effect: result });
       if (died) resolveAhFuDefeat(state, unit, events);
     }
@@ -1517,28 +1556,186 @@ function resolveTrialRoundEnd(state) {
   return events;
 }
 
+function resolveGoldGourd(state, attacker, target, skill) {
+  if (!target?.alive || target.currentHp <= 0) return null;
+  const stacksApplied = skill.stacks + 1; // The direct hit also applies Gold King's passive burn.
+  target.burnStacks = (target.burnStacks ?? 0) + stacksApplied;
+  const stunnedBurn = Boolean(target.stunNextAction || target.stunnedThisRound === state.round);
+  const requested = Math.max(1, Math.floor(target.maxHp * TRIAL_RULES.burnFractionPerStack * target.burnStacks * (stunnedBurn ? 2 : 1)));
+  const before = target.currentHp;
+  const result = applyTrialDamage(state, target, requested, "dot");
+  const targetDied = handleDeath(target);
+  return { type: "gold-gourd", round: state.round, attackerId: attacker.id, attackerTeam: attacker.team,
+    targetId: target.id, skillId: skill.id, skillName: skill.name, stacksApplied,
+    stacks: target.burnStacks, stunnedBurn, requested, actualDamage: before - target.currentHp,
+    targetHp: target.currentHp, targetMaxHp: target.maxHp, targetDied, effect: result };
+}
+
+const AGING_CHOICE_ROUNDS = Object.freeze([3, 10, 20]);
+const AGING_TREASURE_GRADES = Object.freeze({ 3: "common", 10: "rare", 20: "legendary" });
+
+function agingTreasureGrade(id) {
+  if (id === GIANT_SPINAL_FLUID.id || id === GUN_DEVIL_FRAGMENT.id) return "rare";
+  return TREASURE_DATA[id]?.grade ?? null;
+}
+
+function eligibleAgingTreasures(state, round) {
+  const grade = AGING_TREASURE_GRADES[round];
+  return state.characters.filter((unit) => unit.originalTeam === "ally" && !unit.summonerId)
+    .flatMap((unit) => (state.runCharacterStates?.[unit.id]?.permanentEffects ?? [])
+      .map((effect, index) => ({ ownerId: unit.id, index, id: effect.id }))
+      .filter((entry) => agingTreasureGrade(entry.id) === grade));
+}
+
+function revokeAgingTreasure(state, entry) {
+  const member = state.runCharacterStates?.[entry.ownerId];
+  const unit = state.characters.find((candidate) => candidate.id === entry.ownerId);
+  if (!member || !unit) return null;
+  const [effect] = member.permanentEffects.splice(entry.index, 1);
+  if (!effect) return null;
+  for (const stat of ["atk", "def", "spd", "maxHp"]) {
+    // Hogyoku's running totals are display records; the actual gains live in
+    // separate per-character growth effects below.
+    const amount = effect.id === "hogyoku_fragment" ? 0 : effect[stat] ?? 0;
+    if (!amount) continue;
+    member[stat] = Math.max(stat === "maxHp" ? 1 : 0, member[stat] - amount);
+    unit[stat] = Math.max(stat === "maxHp" ? 1 : 0, unit[stat] - amount);
+  }
+  member.currentHp = Math.min(member.currentHp, member.maxHp);
+  unit.currentHp = Math.min(unit.currentHp, unit.maxHp);
+  unit.hp = unit.maxHp;
+  if (effect.critRateBonus) {
+    member.critRate = Math.max(0, member.critRate - effect.critRateBonus);
+    unit.critChance = Math.max(0, (unit.critChance ?? 0) - effect.critRateBonus);
+  }
+  const modifiers = getTreasureCombatModifiers(member);
+  unit.damageReductionBonus = Math.max(0, (unit.damageReductionBonus ?? 0) - (effect.damageReduction ?? 0));
+  unit.dodgeRateBonus = Math.max(0, (unit.dodgeRateBonus ?? 0) - (effect.dodgeRateBonus ?? 0));
+  unit.baseDodgeRateBonus = Math.max(0, (unit.baseDodgeRateBonus ?? 0) - (effect.dodgeRateBonus ?? 0));
+  unit.lifesteal = Math.max(0, (unit.lifesteal ?? 0) - (effect.lifesteal ?? 0));
+  unit.normalAttackCurrentHpRatio = modifiers.normalAttackCurrentHpRatio;
+  unit.stoneMaskHealingBlocked = hasStoneMask(member);
+  unit.quinqueGuard = member.permanentEffects.some((item) => item.id === "quinque_guard");
+  unit.quinqueCrit = member.permanentEffects.some((item) => item.id === "quinque_crit");
+  unit.shikonOverhealShield = member.permanentEffects.some((item) => item.id === "shikon_fragment");
+  const affectedAllies = [];
+  if (effect.id === "hogyoku_fragment") {
+    const prefix = `hogyoku-elite:${effect.sourceId}:`;
+    for (const ally of state.characters.filter((candidate) => candidate.originalTeam === "ally" && !candidate.summonerId)) {
+      const run = state.runCharacterStates?.[ally.id];
+      if (!run) continue;
+      const growth = run.permanentEffects.filter((item) => item.id === "hogyoku_growth" && item.sourceId?.startsWith(prefix));
+      run.permanentEffects = run.permanentEffects.filter((item) => !growth.includes(item));
+      for (const item of growth) for (const stat of ["atk", "def", "spd", "maxHp"]) if (item[stat]) {
+        run[stat] = Math.max(stat === "maxHp" ? 1 : 0, run[stat] - item[stat]);
+        ally[stat] = Math.max(stat === "maxHp" ? 1 : 0, ally[stat] - item[stat]);
+      }
+      run.currentHp = Math.min(run.currentHp, run.maxHp);
+      ally.currentHp = Math.min(ally.currentHp, ally.maxHp);
+      affectedAllies.push({ targetId: ally.id, combatStats: Object.fromEntries(
+        ["atk", "def", "spd", "maxHp", "currentHp"].map((stat) => [stat, ally[stat]])) });
+    }
+  }
+  return { ownerId: entry.ownerId, id: effect.id, name: TREASURE_DATA[effect.id]?.name ??
+    (effect.id === GIANT_SPINAL_FLUID.id ? GIANT_SPINAL_FLUID.name : GUN_DEVIL_FRAGMENT.name),
+    affectedAllies,
+    combatStats: Object.fromEntries(["atk", "def", "spd", "maxHp", "currentHp", "critChance",
+      "damageReductionBonus", "dodgeRateBonus", "lifesteal", "normalAttackCurrentHpRatio",
+      "stoneMaskHealingBlocked", "quinqueGuard", "quinqueCrit", "shikonOverhealShield"]
+      .map((stat) => [stat, unit[stat]])) };
+}
+
+export function resolveAgingChoice(state, choiceId, random = Math.random) {
+  const pending = state?.pendingAgingChoice;
+  if (!pending || !["battle", "permanent", "treasure"].includes(choiceId)) return null;
+  const eligible = eligibleAgingTreasures(state, pending.round);
+  if (choiceId === "treasure" && !eligible.length) return null;
+  const removedTreasure = choiceId === "treasure"
+    ? revokeAgingTreasure(state, eligible[Math.floor(Math.min(.999999999999, Math.max(0, Number(random()) || 0)) * eligible.length)]) : null;
+  if (choiceId === "treasure" && !removedTreasure) return null;
+  state.agingPenalties ??= [];
+  if (choiceId !== "treasure") state.agingPenalties.push({ round: pending.round, choiceId, startsAt: pending.round + 1 });
+  (state.agingResolvedRounds ??= []).push(pending.round);
+  state.pendingAgingChoice = null;
+  return { type: "aging-choice-result", round: pending.round, choiceId, removedTreasure };
+}
+
+function applyAgingPenalties(state, events) {
+  if (!state.agingSkillSuppression || (state.agingPenaltyAppliedRounds ?? []).includes(state.round)) return;
+  (state.agingPenaltyAppliedRounds ??= []).push(state.round);
+  for (const penalty of state.agingPenalties ?? []) {
+    if (state.round < penalty.startsAt) continue;
+    const changes = [];
+    for (const unit of state.characters.filter((item) => item.originalTeam === "ally" && item.alive && item.currentHp > 0)) {
+      const member = state.runCharacterStates?.[unit.id];
+      let amount = 0;
+      let stat;
+      if (penalty.choiceId === "battle") {
+        stat = penalty.round === 10 ? "def" : "currentHp";
+        amount = penalty.round === 10 ? 20 : Math.max(1, Math.floor(unit.maxHp * (penalty.round === 3 ? .05 : .15)));
+        unit[stat] = Math.max(0, unit[stat] - amount);
+        if (stat === "currentHp") handleDeath(unit);
+      } else {
+        stat = penalty.round === 3 ? "def" : penalty.round === 10 ? "maxHp" : "atk";
+        amount = stat === "maxHp" ? Math.max(1, Math.floor((member?.maxHp ?? unit.maxHp) * .03)) : stat === "def" ? 3 : 10;
+        if (member) {
+          member[stat] = Math.max(stat === "maxHp" ? 1 : 0, member[stat] - amount);
+          member.currentHp = Math.min(member.currentHp, member.maxHp);
+        }
+        unit[stat] = Math.max(stat === "maxHp" ? 1 : 0, unit[stat] - amount);
+        if (stat === "maxHp") { unit.currentHp = Math.min(unit.currentHp, unit.maxHp); unit.hp = unit.maxHp; }
+      }
+      changes.push({ targetId: unit.id, stat, amount, currentHp: unit.currentHp, maxHp: unit.maxHp,
+        def: unit.def, atk: unit.atk, died: !unit.alive });
+    }
+    events.push({ type: "aging-penalty", round: state.round, phaseRound: penalty.round,
+      choiceId: penalty.choiceId, changes });
+  }
+}
+
 export function simulateBattle(config = CHARACTER_DATA, random = Math.random, options = {}) {
   if (typeof config === "function") {
     random = config;
     config = CHARACTER_DATA;
   }
-  const state = initializeBattle(config, options);
+  const resuming = Boolean(options.resumeState);
+  const state = resuming ? options.resumeState : initializeBattle(config, options);
   state.random = random;
-  const events = state.battleStartEffects.map((effect) => ({ ...effect, attackerId: state.playerId }));
-  for (const unit of state.characters) for (const skillId of unit.skillBookEffects ?? []) {
+  const events = resuming ? [...(options.previousEvents ?? [])]
+    : state.battleStartEffects.map((effect) => ({ ...effect, attackerId: state.playerId }));
+  if (!resuming) for (const unit of state.characters) for (const skillId of unit.skillBookEffects ?? []) {
     const book = SKILL_DATA[skillId];
     events.push({ type: "skill-book-opening", round: 0, targetId: unit.id,
       bookId: skillId, skillName: book.name, asset: book.battleEffectAsset });
   }
+  if (state.agingSkillSuppression && !resuming)
+    events.push({ type: "aging-suppression", round: 0, attackerId: "aging-devil" });
   if (state.hiddenBoss) state.eventSink = events;
-  applyTrialBattleStart(state, events, random);
+  if (!resuming) applyTrialBattleStart(state, events, random);
   const fallingDevil = state.characters.find((unit) => unit.id === "falling-devil" && unit.alive);
-  if (fallingDevil) events.push({ type: "gravity-domain", round: 0, attackerId: fallingDevil.id,
+  if (fallingDevil && !resuming) events.push({ type: "gravity-domain", round: 0, attackerId: fallingDevil.id,
     targets: state.characters.filter((unit) => unit.originalTeam === "ally")
       .map((unit) => ({ targetId: unit.id, entryPanelSpd: unit.entryPanelSpd, battleSpd: 1 })) });
+  if (resuming) {
+    const choice = resolveAgingChoice(state, options.agingChoice, random);
+    if (!choice) throw new RangeError("A valid aging choice is required to resume the battle");
+    events.push(choice);
+  }
   let outcome = null;
+  let resumeSameRound = resuming;
   while (!outcome) {
-    state.round += 1;
+    if (!resumeSameRound) state.round += 1;
+    resumeSameRound = false;
+    if (state.agingSkillSuppression && AGING_CHOICE_ROUNDS.includes(state.round) &&
+        state.characters.some((unit) => unit.id === "aging-devil" && unit.alive) &&
+        !(state.agingResolvedRounds ?? []).includes(state.round)) {
+      state.pendingAgingChoice = { type: "aging", round: state.round,
+        grade: AGING_TREASURE_GRADES[state.round], treasureAvailable: eligibleAgingTreasures(state, state.round).length > 0 };
+      return { events, outcome: null, rounds: state.round, pendingChoice: { ...state.pendingAgingChoice }, resumeState: state };
+    }
+    applyAgingPenalties(state, events);
+    outcome = isBattleOver(state);
+    if (outcome) break;
     if (state.round >= 2 && state.round <= 8 &&
         state.characters.some((unit) => unit.id === "eternity-devil" && unit.alive)) {
       events.push({ type: "eternity-growth", attackerId: "eternity-devil", round: state.round,
@@ -1549,6 +1746,7 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
     // Summons join before this round's speed ordering and can act immediately.
     events.push(...summonAtRoundStart(state));
     events.push(...stageThreeRoundStart(state, random));
+    resolveSilverBottle(state, events);
     if (state.forcedOutcome) { outcome = state.forcedOutcome; break; }
     const steamWave = triggerSteamWaveAtRoundStart(state);
     if (steamWave) events.push(steamWave);
@@ -1599,6 +1797,7 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
       }
       if (attacker.stunNextAction) {
         attacker.stunNextAction = false;
+        attacker.stunnedThisRound = state.round;
         events.push({ type: "trial-control-skip", targetId: attacker.id, round: state.round, reason: "眩晕" });
         continue;
       }
@@ -1611,6 +1810,14 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
       const selectedSkill = (attacker.silencedThroughRound ?? 0) >= state.round ? null
         : hiddenPhaseRound != null ? hiddenSkillTurn ? attacker.skills?.[0] ?? null : null
           : triggeredSkill(attacker, random, state.round);
+      if (selectedSkill?.id === "gold-king-gourd") {
+        const target = chooseTarget(state, attacker, random);
+        const hit = resolveGoldGourd(state, attacker, target, selectedSkill);
+        if (hit) { events.push(hit); resolveStageThreeDeaths(state, events); syncTangSummons(state, events); }
+        outcome = isBattleOver(state);
+        if (outcome) break;
+        continue;
+      }
       if (selectedSkill?.id === "swamp-poison-flask") {
         const targets = state.characters.filter((unit) => unit.team !== attacker.team && unit.alive && unit.currentHp > 0);
         for (const target of targets) target.poisonStacks = (target.poisonStacks ?? 0) + selectedSkill.stacks;
