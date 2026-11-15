@@ -925,7 +925,7 @@ export function resolveAdventureEvent(runState, sourceId, choiceId = null, rando
       result = { weaponPenalty: true, maxHpFraction: .30, attackFraction: .30 };
     } else return false;
     series.anteiku ??= {};
-    series.anteiku.chapter3Completed = true;
+    if (choiceId === "anteiku_weapon") series.anteiku.chapter3Completed = true;
     series.anteiku.lastChoice = choiceId;
   } else if (record.eventId === "coffee_shop" || record.eventId === "anteiku_2") {
     const sequel = record.eventId === "anteiku_2";
@@ -1149,7 +1149,11 @@ export function completeAdventureBattle(runState, sourceId, outcome, random = Ma
     createTreasureOffer(runState, sourceId, record.data.choiceId === "treasury_advance" ? "royal" : "small", random);
   }
   if (record.eventId === "anteiku_2" && record.data.choiceId === "anteiku_fight") record.data.specialRewardId = "drip_coffee";
-  if (record.eventId === "anteiku_3" && record.data.choiceId === "anteiku_arima") record.data.quinquePending = true;
+  if (record.eventId === "anteiku_3" && record.data.choiceId === "anteiku_arima") {
+    record.data.quinquePending = true;
+    runState.eventSeries.anteiku ??= {};
+    runState.eventSeries.anteiku.chapter3Completed = true;
+  }
   if (record.eventId === "giant_rock_2" && record.data.choiceId === "rock_fight") record.data.specialRewardId = "six_ear_true_form";
   const battleId = `event:${sourceId}`;
   const reward = createBattleRewardOffer(runState, battleId, record.data.battleType, random);

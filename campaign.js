@@ -1206,20 +1206,6 @@ export function chooseRoute(campaign, nodeId) {
     }
     campaign.eventResolved = false;
     campaign.status = "event";
-    const anteiku = campaign.runCharacterState.eventSeries.anteiku;
-    if (node.type === "campfire" && (anteiku?.chapter2Triggered || anteiku?.chapter2Completed) &&
-        !anteiku.chapter3Completed && !anteiku.arimaCampfireConsumed) {
-      campaign.activeEventType = "adventure";
-      campaign.pendingEvent = createAdventureEventResult(campaign.runCharacterState, node.id, "anteiku_3",
-        campaign.random, campaign.partyIds.map((id) => campaign.partyStates[id]), campaign.stageId);
-      if (!campaign.pendingEvent || !resolveCampaignEvent(campaign, "anteiku_arima"))
-        throw new Error("有马贵将篝火遭遇无法启动");
-      const battle = startCampaignEventBattle(campaign);
-      if (!battle) throw new Error("有马贵将篝火战斗无法启动");
-      anteiku.arimaCampfireConsumed = true;
-      node.resolution = "anteiku_arima";
-      return battle;
-    }
     return { type: "event", event: campaign.pendingEvent, symbol: node.type === "question" ? "?" : "campfire" };
   } catch (error) {
     campaign.routeMap.visitedEdges.length = previous.edgeCount;
@@ -1329,6 +1315,36 @@ export function resolveCampaignEvent(campaign, choiceId = null, skillId = null) 
   campaign.activeNode.resolutionResult = result;
   campaign.resolvedEvents.push({ id: campaign.activeNode.id, title: campaign.activeEventType === "campfire" ? "篝火" : campaign.pendingEvent?.name, result });
   return result;
+}
+
+export function canChallengeArimaAtCampfire(campaign) {
+  const anteiku = campaign?.runCharacterState?.eventSeries?.anteiku;
+  return Boolean(campaign?.status === "event" && campaign.activeEventType === "campfire" &&
+    campaign.activeNode?.type === "campfire" && !campaign.eventResolved &&
+    (anteiku?.chapter2Triggered || anteiku?.chapter2Completed) && !anteiku.chapter3Completed);
+}
+
+export function beginArimaCampfireChallenge(campaign) {
+  if (!canChallengeArimaAtCampfire(campaign)) return false;
+  const node = campaign.activeNode;
+  const anteiku = campaign.runCharacterState.eventSeries.anteiku;
+  const previousChoice = anteiku.lastChoice;
+  const previousResolution = node.resolution;
+  const record = createAdventureEventResult(campaign.runCharacterState, node.id, "anteiku_3",
+    campaign.random, campaign.partyIds.map((id) => campaign.partyStates[id]), campaign.stageId);
+  if (!record) return false;
+  campaign.activeEventType = "adventure";
+  campaign.pendingEvent = record;
+  if (resolveCampaignEvent(campaign, "anteiku_arima")) {
+    const battle = startCampaignEventBattle(campaign);
+    if (battle) return battle;
+  }
+  delete campaign.runCharacterState.eventResults[node.id];
+  anteiku.lastChoice = previousChoice;
+  node.resolution = previousResolution;
+  campaign.activeEventType = "campfire";
+  campaign.pendingEvent = null;
+  return false;
 }
 
 export function getActiveCampfireOptions(campaign) {

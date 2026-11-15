@@ -1,5 +1,6 @@
 import { ANIMATION_TIMING, CHARACTER_DATA, COMBAT_RULES, STAGE_TWO_NORMAL_PASSIVES, STAGE_THREE_NORMAL_PASSIVES, STARTING_CHARACTERS } from "./characters.js";
-import { beginHiddenBossChallenge, deferHiddenBossChallenge, queueHiddenBossIntro, resumeHiddenBossAtCampfire } from "./campaign.js";
+import { beginHiddenBossChallenge, deferHiddenBossChallenge, queueHiddenBossIntro, resumeHiddenBossAtCampfire,
+  beginArimaCampfireChallenge, canChallengeArimaAtCampfire } from "./campaign.js";
 import { HIDDEN_BOSS_RULES, GUN_DEVIL, hiddenBossShotLayout, SPINAL_SWORD_BY_PARTNER, YORU } from "./hiddenBoss.js";
 import { advanceEventEpilogue, advanceStageTransition, beginJourney, beginStageTwo, beginStageThree, buyShopItem, chooseEvolutionUpgrade, chooseRoute, chooseTrialNode, chooseStartingSkill, claimCampaignEliteDrop, claimCampaignReward, claimCampaignSpecialReward, claimCampaignQuinque, claimCampaignTreasure, claimDragonRadarOffer, claimStageTwoEliteSkill, claimStageTwoEliteSkip, claimStageTwoGiantRecipient, claimStageTwoStatReward, completeLocation, completeSettlement, createCampaign, eliteDropId, enterTrialMap, finishBattle, finishTrialResult, getActiveCampfireOptions, getCampaignRewardOffer, getCampaignTreasureOffer, getDragonRadarOffer, getRouteMap, getRouteOptions, getShopRouteOptions, getStageTransitionChoices, getStageTwoCampfireOptions, leaveShop, prepareBattle, previewShopItem, resolveCampaignEvent, resolveStageTwoCampfire, resolveTrialOffer, resolveTrialWill, selectStartingCharacter, startCampaign, startCampaignEventBattle, STAGE_TWO_STAT_UPGRADES } from "./campaign.js";
 import { getCritChance, getDodgeChance, getSkillDodgeChance, initializeBattle, simulateBattle } from "./battle.js";
@@ -5446,11 +5447,18 @@ function renderCampfire() {
     }).join("；");
     const canUpgrade = members.some(({ options }) => options[1].enabled);
     const deferredBoss = campaign.hiddenBoss?.unlocked && !campaign.hiddenBoss.resolved && !campaign.hiddenBoss.attempted;
-    renderDecisionScreen("第二关篝火", "休息治疗全队，或每名队员分别获得一次技能训练机会。", [
+    const arimaChallenge = canChallengeArimaAtCampfire(campaign);
+    renderDecisionScreen(`第${campaign.stageId}关篝火`, "休息治疗全队，或每名队员分别获得一次技能训练机会。", [
       decisionChoice("rest", "全队休息", healText),
       decisionChoice("skill_upgrade", "全队技能升级", "每名符合条件的队员各升级一次。", !canUpgrade),
+      ...(arimaChallenge ? [decisionChoice("arima_challenge", "挑战有马贵将", "可留待之后的篝火挑战。")]: []),
       ...(deferredBoss ? [decisionChoice("hidden_boss", "查看枪魔碎片", "前往隐藏首领挑战。")]: []),
     ], "确认", (id) => {
+      if (id === "arima_challenge") {
+        if (!beginArimaCampfireChallenge(campaign)) return false;
+        beginBattle();
+        return true;
+      }
       if (id === "hidden_boss") {
         if (!resumeHiddenBossAtCampfire(campaign)) return false;
         if (!beginHiddenBossChallenge(campaign)) return false;
