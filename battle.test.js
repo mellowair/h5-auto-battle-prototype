@@ -19,7 +19,7 @@ test("uses the configured dodge, critical, and damage formulas", () => {
   const naruto = CHARACTER_DATA[0];
   const guard = CHARACTER_DATA[1];
   assert.ok(Math.abs(getDodgeChance(naruto) - 0.051875) < 1e-12);
-  assert.ok(Math.abs(getSkillDodgeChance(naruto) - 0.010375) < 1e-9);
+  assert.ok(Math.abs(getSkillDodgeChance(naruto) - 0.0051875) < 1e-9);
   assert.equal(getSkillDodgeChance({ spd: 9999 }), COMBAT_RULES.skillDodgeChanceCap);
   assert.equal(getDodgeChance({ spd: 9999 }), COMBAT_RULES.maxDodgeChance);
   assert.equal(getCritChance(naruto), 0.05);
@@ -95,7 +95,7 @@ test("direct damage skills use the lower skill dodge chance", () => {
   const values = [0, 0.02, 0.99];
   const event = executeAttack(state, attacker, target, () => values.shift());
   assert.equal(event.attackKind, "skill");
-  assert.ok(Math.abs(event.dodgeChance - 0.01) < 1e-9);
+  assert.ok(Math.abs(event.dodgeChance - 0.005) < 1e-9);
   assert.equal(event.dodged, false);
 });
 

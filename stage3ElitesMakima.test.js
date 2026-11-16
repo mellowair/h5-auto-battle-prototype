@@ -123,7 +123,7 @@ test("stun doubles both immediate and end-of-round burn damage", () => {
   assert.equal(result.events.find((event) => event.type === "trial-dot" && event.name === "灼烧")?.stunnedBurn, true);
 });
 
-test("Silver King bottles the living ally with the highest actual damage at round five", () => {
+test("Silver King bottles the living ally with the highest actual damage at round eight", () => {
   const silver = { ...ELITE_ENEMY_DATA.find((entry) => entry.id === "silver-king"),
     hp: 9000, maxHp: 9000, currentHp: 9000, def: 0, atk: 1, spd: 1, rosterOrder: 2 };
   const result = simulateBattle([
@@ -132,13 +132,13 @@ test("Silver King bottles the living ally with the highest actual damage at roun
   ], () => .99, { playerId: "hero" });
   const bottles = result.events.filter((event) => event.type === "silver-bottle");
   assert.equal(bottles.length, 1);
-  assert.equal(bottles[0].round, 5);
-  assert.equal(result.events.filter((event) => event.type === "silver-bottle" && event.round < 5).length, 0);
+  assert.equal(bottles[0].round, 8);
+  assert.equal(result.events.filter((event) => event.type === "silver-bottle" && event.round < 8).length, 0);
   assert.equal(bottles[0].targetId, "partner");
   assert.equal(result.finalCharacters.find((entry) => entry.id === "partner").absorbedByBottle, true);
 });
 
-test("Silver King defeated before round five never uses his bottle", () => {
+test("Silver King defeated before round eight never uses his bottle", () => {
   const silver = { ...ELITE_ENEMY_DATA.find((entry) => entry.id === "silver-king"),
     hp: 400, maxHp: 400, currentHp: 400, def: 0, atk: 1, spd: 1 };
   const result = simulateBattle([unit("hero", "ally", { atk: 100 }), silver], () => .99,
@@ -162,7 +162,7 @@ test("Silver King can choose a summon independently without deleting its summone
 
 test("bottling the main hero leaves the companion active and allows a rewarded victory", () => {
   const silver = { ...ELITE_ENEMY_DATA.find((entry) => entry.id === "silver-king"),
-    hp: 7000, maxHp: 7000, currentHp: 7000, def: 0, atk: 1, spd: 1, rosterOrder: 2 };
+    hp: 13000, maxHp: 13000, currentHp: 13000, def: 0, atk: 1, spd: 1, rosterOrder: 2 };
   const result = simulateBattle([
     unit("naruto", "ally", { atk: 700, rosterOrder: 0 }),
     unit("eren", "ally", { atk: 200, rosterOrder: 1 }), silver,
@@ -171,9 +171,9 @@ test("bottling the main hero leaves the companion active and allows a rewarded v
   assert.equal(result.outcome, "victory");
   assert.equal(result.finalCharacters.find((entry) => entry.id === "naruto").alive, false);
   assert.equal(result.finalCharacters.find((entry) => entry.id === "eren").alive, true);
-  assert.ok(result.events.some((event) => event.attackerId === "eren" && event.round > 5));
-  assert.ok(result.events.some((event) => event.attackerId === "silver-king" && event.targetId === "eren" && event.round >= 5));
-  assert.equal(result.events.filter((event) => event.attackerId === "naruto" && event.round >= 5).length, 0);
+  assert.ok(result.events.some((event) => event.attackerId === "eren" && event.round > 8));
+  assert.ok(result.events.some((event) => event.attackerId === "silver-king" && event.targetId === "eren" && event.round >= 8));
+  assert.equal(result.events.filter((event) => event.attackerId === "naruto" && event.round >= 8).length, 0);
   const campaign = createStageThreeTestCampaign({ heroId: "naruto", partnerId: "eren",
     opponent: "gold-silver-kings" });
   campaign.devBattleOnly = false;

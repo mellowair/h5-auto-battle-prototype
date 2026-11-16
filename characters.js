@@ -22,7 +22,7 @@ export const STAGE_TWO_NORMAL_PASSIVES = Object.freeze({
   jack: { name: "剪刀穿刺", description: "每第三次普通攻击造成无视防御的真实伤害。" },
   deep_sea_king: { name: "深海护甲", description: "每次普通攻击后，本场战斗 DEF +5。" },
   teruhashi: { name: "心美的注视", description: "每次受到有效攻击后，有 20% 概率眩晕攻击者一次行动。" },
-  gollum: { name: "魔戒诅咒", description: "若 5 回合内未被击败，第 5 回合结束时偷取玩家最多 5 点精华。" },
+  gollum: { name: "魔戒诅咒", description: "若 5 回合内未被击败，第 5 回合结束时偷取玩家最多 3 点精华。" },
 });
 
 export const STAGE_THREE_NORMAL_PASSIVES = Object.freeze({
@@ -77,7 +77,7 @@ export const EVENT_ENEMY_DATA = Object.freeze({
   },
   gilgamesh: {
     id: "gilgamesh", name: "吉尔伽美什", team: "enemy", role: "王", row: "back", position: "back",
-    hp: 2800, atk: 450, def: 120, spd: 140, dodgeRateBonus: 0.30, skillDodgeRateBonus: 0.30, attackType: "magic",
+    hp: 2800, atk: 450, def: 120, spd: 140, dodgeRateBonus: 0.30, skillDodgeRateBonus: 0.15, attackType: "magic",
     asset: "assets/event-enemies/gilgamesh.png", visualId: "gilgamesh", activeSkills: ["gilgamesh-enuma-elish"],
     skillAnimationMap: { "gilgamesh-enuma-elish": "enuma" },
     animations: { idle: { type: "frames", frames: { idle: "assets/event-enemies/gilgamesh.png" } }, enuma: { type: "frames", frames: { raise: "assets/event-enemies/gilgamesh-sword.png" } } },
@@ -134,7 +134,7 @@ export const TRIAL_ENEMY_DATA = Object.freeze({
   hidan: { id: "hidan", name: "飞段", team: "enemy", role: "试炼敌人", row: "front", position: "front",
     asset: "assets/trial-enemies/hidan.png", visualId: "hidan", attackType: "melee", trialPassive: "hidan", trialPassiveSkill: { name: "不死诅咒", description: "受到的伤害延迟 3 个战斗回合结算。" } },
   nami: { id: "nami", name: "娜美", team: "enemy", role: "试炼敌人", row: "back", position: "back",
-    asset: "assets/trial-enemies/nami.png", visualId: "nami", attackType: "melee", trialPassive: "ah_fu", trialPassiveSkill: { name: "窃取", description: "开战偷取一名对手至多 60 DEF；第 5 回合逃离，被击败则归还。" } },
+    asset: "assets/trial-enemies/nami.png", visualId: "nami", attackType: "melee", trialPassive: "ah_fu", trialPassiveSkill: { name: "窃取", description: "开战偷取一名对手至多 15 DEF；第 5 回合逃离，被击败则归还。" } },
   scorpion_lailai: { id: "scorpion_lailai", name: "蝎子莱莱", team: "enemy", role: "试炼敌人", row: "front", position: "front",
     asset: "assets/trial-enemies/scorpion-lailai.png", visualId: "scorpion_lailai", attackType: "melee", trialPassive: "scorpion_lailai", trialPassiveSkill: { name: "疗伤", description: "受到有效伤害时，为每名存活队友恢复该次伤害 30% 的 HP。" } },
 });
@@ -229,8 +229,8 @@ export const COMBAT_RULES = {
   baseDodgeChance: 0.02,
   dodgePerSpeed: 0.03 / 80,
   maxDodgeChance: 0.99,
-  skillDodgeChanceCap: 0.5,
-  skillDodgeFactor: 0.2,
+  skillDodgeChanceCap: 0.25,
+  skillDodgeFactor: 0.1,
   baseCritChance: 0.05,
   maxCritChance: 1,
   critMultiplier: 1.5,

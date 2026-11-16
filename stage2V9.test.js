@@ -159,11 +159,11 @@ test("Gilgamesh heals on third cast and deals true damage on fourth without a sk
   assert.ok(getDodgeChance({ spd: 100, dodgeRateBonus: .2 }) > getDodgeChance({ spd: 100 }));
 });
 
-test("Gilgamesh gains separate 30 point dodge bonuses and the third cast heals without stopping the next turn", () => {
+test("Gilgamesh keeps separate ordinary and halved skill dodge bonuses while the third cast heals", () => {
   const gil = EVENT_ENEMY_DATA.gilgamesh;
   const plain = { spd: gil.spd };
   assert.ok(Math.abs(getDodgeChance(gil) - getDodgeChance(plain) - .3) < 1e-10);
-  assert.ok(Math.abs(getSkillDodgeChance(gil) - getSkillDodgeChance(plain) - .3) < 1e-10);
+  assert.ok(Math.abs(getSkillDodgeChance(gil) - getSkillDodgeChance(plain) - .15) < 1e-10);
   const attacker = ally("hero", { atk: 200, critChance: 0 });
   const normalState = initializeBattle([attacker, gil]);
   const normal = executeAttack(normalState, normalState.characters[0], normalState.characters[1], () => .23, { skill: null });

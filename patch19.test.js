@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { STARTING_CHARACTERS } from "./characters.js";
 import { executeAttack, initializeBattle, simulateBattle } from "./battle.js";
-import { claimDragonRadarOffer, createCampaign, finishBattle, prepareBattle, selectStartingCharacter, startCampaign } from "./campaign.js";
+import { applyRadarEssenceGrowth, createCampaign, finishBattle, prepareBattle, selectStartingCharacter, startCampaign } from "./campaign.js";
 import { claimTreasure, createRunCharacterState, resolveCampfire } from "./progression.js";
 import { SHOP_RULES } from "./shopConfig.js";
-import { SKILL_DATA, TREASURE_DATA } from "./skills.js";
+import { GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT, SKILL_DATA, TREASURE_DATA } from "./skills.js";
 import { YORU } from "./hiddenBoss.js";
 import { evolveTrialParty } from "./evolution.js";
 
@@ -14,9 +14,9 @@ const unit = (id, team, extras = {}) => ({ id, team, name: id, row: "front", pos
   hp: 1000, maxHp: 1000, currentHp: 1000, atk: 100, def: 0, spd: 100, critChance: 0,
   skills: [], ...extras });
 
-test("six passive skill books have battle artwork, battle-start presentation, and their own shop prices", () => {
+test("passive skill books have battle artwork, battle-start presentation, and their own shop prices", () => {
   const books = SHOP_RULES.books.filter((book) => book.skillType === "passive");
-  assert.deepEqual(books.map((book) => book.price), [40, 30, 40, 40, 30, 40]);
+  assert.deepEqual(books.map((book) => book.price), [40, 30, 40, 40, 30, 40, 30]);
   for (const book of books) assert.ok(existsSync(book.effectImage), book.name);
   const ally = unit("hero", "ally", { extraPassiveSkillIds: books.map((book) => book.skillId) });
   const result = simulateBattle([ally, unit("foe", "enemy", { currentHp: 1, maxHp: 1, hp: 1 })], () => .99);
@@ -99,14 +99,15 @@ test("weight acquisition applies 10% current speed loss", () => {
   assert.equal(run.permanentEffects.at(-1).weightInitialSpdLoss, 13);
 });
 
-test("weight and radar count each battle victory once; radar grants a real ordinary treasure", () => {
+test("weight counts each victory once while radar grants rare treasures for new essence", () => {
   const campaign = createCampaign(() => .2, { seed: 77 });
   startCampaign(campaign);
   campaign.candidateIds = ["naruto"];
   selectStartingCharacter(campaign, "naruto", "shadow-clone-rush");
   const run = campaign.runCharacterState;
   run.permanentEffects.push({ id: "rock_lee_weights", name: "洛克李的负重", sourceId: "test-weight", weightVictorySpdGain: 0 });
-  run.permanentEffects.push({ id: "dragon_radar", name: "龙珠雷达", sourceId: "test-radar", winsSinceObtained: 0 });
+  const radar = { id: "dragon_radar", name: "龙珠雷达", sourceId: "test-radar", essenceProgress: 0 };
+  run.permanentEffects.push(radar);
   const initialSpd = run.spd;
   for (let index = 1; index <= 7; index += 1) {
     campaign.status = "combat";
@@ -116,13 +117,17 @@ test("weight and radar count each battle victory once; radar grants a real ordin
     assert.equal(finishBattle(campaign, "victory", run.currentHp, [], [{ id: "naruto", team: "ally", currentHp: run.currentHp }]).status, "settlement");
   }
   assert.equal(run.spd, initialSpd + 70);
-  assert.equal(campaign.pendingRadarOffers.length, 1);
-  const offer = campaign.pendingRadarOffers[0];
-  assert.equal(offer.choices.length, 3);
-  assert.ok(offer.choices.every((id) => TREASURE_DATA[id].grade === "common"));
-  assert.ok(claimDragonRadarOffer(campaign, offer.choices[0]));
-  assert.equal(campaign.pendingRadarOffers.length, 0);
-  assert.ok(run.permanentEffects.some((effect) => effect.sourceLabel === "龙珠雷达七场胜利奖励"));
+  assert.equal(radar.essenceProgress, 9);
+  assert.equal(radar.essenceRewardsGranted, 2);
+  assert.equal(run.permanentEffects.filter((effect) => effect.sourceLabel === "龙珠雷达精华奖励").length, 2);
+  assert.ok(run.permanentEffects.filter((effect) => effect.sourceLabel === "龙珠雷达精华奖励")
+    .every((effect) => [GIANT_SPINAL_FLUID.id, GUN_DEVIL_FRAGMENT.id, ...Object.values(TREASURE_DATA)
+      .filter((item) => item.grade === "rare").map((item) => item.id)].includes(effect.id)));
+  const beforeEssence = campaign.essence;
+  const rewards = applyRadarEssenceGrowth(campaign, 45);
+  assert.equal(rewards.length, 2);
+  assert.equal(radar.essenceProgress, 14);
+  assert.equal(campaign.essence, beforeEssence);
 });
 
 test("Shikon converts only excess healing into a battle shield", () => {

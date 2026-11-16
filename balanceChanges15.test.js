@@ -70,9 +70,9 @@ test("Tang protects summons after own DEF, and a summon protects low-HP evolved 
   evolved.round = 1;
   const [buddha, , protector, enemy] = evolved.characters;
   const lowHit = executeAttack(evolved, enemy, buddha, () => .99, { skill: null });
-  assert.equal(buddha.currentHp, 100);
-  assert.equal(protector.currentHp, 880);
-  assert.deepEqual([lowHit.trialDamage.sharedDamage.kind, lowHit.trialDamage.sharedDamage.amount], ["compassion", 120]);
+  assert.equal(buddha.currentHp, 44);
+  assert.equal(protector.currentHp, 976);
+  assert.deepEqual([lowHit.trialDamage.sharedDamage.kind, lowHit.trialDamage.sharedDamage.amount], ["compassion", 24]);
 });
 
 test("Compassion reduces partner damage and Dharma shields living allies at 70% current ATK", () => {

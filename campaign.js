@@ -2,7 +2,7 @@ import { ADVENTURE_EVENTS, CAMPAIGN_BATTLES, CHARACTER_DATA, DEIDARA_ANIMATIONS,
 import { evolvedBattlePresentation } from "./evolvedVisuals.js";
 import { fragmentCount, GUN_DEVIL, HIDDEN_BOSS_RULES } from "./hiddenBoss.js";
 import { activateVipCard, buyShopItem, essenceRewardForBattle, generateShopInventory, previewShopItem, registerShopEntry } from "./shop.js";
-import { SKILL_DATA, TREASURE_DATA } from "./skills.js";
+import { GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT, SKILL_DATA, TREASURE_DATA } from "./skills.js";
 import { SHOP_RULES } from "./shopConfig.js";
 import { createSeededRandom, generateRouteMap, ROUTE_MAP_FINAL_STEP } from "./routeMap.js";
 import {
@@ -39,19 +39,6 @@ function applyVictoryTreasureGrowth(campaign) {
         effect.weightVictorySpdGain = (effect.weightVictorySpdGain ?? 0) + gain;
         effect.spd = (effect.spd ?? 0) + gain;
       }
-      if (effect.id === "dragon_radar") {
-        const key = `dragon-radar-win:${effect.sourceId}:${battleId}`;
-        if (member.consumedActions.includes(key)) continue;
-        member.consumedActions.push(key);
-        effect.winsSinceObtained = (effect.winsSinceObtained ?? 0) + 1;
-        if (effect.winsSinceObtained >= 7) {
-          effect.winsSinceObtained -= 7;
-          const pool = Object.values(TREASURE_DATA).filter((item) => item.grade === "common").map((item) => item.id);
-          const choices = [];
-          while (choices.length < 3 && pool.length) choices.push(pool.splice(Math.floor(campaign.random() * pool.length), 1)[0]);
-          (campaign.pendingRadarOffers ??= []).push({ ownerId: id, sourceId: `dragon-radar:${effect.sourceId}:${battleId}`, choices });
-        }
-      }
       if (effect.id === "hogyoku_fragment" &&
           (campaign.currentBattle?.type === "elite" || campaign.activeNode?.resolution === "elite") &&
           (effect.eliteTriggers ?? 0) < 10) {
@@ -77,6 +64,35 @@ function applyVictoryTreasureGrowth(campaign) {
   campaign.playerHp = campaign.runCharacterState.currentHp;
 }
 
+export function applyRadarEssenceGrowth(campaign, amount) {
+  const gained = Math.max(0, Math.floor(amount ?? 0));
+  const rewards = [];
+  if (!gained) return rewards;
+  const rarePool = [GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT,
+    ...Object.values(TREASURE_DATA).filter((item) => item.grade === "rare")];
+  if (!rarePool.length) return rewards;
+  for (const id of campaign.partyIds ?? []) {
+    const member = campaign.partyStates?.[id];
+    if (!member) continue;
+    for (const effect of [...(member.permanentEffects ?? [])].filter((entry) => entry.id === "dragon_radar")) {
+      effect.essenceProgress = (effect.essenceProgress ?? 0) + gained;
+      while (effect.essenceProgress >= 20) {
+        effect.essenceProgress -= 20;
+        effect.essenceRewardsGranted = (effect.essenceRewardsGranted ?? 0) + 1;
+        const index = Math.min(rarePool.length - 1, Math.floor(campaign.random() * rarePool.length));
+        const treasure = rarePool[index];
+        const sourceId = `dragon-radar:${effect.sourceId}:${effect.essenceRewardsGranted}`;
+        const awarded = grantEventTreasure(member, sourceId, treasure.id, campaign.stageId, "龙珠雷达精华奖励");
+        if (awarded) rewards.push({ characterId: id, treasureId: treasure.id, name: treasure.name, sourceId });
+      }
+    }
+  }
+  campaign.lastRadarRewards = [...(campaign.lastRadarRewards ?? []), ...rewards];
+  campaign.playerMaxHp = campaign.runCharacterState?.maxHp ?? campaign.playerMaxHp;
+  campaign.playerHp = campaign.runCharacterState?.currentHp ?? campaign.playerHp;
+  return rewards;
+}
+
 export function getDragonRadarOffer(campaign) { return campaign?.pendingRadarOffers?.[0] ?? null; }
 
 export function claimDragonRadarOffer(campaign, treasureId) {
@@ -93,7 +109,7 @@ export function claimDragonRadarOffer(campaign, treasureId) {
   const result = claimTreasure(campaign.runCharacterState, sourceId, treasureId, member, offer.ownerId);
   if (!result) { delete campaign.runCharacterState.eventResults[sourceId]; return false; }
   const effect = member.permanentEffects.at(-1);
-  if (effect?.sourceId === sourceId) effect.sourceLabel = "龙珠雷达七场胜利奖励";
+  if (effect?.sourceId === sourceId) effect.sourceLabel = "龙珠雷达旧存档待领奖励";
   campaign.pendingRadarOffers.shift();
   campaign.playerHp = campaign.runCharacterState.currentHp;
   campaign.playerMaxHp = campaign.runCharacterState.maxHp;
@@ -692,11 +708,17 @@ function advanceFateExperiment(campaign) {
 function applyAngelBreathBattleRecovery(campaign) {
   for (const id of campaign.partyIds) {
     const state = campaign.partyStates[id];
-    if (!state || state.currentHp <= 0 || hasStoneMask(state) ||
-        !state.permanentEffects?.some((effect) => effect.id === "angel_breath")) continue;
+    if (!state || !state.permanentEffects?.some((effect) => effect.id === "angel_breath")) continue;
+    const growth = TREASURE_DATA.angel_breath.battleEndMaxHpGain;
+    state.maxHp += growth;
+    state.permanentEffects.push({ id: "angel_breath_growth", name: "大天使的气息·战后成长",
+      sourceId: `angel-breath:${campaign.currentBattle?.id}:${campaign.battleNumber}`,
+      sourceLabel: "战斗结束", stageId: campaign.stageId, maxHp: growth });
     const before = state.currentHp;
-    state.currentHp = Math.min(state.maxHp, before + Math.floor(state.maxHp * TREASURE_DATA.angel_breath.battleEndHealRatio));
-    campaign.lastBattleRecovery.push({ characterId: id, kind: "angel_breath", restored: state.currentHp - before, currentHp: state.currentHp });
+    if (before > 0 && !hasStoneMask(state))
+      state.currentHp = Math.min(state.maxHp, before + Math.floor(state.maxHp * TREASURE_DATA.angel_breath.battleEndHealRatio));
+    campaign.lastBattleRecovery.push({ characterId: id, kind: "angel_breath", maxHpGain: growth,
+      maxHp: state.maxHp, restored: state.currentHp - before, currentHp: state.currentHp });
   }
 }
 
@@ -705,6 +727,7 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
   campaign.combatLaunched = false;
   campaign.lastBattleRecovery = [];
   campaign.lastEssenceReward = null;
+  campaign.lastRadarRewards = [];
   campaign.shopMedicines = (campaign.shopMedicines ?? []).filter((item) => --item.battlesLeft > 0);
   // Jason changes the run's HP ceiling, not just this battle copy. Apply the
   // immutable precomputed events once, before clamping each member's HP.
@@ -716,7 +739,7 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
   }
   for (const event of battleEvents) {
     if (event?.type !== "normal-passive-gollum") continue;
-    const stolen = Math.min(Math.max(0, campaign.essence ?? 0), event.amount ?? 5);
+    const stolen = Math.min(Math.max(0, campaign.essence ?? 0), event.amount ?? 3);
     campaign.essence = Math.max(0, (campaign.essence ?? 0) - stolen);
     campaign.essenceHistory ??= [];
     campaign.essenceHistory.push({ battleId: campaign.currentBattle?.id, stageId: campaign.stageId,
@@ -768,16 +791,17 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
     const completedTrialBattle = campaign.currentBattle;
     if (outcome === "victory") applyVictoryTreasureGrowth(campaign);
     const result = settleTrialBattle(campaign, outcome);
-    if (result && outcome === "victory") {
-      applyTrialBattleRecovery(campaign);
+    if (result && result.status !== "defeat") {
+      if (result.status !== "trial_next_battle") applyTrialBattleRecovery(campaign, outcome);
       applyAngelBreathBattleRecovery(campaign);
-    }
+    } else applyAngelBreathBattleRecovery(campaign);
     if (outcome === "victory" && result) awardBattleEssence(campaign, completedTrialBattle);
     campaign.playerHp = campaign.runCharacterState.currentHp;
     campaign.playerMaxHp = campaign.runCharacterState.maxHp;
     return result;
   }
   if (outcome !== "victory" || !campaign.partyIds.some((id) => (campaign.partyStates?.[id]?.currentHp ?? 0) > 0)) {
+    applyAngelBreathBattleRecovery(campaign);
     if (campaign.eventBattleSourceId) completeAdventureBattle(campaign.runCharacterState, campaign.eventBattleSourceId, "defeat", campaign.random);
     campaign.settlementNext = "defeat";
     campaign.status = "settlement";
@@ -794,6 +818,7 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
       if (blocked) campaign.runCharacterState.essenceBlockedBattles -= 1;
       const amount = blocked ? 0 : HIDDEN_BOSS_RULES.rewardEssence;
       campaign.essence = (campaign.essence ?? 0) + amount;
+      applyRadarEssenceGrowth(campaign, amount);
       campaign.lastEssenceReward = { amount, reason: blocked ? "death_note" : "hidden_boss" };
       campaign.essenceHistory ??= [];
       campaign.essenceHistory.push({ battleId: campaign.currentBattle.id, stageId: campaign.stageId,
@@ -869,6 +894,7 @@ function awardBattleEssence(campaign, battle = campaign.currentBattle) {
     : essenceRewardForBattle(battle);
   if (blocked) campaign.runCharacterState.essenceBlockedBattles -= 1;
   campaign.essence = (campaign.essence ?? 0) + reward.amount;
+  applyRadarEssenceGrowth(campaign, reward.amount);
   campaign.lastEssenceReward = reward;
   campaign.essenceHistory ??= [];
   campaign.essenceHistory.push({ battleId: battle?.id, stageId: campaign.stageId, ...reward });
@@ -1374,6 +1400,7 @@ export function resolveRouteEvent(campaign) {
 
 export function resolveCampaignEvent(campaign, choiceId = null, skillId = null) {
   if (!campaign || campaign.status !== "event" || campaign.eventResolved || !campaign.activeNode) return false;
+  campaign.lastRadarRewards = [];
   let result;
   if (campaign.activeEventType === "campfire") {
     result = resolveCampfire(campaign.runCharacterState, campaign.activeNode.id, choiceId, skillId);
@@ -1432,6 +1459,8 @@ export function resolveCampaignEvent(campaign, choiceId = null, skillId = null) 
   if (eventRecord?.status === "completed" && ["found_money", "devil_bargain"].includes(eventRecord.eventId)) {
     const amount = result.result?.essenceGain ?? 0;
     campaign.essence = (campaign.essence ?? 0) + amount;
+    campaign.lastRadarRewards = [];
+    applyRadarEssenceGrowth(campaign, amount);
     campaign.essenceHistory ??= [];
     campaign.essenceHistory.push({ eventId: eventRecord.eventId, sourceId: eventRecord.sourceId,
       stageId: campaign.stageId, amount, reason: eventRecord.eventId });
@@ -1533,12 +1562,15 @@ export function resolveStageTwoCampfire(campaign, choiceId, skillChoices = {}) {
   const sourceId = campaign.activeNode?.id;
   const members = getStageTwoCampfireOptions(campaign);
   if (!sourceId || !members || !["rest", "skill_upgrade"].includes(choiceId)) return false;
-  if (choiceId === "skill_upgrade" && members.some(({ characterId, options }) =>
-    options[1].enabled && skillChoices[characterId] !== "__skip_new_skill__" &&
-      !options[1].skills.some((entry) => entry.skillId === skillChoices[characterId]))) return false;
-  if (choiceId === "skill_upgrade" && members.some(({ characterId, options }) =>
-    options[1].enabled && skillChoices[characterId] === "__skip_new_skill__" &&
-      !canDeclineNewSkill(campaign.partyStates[characterId]))) return false;
+  if (choiceId === "skill_upgrade" && members.some(({ characterId, options }) => {
+    if (!options[1].enabled) return false;
+    const first = Array.isArray(skillChoices[characterId]) ? skillChoices[characterId][0] : skillChoices[characterId];
+    return first === "__skip_new_skill__" ? !canDeclineNewSkill(campaign.partyStates[characterId])
+      : !options[1].skills.some((entry) => entry.skillId === first);
+  })) return false;
+  if (choiceId === "skill_upgrade" && members.some(({ characterId, options }) => options[1].enabled &&
+      !resolveCampfire(structuredClone(campaign.partyStates[characterId]), sourceId, choiceId,
+        skillChoices[characterId] ?? null, { skipCoffeeGrowth: true }))) return false;
   const results = [];
   for (const { characterId, options } of members) {
     const state = campaign.partyStates[characterId];
@@ -1934,15 +1966,15 @@ function advanceDivinePunishment(campaign) {
   campaign.trial.divinePunishmentBattlesLeft = campaign.runCharacterState.divinePunishment?.battlesLeft ?? 0;
 }
 
-function applyTrialBattleRecovery(campaign) {
+function applyTrialBattleRecovery(campaign, outcome) {
   for (const id of campaign.partyIds) {
     const state = campaign.partyStates[id];
     if (!state) continue;
     const before = state.currentHp;
     const halfHp = Math.ceil(state.maxHp * .5);
-    state.currentHp = Math.max(before, halfHp);
+    state.currentHp = outcome === "defeat" ? halfHp : Math.max(before, halfHp);
     if (state.currentHp > before) campaign.lastBattleRecovery.push({ characterId: id,
-      kind: "trial_half_heal",
+      kind: outcome === "defeat" ? "trial_failure_heal" : "trial_half_heal",
       restored: state.currentHp - before, currentHp: state.currentHp });
   }
 }
@@ -1955,7 +1987,7 @@ export function settleTrialBattle(campaign, outcome) {
   if (outcome === "defeat") {
     const result = completeTrialTask(campaign.trial, taskId, "failed");
     if (!result) return false;
-    // The trial ends the run on defeat; remove only its battle-scoped HP limit.
+    // This challenge ends on defeat; remove its battle-scoped HP limit before recovery.
     for (const id of campaign.partyIds) {
       const state = campaign.partyStates[id];
       if (state?.divinePunishment?.battlesLeft > 0) {
@@ -1964,23 +1996,19 @@ export function settleTrialBattle(campaign, outcome) {
       }
     }
     campaign.trial.divinePunishmentBattlesLeft = 0;
-    campaign.trial.status = "failed";
-    campaign.status = "defeat";
-    return { status: campaign.status, trialOutcome: "failed", failedCount: result.failedCount };
+    if (result.failedCount >= 2) {
+      campaign.status = "defeat";
+      return { status: campaign.status, trialOutcome: "failed", failedCount: result.failedCount };
+    }
+    campaign.status = result.status === "failed" ? "trial_result" : "trial_route";
+    return { status: campaign.status, trialOutcome: result.status === "failed" ? "incomplete" : "retry",
+      failedCount: result.failedCount, completedCount: result.completedCount };
   }
   campaign.completedBattles += 1;
   if (encounterKind === "ordinary") {
     campaign.trial.battleIndex += 1;
-    if (campaign.trial.battleIndex < 3) {
-      if (taskId === "will") for (const id of campaign.partyIds) {
-        const state = campaign.partyStates[id];
-        if (state?.divinePunishment?.battlesLeft > 0) {
-          state.maxHp += state.divinePunishment.reduction;
-          state.divinePunishment = null;
-        }
-      }
+    if (campaign.trial.battleIndex < 3)
       return { status: "trial_next_battle", trialOutcome: "active", next: beginTrialBattle(campaign, taskId) };
-    }
   } else campaign.trial.battleIndex += 1;
   if (taskId === "will") {
     for (const id of campaign.partyIds) {

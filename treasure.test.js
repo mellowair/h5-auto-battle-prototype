@@ -163,12 +163,12 @@ test("Nichirin Blade creates a separate DEF-free hit based on remaining HP after
   assert.ok(active.events.filter((event) => event.type === "treasure-damage").length > 0);
 });
 
-test("angel breath grants maximum HP on pickup and restores 30% after each victory exactly once", () => {
+test("angel breath grows maximum HP and restores 30% after each battle exactly once", () => {
   const angel = offerFor("angel_breath");
   angel.member.currentHp = 200;
   assert.ok(claimTreasure(angel.owner, angel.sourceId, "angel_breath", angel.member, angel.member.characterId));
   assert.equal(angel.member.currentHp, 200);
-  assert.equal(angel.member.maxHp, 1650);
+  assert.equal(angel.member.maxHp, 1600);
   const campaign = createStageTwoDirectBattleCampaign({ heroId: "naruto", partnerId: "eren", encounterId: "toji", localStep: 6, seed: 83 });
   campaign.partyStates.naruto.permanentEffects.push({ id: "angel_breath", sourceId: "event:old" });
   prepareBattle(campaign);
@@ -177,21 +177,22 @@ test("angel breath grants maximum HP on pickup and restores 30% after each victo
     { id: "naruto", team: "ally", currentHp: 0 }, { id: "eren", team: "ally", currentHp: 400 },
   ]);
   assert.equal(result.next, "victory");
-  assert.equal(campaign.partyStates.naruto.currentHp, Math.max(1, Math.floor(maxHp * .05)) + Math.floor(maxHp * .30));
+  assert.equal(campaign.partyStates.naruto.currentHp, Math.max(1, Math.floor(maxHp * .05)) + Math.floor((maxHp + 50) * .30));
+  assert.equal(campaign.partyStates.naruto.maxHp, maxHp + 50);
   assert.equal(campaign.partyStates.eren.currentHp, 400);
   assert.deepEqual(campaign.lastBattleRecovery.map((entry) => entry.kind), ["revive", "angel_breath"]);
   assert.equal(finishBattle(campaign, "victory", 0, [], []), false);
 });
 
-test("repeat angel-breath pickups record their actual max HP gains", () => {
+test("repeat angel-breath pickups grant no immediate max HP", () => {
   const member = createRunCharacterState(hero);
   const originalMax = member.maxHp;
   for (const number of [1, 2]) {
     const sourceId = `angel-repeat-${number}`;
     assert.ok(grantEventTreasure(member, sourceId, "angel_breath", 1, "测试奖励"));
   }
-  assert.deepEqual(member.permanentEffects.filter((effect) => effect.id === "angel_breath").map((effect) => effect.maxHp), [50, 60]);
-  assert.equal(member.maxHp, originalMax + 110);
+  assert.deepEqual(member.permanentEffects.filter((effect) => effect.id === "angel_breath").map((effect) => effect.maxHp), [undefined, undefined]);
+  assert.equal(member.maxHp, originalMax);
 });
 
 test("team defeat grants no revival; event battle reward tier follows its original option", () => {

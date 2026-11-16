@@ -252,7 +252,7 @@ function displaySkillEffect(skill, context = {}) {
     const [horse, bajie, shaseng, wukong] = TANG_SUMMON_WEIGHTS[skill.level ?? 1];
     return `必定尝试召唤 · 白龙马 ${horse}% / 八戒 ${bajie}% / 沙僧 ${shaseng}% / 孙悟空 ${wukong}% · 召唤物技能触发率 ${Math.round((skill.summonSkillChance ?? (skill.level ?? 1) * 0.07) * 100)}%`;
   }
-  if (skill?.id === "tang-flesh") return "替召唤物承担 10% 伤害（按唐僧 DEF 结算）；有存活召唤物时受到伤害减少 20%；Lv.2 召唤物按实际造成伤害的 20% 治疗唐僧。";
+  if (skill?.id === "tang-flesh") return "替召唤物承担 10% 伤害（按唐僧 DEF 结算）；有存活召唤物时受到伤害减少 20%；Lv.2 召唤物按实际造成伤害的 30% 治疗唐僧。";
   if (skill?.id === "horse-hoof") return `${chance} · 以 ATK + SPD 造成 1 倍伤害`;
   if (skill?.id === "bajie-rake") return `${chance} · 以 ATK + 当前 HP 的 20% 造成 1 倍伤害`;
   if (skill?.id === "shaseng-staff") return `${chance} · 以 ATK + 当前 DEF 造成 1.5 倍伤害，攻击敌方全体`;
@@ -1193,7 +1193,7 @@ function renderAllyStatusIcons() {
         image: "assets/shop/skill-book.png", tone: "buff",
         description: SKILL_DATA["iron-bell"].description });
     }
-    for (const id of ["armament-haki", "heavenly-restriction-book", "undying-subspecies", "brick-force", "three-teachers", "apocalypse-knight"])
+    for (const id of ["armament-haki", "heavenly-restriction-book", "undying-subspecies", "brick-force", "three-teachers", "daily-progress", "apocalypse-knight"])
       if (unit.extraPassiveSkillIds?.includes(id)) statuses.push({ id: `${id}-${unit.id}`,
         name: `${unit.name} · ${SKILL_DATA[id].name}${id === "apocalypse-knight" ? ` Lv.${unit.apocalypseKnightLevel ?? 1}` : ""}`, image: "assets/shop/skill-book.png", tone: "buff",
         description: SKILL_DATA[id].description });
@@ -1210,6 +1210,15 @@ function renderAllyStatusIcons() {
         description: `释放战锤之力后到第 ${unit.warhammerVulnerableUntilRound} 回合结束，受到的实际伤害增加 20%。` });
     }
     if (unit.team === "ally") {
+      if (unit.id === "tang" && unit.passiveSkillId === "tang-compassion") {
+        const ratio = unit.currentHp / Math.max(1, unit.maxHp);
+        if (ratio > .8) statuses.push({ id: "tang-compassion-guard", name: "慈悲为怀 · 庇护",
+          image: unit.asset, tone: "buff", description: "唐僧 HP 高于 80%，所有友方受到伤害降低 10%。" });
+        if (ratio < .7) statuses.push({ id: "tang-compassion-heal", name: "慈悲为怀 · 愈合",
+          image: unit.asset, tone: "buff", description: "唐僧 HP 低于 70%，友方实际造成伤害的 20% 恢复唐僧。" });
+        if (ratio < .3) statuses.push({ id: "tang-compassion-share", name: "慈悲为怀 · 分摊",
+          image: unit.asset, tone: "buff", description: "唐僧 HP 低于 30%，其他存活友方平均分摊唐僧所受伤害的 30%。" });
+      }
       const medicineBonuses = (campaign?.shopMedicines ?? [])
         .filter((effect) => effect.recipientId === unit.id && effect.battlesLeft > 0)
         .reduce((bonuses, effect) => {
@@ -1332,8 +1341,12 @@ function renderAllyStatusIcons() {
   for (const entries of treasureGroups) {
     const item = entries[0].effect;
     const gain = entries.reduce((sum, { effect }) => { for (const key of ["atk", "def", "maxHp", "spd"]) sum[key] = (sum[key] ?? 0) + (effect[key] ?? 0); return sum; }, {});
+    if (item.id === "angel_breath") gain.maxHp = (gain.maxHp ?? 0) +
+      [...new Set(entries.map((entry) => entry.ownerId))].reduce((sum, ownerId) => sum +
+        (campaign.partyStates?.[ownerId]?.permanentEffects ?? []).filter((effect) => effect.id === "angel_breath_growth")
+          .reduce((total, effect) => total + (effect.maxHp ?? 0), 0), 0);
     const gains = Object.entries(gain).filter(([, value]) => value).map(([key, value]) => `${key.toUpperCase()} ${value > 0 ? "+" : ""}${value}`).join("、");
-    const history = entries.map(({ effect, ownerId }, index) => `${partyPresentation(ownerId)?.name ?? ownerId}第 ${effect.acquisitionCount ?? index + 1} 次：第 ${effect.stageId ?? "未知"} 关，来源 ${effect.sourceLabel ?? effect.sourceId ?? "未知"}，${Object.entries(effect).filter(([key, value]) => ["atk", "def", "maxHp", "spd"].includes(key) && value).map(([key, value]) => `${key.toUpperCase()} ${value > 0 ? "+" : ""}${value}`).join("、") || effect.description || "特殊效果"}${effect.hogyokuHistory?.length ? `；精英触发 ${effect.hogyokuHistory.length} 次` : ""}${effect.weightVictorySpdGain ? `；胜利累计 SPD +${effect.weightVictorySpdGain}` : ""}`).join("；");
+    const history = entries.map(({ effect, ownerId }, index) => `${partyPresentation(ownerId)?.name ?? ownerId}第 ${effect.acquisitionCount ?? index + 1} 次：第 ${effect.stageId ?? "未知"} 关，来源 ${effect.sourceLabel ?? effect.sourceId ?? "未知"}，${Object.entries(effect).filter(([key, value]) => ["atk", "def", "maxHp", "spd"].includes(key) && value).map(([key, value]) => `${key.toUpperCase()} ${value > 0 ? "+" : ""}${value}`).join("、") || effect.description || "特殊效果"}${effect.hogyokuHistory?.length ? `；精英触发 ${effect.hogyokuHistory.length} 次` : ""}${effect.weightVictorySpdGain ? `；胜利累计 SPD +${effect.weightVictorySpdGain}` : ""}${effect.id === "dragon_radar" ? `；精华进度 ${effect.essenceProgress ?? 0}/20，累计奖励 ${effect.essenceRewardsGranted ?? 0} 件` : ""}`).join("；");
     treasureStatuses.push({ id: `treasure-${item.id}`, name: `${TREASURE_DATA[item.id]?.name ?? item.name} ×${entries.length}`, image: TREASURE_DATA[item.id]?.image ?? (item.id === GIANT_SPINAL_FLUID.id ? GIANT_SPINAL_FLUID.image : item.image), tone: "buff", description: `${({common:"普通",rare:"稀有",legendary:"传说"})[(TREASURE_DATA[item.id]?.grade ?? ([GIANT_SPINAL_FLUID.id, GUN_DEVIL_FRAGMENT.id].includes(item.id) ? "rare" : null))] ?? "宝物"}宝物。${gains ? `累计 ${gains}。` : "特殊效果保留原说明。"}${history}` });
   }
   if (battleStatusState.jinchuriki) {
@@ -2102,11 +2115,29 @@ function playSilverBottle(event, finish) {
         }
         renderAllyStatusIcons();
         addLog(`<b>银角大王</b> 的「叫你一声」吸入了本场造成实际伤害最高的 ${target.name}（${event.damageDealt} 点），其退出本场战斗。`, "log-enemy");
+        for (const hit of event.kingHits ?? []) {
+          const king = viewState.characters.find((unit) => unit.id === hit.targetId);
+          if (!king) continue;
+          king.currentHp = hit.targetHp;
+          king.shieldHp = hit.targetShield;
+          king.alive = !hit.targetDied;
+          updateHealth(king);
+          addLog(`<b>${king.name}</b> 受到吸入代价：${hit.actualDamage} 点真实伤害。`, "log-skill");
+        }
+        renderAllyStatusIcons();
         bottle.style.opacity = "0";
         timer = window.setTimeout(() => { bottle.remove(); timer = null; if (silver?.alive) startIdleCycle(source, silver); finish(); }, playbackDelay(180, 90));
       }, absorbMs);
     }, flyMs);
   }, playbackDelay(250, 120));
+}
+
+function showCompassionHeals(event) {
+  for (const heal of event.evolutionHeals ?? []) {
+    const ally = viewState.characters.find((unit) => unit.id === heal.targetId);
+    if (ally) { ally.currentHp = heal.currentHp; updateHealth(ally); }
+  }
+  if (event.evolutionHeals?.length) renderAllyStatusIcons();
 }
 
 function playEvent(event, finish) {
@@ -2334,6 +2365,7 @@ function playEvent(event, finish) {
       updateHealth(ally);
       addLog(`<b>蝎子莱莱</b> 受伤后使 ${ally.name} 恢复 ${heal.amount} HP。`, "log-skill");
     }
+    showCompassionHeals(event);
     addLog(`<b>进击巨人</b> 坐标：${event.attackKind === "skill" ? "主动技能按最大 HP 10%" : "普通攻击按已损失 HP 20%"}追加攻击（${event.power} 基础伤害），实际造成 ${event.actualDamage} 伤害。`, "log-skill");
     return finish();
   }
@@ -2482,7 +2514,7 @@ function playEvent(event, finish) {
     return finish();
   }
   if (event.type === "normal-passive-gollum") {
-    addLog(`<b>咕噜</b> 存活 5 回合：偷取 ${Math.min(campaign?.essence ?? 0, event.amount ?? 5)} 点精华。`, "log-enemy");
+    addLog(`<b>咕噜</b> 存活 5 回合：偷取 ${Math.min(campaign?.essence ?? 0, event.amount ?? 3)} 点精华。`, "log-enemy");
     return finish();
   }
   if (event.type === "giant-overrun") {
@@ -2736,6 +2768,7 @@ function playEvent(event, finish) {
         battleStatusState.borosPhase = event.phaseChange.phase;
       }
       updateHealth(target);
+      showCompassionHeals(event);
       const fighter = document.querySelector(`[data-character="${target.id}"]`);
       const number = fighter?.querySelector(".damage-number");
       if (number && event.actualDamage > 0) {
@@ -3061,9 +3094,12 @@ function playEvent(event, finish) {
     const transition = finishBattle(campaign, pendingResult.outcome, player.currentHp, pendingResult.events, pendingResult.finalCharacters);
     if (!transition) return finish();
     if (campaign.lastEssenceReward?.amount) addLog(`精华 +${campaign.lastEssenceReward.amount} · 当前 ×${campaign.essence}`, "log-win");
+    for (const reward of campaign.lastRadarRewards ?? [])
+      addLog(`<b>龙珠雷达</b>：${reward.characterId} 获得 ${reward.name}。`, "log-win");
     for (const recovery of campaign.lastBattleRecovery ?? []) {
       const unit = viewState.characters.find((character) => character.id === recovery.characterId && character.team === "ally");
       if (unit) {
+        if (Number.isFinite(recovery.maxHp)) unit.maxHp = recovery.maxHp;
         unit.currentHp = recovery.currentHp;
         unit.alive = recovery.currentHp > 0;
         updateHealth(unit);
@@ -3074,17 +3110,29 @@ function playEvent(event, finish) {
           startIdleCycle(fighter, unit);
         }
       }
-      if (recovery.restored > 0) addLog(`<b>${unit?.name ?? recovery.characterId}</b> ${recovery.kind === "revive" ? "战后重新站起" : recovery.kind === "trial_half_heal" ? "试炼战后恢复" : "大天使的气息"}：HP +${recovery.restored}。`, "log-skill");
+      if (recovery.restored > 0) addLog(`<b>${unit?.name ?? recovery.characterId}</b> ${recovery.kind === "revive" ? "战后重新站起" : recovery.kind === "trial_half_heal" ? "试炼战后恢复" : recovery.kind === "trial_failure_heal" ? "试炼失败后恢复" : "大天使的气息"}：HP +${recovery.restored}。`, "log-skill");
+      if (recovery.maxHpGain) addLog(`<b>${unit?.name ?? recovery.characterId}</b> 大天使的气息：最大 HP +${recovery.maxHpGain}。`, "log-skill");
+    }
+    for (const id of campaign.partyIds ?? []) {
+      const settled = campaign.partyStates?.[id];
+      const unit = viewState.characters.find((character) => character.id === id && character.team === "ally");
+      if (settled && unit) { unit.maxHp = settled.maxHp; unit.currentHp = settled.currentHp; updateHealth(unit); }
     }
     const rasenganSpeedGain = (campaign.runCharacterState?.spd ?? speedBeforeSettlement) - speedBeforeSettlement;
     if (rasenganSpeedGain > 0) addLog(`螺旋丸击杀 · <b>本局 SPD +${rasenganSpeedGain}</b>`, "log-skill");
     updateProgressionDisplays();
-    setStatus(win ? "战斗胜利" : transition?.trialOutcome === "failed" ? "试炼失败，本局结束" : "战斗失败", "finished");
+    setStatus(win ? "战斗胜利" : transition?.trialOutcome === "failed" ? "试炼失败，本局结束"
+      : transition?.trialOutcome === "retry" ? "试炼小关失败，继续挑战"
+        : transition?.trialOutcome === "incomplete" ? "试炼未完成" : "战斗失败", "finished");
     setBattleControls(false);
-    $("#battle-stamp").textContent = win ? "胜利！" : "战斗失败";
+    $("#battle-stamp").textContent = win ? "胜利！" : ["retry", "incomplete"].includes(transition?.trialOutcome) ? "小关失败" : "战斗失败";
     $("#battle-stamp").classList.add("show", win ? "stamp-win" : "stamp-lose");
     addLog(win ? `第 ${campaign.battleNumber} 场 · <b>胜利</b>` : transition?.trialOutcome === "failed"
       ? `第 ${campaign.battleNumber} 场 · <b>试炼失败，本局结束</b>`
+      : transition?.trialOutcome === "retry"
+        ? `第 ${campaign.battleNumber} 场 · <b>小关失败，队伍恢复 50% 最大 HP，继续选择剩余试炼</b>`
+        : transition?.trialOutcome === "incomplete"
+          ? `第 ${campaign.battleNumber} 场 · <b>试炼未完成，返回第三关路线</b>`
         : `第 ${campaign.battleNumber} 场 · <b>战败，本局结束</b>`, win ? "log-win" : "log-death");
     const normalHoldMs = playbackDelay(ANIMATION_TIMING.attack.resultHoldMs);
     const defeatHoldMs = playbackDelay(ANIMATION_TIMING.boss.defeatHoldMs);
@@ -3322,6 +3370,7 @@ function playEvent(event, finish) {
           const ally = viewState.characters.find((unit) => unit.id === heal.targetId);
           if (ally) { ally.currentHp = heal.currentHp; updateHealth(ally); }
         }
+        showCompassionHeals(event);
       }
       timer = window.setTimeout(() => { timer = null; finish(); }, playbackDelay(220, 120));
     };
@@ -3896,7 +3945,7 @@ function playEvent(event, finish) {
     if (Number.isFinite(event.trialDamage?.heraclesAttackAfter)) target.atk = event.trialDamage.heraclesAttackAfter;
     if (event.tangChantMaxHpGain && attacker.id === "tang") {
       attacker.maxHp = event.tangMaxHpAfter;
-      attacker.hp = attacker.maxHp;
+      updateHealth(attacker);
     }
     if (attacker.id === "arima" && event.arimaHitCount >= 3 && !event.targetDied && attacker.weaknessAsset
       && !targetEl.querySelector(".arima-weakpoint")) {
@@ -3949,17 +3998,13 @@ function playEvent(event, finish) {
       ? `<b>${attacker.name}</b> 将存活队友护盾刷新至最多 ${event.shieldsGranted[0].cap} 点。`
       : `<b>${attacker.name}</b> 九尾羁绊为队友提供护盾。`, "log-skill");
     if (event.oneEyeKingAttackBonus) { attacker.atk += event.oneEyeKingAttackBonus; addLog(`<b>${attacker.name}</b> 独眼之王击杀：本局 ATK +${event.oneEyeKingAttackBonus}。`, "log-skill"); }
-    if (event.trialDamage?.sharedDamage) {
-      const shared = event.trialDamage.sharedDamage;
+    for (const shared of event.trialDamage?.sharedDamages ?? (event.trialDamage?.sharedDamage ? [event.trialDamage.sharedDamage] : [])) {
       const partner = viewState.characters.find((unit) => unit.id === shared.targetId);
       if (partner) { partner.currentHp = shared.currentHp; partner.shieldHp = shared.shieldHp; partner.alive = shared.currentHp > 0; updateHealth(partner); }
       addLog(shared.kind === "summon-protection" ? `<b>唐僧</b>替召唤物承担 ${shared.amount} 点伤害。` : `<b>慈悲为怀</b>：${partner?.name ?? "队友"} 分担 ${shared.amount} 点伤害。`, "log-skill");
     }
     if (event.trialDamage?.emergencyHeal) addLog(`<b>${target.name}</b> 道路触发：恢复 ${event.trialDamage.emergencyHeal} HP。`, "log-skill");
-    for (const heal of event.evolutionHeals ?? []) {
-      const ally = viewState.characters.find((unit) => unit.id === heal.targetId);
-      if (ally) { ally.currentHp = heal.currentHp; updateHealth(ally); }
-    }
+    showCompassionHeals(event);
     if (event.shieldAbsorbed) addLog(`<b>${target.name}</b> 的护盾吸收 ${event.shieldAbsorbed} 点伤害。`, "log-skill");
     if (event.extraTrueDamage) addLog(`<b>${attacker.name}</b> 自由意志追加 ${event.extraTrueDamage.actualDamage} 点真实伤害。`, "log-skill");
     if (event.weaknessApplied) {
@@ -4635,7 +4680,7 @@ function renderTrialResult() {
   if (getDragonRadarOffer(campaign)) return renderDragonRadarOffer(() => renderTrialResult());
   if (campaign?.status !== "trial_result") return;
   const won = campaign.trial.status === "completed";
-  renderDecisionScreen(won ? "试炼完成" : "离开试炼", won
+  renderDecisionScreen(won ? "试炼完成" : "试炼未完成", won
     ? "已完成两项试炼。两名角色将进化，并各获得四次技能升级。"
     : "试炼已结束，队伍属性保持不变。", [
     decisionChoice("__continue__", won ? "开始二阶段进化" : "返回第三关路线", won ? "进化后选择两名角色的技能升级。" : "继续探索。"),
@@ -5432,7 +5477,7 @@ function renderDragonRadarOffer(onComplete = null) {
     const treasure = TREASURE_DATA[id];
     return decisionChoice(id, treasure.name, treasure.description, false, treasure.image);
   });
-  renderDecisionScreen("龙珠雷达 · 七场胜利", "从三件普通宝物中选择一件领取。", choices, "确认领取", (treasureId) => {
+  renderDecisionScreen("龙珠雷达 · 旧存档待领奖励", "领取此前已生成的普通宝物奖励。", choices, "确认领取", (treasureId) => {
     if (!claimDragonRadarOffer(campaign, treasureId)) return false;
     updateProgressionDisplays();
     if (getFateReward(campaign)) return renderFateReward(onComplete);
@@ -5770,7 +5815,8 @@ function renderEventResult(result) {
   const teamDetail = shared ? eventId === "big_rock" ? "主角和伙伴下一场战斗均速度 -20。"
     : eventId === "coffee_shop" ? "主角和伙伴均获得相同的安定区效果。"
       : "本次正向属性收益同时作用于主角和伙伴；生命上限代价仅由主角承担。" : "";
-  renderDecisionScreen(title, `${describeEventResult(result)}${teamDetail ? ` ${teamDetail}` : ""}`, [decisionChoice("__continue__", "继续前进", `前往第 ${campaign.step + 1} 步。`)], "继续前进", () => finishEventAndAdvance(), "ACT 01 · EVENT RESULT", campaign.pendingEvent?.image ?? null);
+  const radarDetail = (campaign.lastRadarRewards ?? []).map((reward) => `龙珠雷达获得${reward.name}`).join("；");
+  renderDecisionScreen(title, `${describeEventResult(result)}${teamDetail ? ` ${teamDetail}` : ""}${radarDetail ? ` ${radarDetail}。` : ""}`, [decisionChoice("__continue__", "继续前进", `前往第 ${campaign.step + 1} 步。`)], "继续前进", () => finishEventAndAdvance(), "ACT 01 · EVENT RESULT", campaign.pendingEvent?.image ?? null);
 }
 
 function resolveVisibleEvent(choiceId, skillId = null) {
@@ -5825,6 +5871,22 @@ function resolveVisibleEvent(choiceId, skillId = null) {
   return finishEventAndAdvance();
 }
 
+function chooseExtraCampfireSkill(state, firstSkillId, onFinish, actLabel) {
+  if (firstSkillId === "__skip_new_skill__" || !state.extraPassiveSkillIds?.includes("daily-progress"))
+    return onFinish(firstSkillId);
+  const preview = structuredClone(state);
+  if (preview.learnedActiveSkills.includes(firstSkillId)) preview.skillLevels[firstSkillId] += 1;
+  else { preview.learnedActiveSkills.push(firstSkillId); preview.skillLevels[firstSkillId] = 1; }
+  const choices = getSkillTrainingChoices(preview);
+  if (!choices.length) return onFinish(firstSkillId);
+  renderDecisionScreen("天天向上 · 额外技能升级", "本次篝火的第二次技能训练。", choices.map((skillId) => {
+    const nextLevel = (preview.skillLevels[skillId] ?? 0) + 1;
+    return decisionChoice(skillId, `${SKILL_DATA[skillId].name} Lv.${nextLevel}`,
+      shortSkillEffect({ ...SKILL_DATA[skillId], ...SKILL_DATA[skillId].levels[nextLevel], level: nextLevel }));
+  }), "确认升级", (secondSkillId) => onFinish([firstSkillId, secondSkillId]), actLabel);
+  return true;
+}
+
 function renderCampfire() {
   if (campaign?.stageId >= 2) {
     const members = getStageTwoCampfireOptions(campaign);
@@ -5837,9 +5899,10 @@ function renderCampfire() {
     const deferredBoss = campaign.hiddenBoss?.unlocked && !campaign.hiddenBoss.resolved && !campaign.hiddenBoss.attempted;
     const arimaChallenge = canChallengeArimaAtCampfire(campaign);
     const apocalypseUpgrade = getApocalypseUpgradeOffer(campaign);
-    renderDecisionScreen(`第${campaign.stageId}关篝火`, "休息治疗全队，或每名队员分别获得一次技能训练机会。", [
+    const extraTraining = members.some(({ characterId }) => campaign.partyStates[characterId].extraPassiveSkillIds?.includes("daily-progress"));
+    renderDecisionScreen(`第${campaign.stageId}关篝火`, `休息治疗全队，或每名队员分别训练技能。${extraTraining ? "持有「天天向上」者可额外训练一次。" : ""}`, [
       decisionChoice("rest", "全队休息", healText),
-      decisionChoice("skill_upgrade", "全队技能升级", "每名符合条件的队员各升级一次。", !canUpgrade),
+      decisionChoice("skill_upgrade", "全队技能升级", `每名符合条件的队员各升级一次${extraTraining ? "；天天向上持有者再升级一次" : ""}。`, !canUpgrade),
       ...(apocalypseUpgrade ? [decisionChoice("upgrade_apocalypse", "天启骑士 Lv2",
         `献祭 4 个枪魔碎片，移除其属性收益（现有 ${apocalypseUpgrade.fragments}/4）。`, apocalypseUpgrade.fragments < 4)] : []),
       ...(arimaChallenge ? [decisionChoice("arima_challenge", "挑战有马贵将", "可留待之后的篝火挑战。")]: []),
@@ -5879,7 +5942,8 @@ function renderCampfire() {
         const character = partyPresentation(characterId);
         const skillChoices = options[1].skills.map((entry) =>
           decisionChoice(entry.skillId, entry.currentLevel ? `${entry.name} Lv.${entry.nextLevel}` : `学习 ${entry.name} Lv.1`, shortSkillEffect({ ...SKILL_DATA[entry.skillId], ...entry.nextEffect, level: entry.nextLevel })));
-        const saveChoice = (skillId) => { selections[characterId] = skillId; return chooseFor(index + 1); };
+        const saveChoice = (skillId) => chooseExtraCampfireSkill(campaign.partyStates[characterId], skillId,
+          (selection) => { selections[characterId] = selection; return chooseFor(index + 1); }, "ACT 02 · CAMPFIRE");
         if (canDeclineNewSkill(campaign.partyStates[characterId])) {
           const chooseOrLeave = () => renderDecisionScreen(`${character.name}技能升级`, "已学主动技能达到 Lv.4，可学习另一项技能，也可直接离开。", [
             decisionChoice("__learn__", "学习新技能", "查看可学习的主动技能。"),
@@ -5893,7 +5957,7 @@ function renderCampfire() {
           }, "ACT 02 · CAMPFIRE");
           return chooseOrLeave();
         }
-        renderDecisionScreen(`${character.name}技能升级`, "本次篝火每名队员最多训练一次。", skillChoices,
+        renderDecisionScreen(`${character.name}技能升级`, "选择本次篝火的技能训练。", skillChoices,
           "确认升级", saveChoice, "ACT 02 · CAMPFIRE");
         return true;
       };
@@ -5905,7 +5969,8 @@ function renderCampfire() {
   if (!options) return;
   const rest = options[0];
   const upgrade = options[1];
-  renderDecisionScreen("篝火", "在此选择休息治疗，或训练一项主动技能。", [
+  renderDecisionScreen("篝火", campaign.runCharacterState.extraPassiveSkillIds?.includes("daily-progress")
+    ? "在此选择休息治疗，或凭「天天向上」训练两次主动技能。" : "在此选择休息治疗，或训练一项主动技能。", [
     decisionChoice("rest", "休息治疗", rest.blockedBy ? "石鬼面阻止篝火回血。" : `恢复 ${rest.healAmount} HP（当前 ${campaign.runCharacterState.currentHp}/${campaign.runCharacterState.maxHp}）。`),
     decisionChoice("skill_upgrade", "技能升级", upgrade.enabled ? upgrade.skills.map((entry) => entry.currentLevel ? `${entry.name} Lv.${entry.currentLevel} → Lv.${entry.nextLevel}` : `学习 ${entry.name} Lv.1`).join("、") : upgrade.reason, !upgrade.enabled),
     ...(campaign.hiddenBoss?.unlocked && !campaign.hiddenBoss.resolved && !campaign.hiddenBoss.attempted
@@ -5931,12 +5996,16 @@ function renderCampfire() {
           }
           renderDecisionScreen("选择新技能", "确认前可返回上一层。", [...choices,
             decisionChoice("__back__", "返回上一层", "暂不确认学习。")], "确认", (skillId) =>
-            skillId === "__back__" ? (chooseOrLeave(), true) : resolveVisibleEvent("skill_upgrade", skillId), "ACT 01 · CAMPFIRE");
+            skillId === "__back__" ? (chooseOrLeave(), true)
+              : chooseExtraCampfireSkill(campaign.runCharacterState, skillId,
+                (selection) => resolveVisibleEvent("skill_upgrade", selection), "ACT 01 · CAMPFIRE"), "ACT 01 · CAMPFIRE");
           return true;
         }, "ACT 01 · CAMPFIRE");
         return chooseOrLeave();
       }
-      renderDecisionScreen("选择升级技能", "已学技能满级后可学习新的主动技能。", choices, "确认", (skillId) => resolveVisibleEvent("skill_upgrade", skillId), "ACT 01 · CAMPFIRE");
+      renderDecisionScreen("选择升级技能", "已学技能满级后可学习新的主动技能。", choices, "确认", (skillId) =>
+        chooseExtraCampfireSkill(campaign.runCharacterState, skillId,
+          (selection) => resolveVisibleEvent("skill_upgrade", selection), "ACT 01 · CAMPFIRE"), "ACT 01 · CAMPFIRE");
       return true;
     }
     return false;

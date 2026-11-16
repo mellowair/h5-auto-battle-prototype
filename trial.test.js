@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { STARTING_CHARACTERS, TRIAL_ENEMY_DATA } from "./characters.js";
 import { executeAttack, initializeBattle, simulateBattle } from "./battle.js";
 import { advanceStageTransition, beginJourney, beginStageThree, chooseRoute, chooseTrialNode, createCampaign,
-  enterTrialMap, finishBattle, getRouteOptions, getStageTransitionChoices, getStageThreeNormalEnemyStats, prepareBattle, resolveTrialOffer,
+  enterTrialMap, finishBattle, finishTrialResult, getRouteOptions, getStageTransitionChoices, getStageThreeNormalEnemyStats, prepareBattle, resolveTrialOffer,
   resolveTrialWill, selectStartingCharacter, startCampaign } from "./campaign.js";
 import { createRunCharacterState } from "./progression.js";
 import { completeTrialTask, createTrialState, odinWeakestPointStat, pickTrialEnemies, startTrialTask } from "./trial.js";
@@ -167,13 +167,13 @@ test("a trial victory applies angel-breath healing once while the next trial sti
   const maxHp = campaign.runCharacterState.maxHp;
   const final = prepared.roster.filter((unit) => unit.team === "ally").map((unit) => ({ ...unit, currentHp: 100 }));
   finishBattle(campaign, "victory", 100, [], final);
-  assert.equal(campaign.runCharacterState.currentHp, Math.ceil(maxHp * .5) + Math.floor(maxHp * .3));
+  assert.equal(campaign.runCharacterState.currentHp, Math.ceil(maxHp * .5) + Math.floor((maxHp + 50) * .3));
   assert.deepEqual(campaign.lastBattleRecovery.map((entry) => entry.kind),
     ["trial_half_heal", "trial_half_heal", "angel_breath"]);
   assert.equal(campaign.status, "trial_route");
 });
 
-test("angel breath does not heal a defeated trial party", () => {
+test("a first trial defeat recovers to half HP, then angel breath also applies", () => {
   const campaign = stageThree();
   enterTrial(campaign, ["strength", "wisdom", "will"]);
   assignTrialKinds(campaign, { strength: "heracles" });
@@ -182,11 +182,12 @@ test("angel breath does not heal a defeated trial party", () => {
   const prepared = prepareBattle(campaign);
   const maxHp = campaign.runCharacterState.maxHp;
   const defeated = prepared.roster.map((unit) => unit.team === "ally" ? { ...unit, currentHp: 0 } : unit);
-  assert.equal(finishBattle(campaign, "defeat", 0, [], defeated).trialOutcome, "failed");
-  assert.equal(campaign.status, "defeat");
-  assert.equal(campaign.runCharacterState.currentHp, 0);
-  assert.equal(campaign.runCharacterState.maxHp, maxHp);
-  assert.deepEqual(campaign.lastBattleRecovery, []);
+  assert.equal(finishBattle(campaign, "defeat", 0, [], defeated).trialOutcome, "retry");
+  assert.equal(campaign.status, "trial_route");
+  assert.equal(campaign.runCharacterState.currentHp, Math.ceil(maxHp * .5) + Math.floor((maxHp + 50) * .3));
+  assert.equal(campaign.runCharacterState.maxHp, maxHp + 50);
+  assert.deepEqual(campaign.lastBattleRecovery.map((entry) => entry.kind),
+    ["trial_failure_heal", "trial_failure_heal", "angel_breath"]);
 });
 
 test("stage-two clear grants each party member one skill choice and three stat point choices", () => {
@@ -307,7 +308,7 @@ test("each eternal-shackles battle draws one front and one back enemy at 80% of 
   assert.equal(pickTrialEnemies(["a", "b", "c"], 1, ["a"], () => 0)[0], "b");
 });
 
-test("one trial defeat ends the run without a permanent stat penalty or retry", () => {
+test("the first trial defeat continues and the second ends the run without a stat penalty", () => {
   const campaign = stageThree();
   campaign.partyStates.eren.currentHp = 250;
   enterTrial(campaign, ["strength", "wisdom", "will"]);
@@ -315,24 +316,76 @@ test("one trial defeat ends the run without a permanent stat penalty or retry", 
   const prepared = prepareBattle(campaign);
   const final = prepared.roster.map((unit) => unit.team === "ally" ? { ...unit, currentHp: 0, alive: false } : unit);
   const result = finishBattle(campaign, "defeat", 0, [], final);
-  assert.equal(result.trialOutcome, "failed");
-  assert.equal(result.status, "defeat");
-  assert.equal(campaign.status, "defeat");
-  assert.equal(campaign.trial.status, "failed");
+  assert.equal(result.trialOutcome, "retry");
+  assert.equal(result.status, "trial_route");
+  assert.equal(campaign.status, "trial_route");
+  assert.equal(campaign.trial.status, "active");
   assert.equal(campaign.trial.failedCount, 1);
   assert.equal(campaign.trial.completedCount, 0);
   for (const id of campaign.partyIds) {
     const state = campaign.partyStates[id];
-    assert.equal(state.currentHp, 0);
+    assert.equal(state.currentHp, Math.ceil(state.maxHp * .5));
     assert.equal(state.maxHp, STARTING_CHARACTERS.find((hero) => hero.id === id).baseStats.maxHp);
     assert.equal(state.spd, STARTING_CHARACTERS.find((hero) => hero.id === id).baseStats.spd);
   }
-  assert.deepEqual(campaign.lastBattleRecovery, []);
+  assert.deepEqual(campaign.lastBattleRecovery.map((entry) => entry.kind),
+    ["trial_failure_heal", "trial_failure_heal"]);
   assert.equal(finishBattle(campaign, "defeat", 0, [], final), false);
-  assert.equal(chooseTrialNode(campaign, "wisdom"), false);
+  assert.ok(chooseTrialNode(campaign, "wisdom"));
+  const second = prepareBattle(campaign);
+  const secondFinal = second.roster.map((unit) => unit.team === "ally" ? { ...unit, currentHp: 0, alive: false } : unit);
+  const failed = finishBattle(campaign, "defeat", 0, [], secondFinal);
+  assert.equal(failed.trialOutcome, "failed");
+  assert.equal(campaign.status, "defeat");
+  assert.equal(campaign.trial.failedCount, 2);
+  assert.equal(campaign.partyStates[campaign.playerId].currentHp, 0);
+  assert.deepEqual(campaign.lastBattleRecovery, []);
+  assert.equal(chooseTrialNode(campaign, "will"), false);
 });
 
-test("the endless trial also ends the run on its first defeated battle", () => {
+test("one failed challenge followed by two completed challenges still unlocks evolution", () => {
+  const campaign = stageThree();
+  enterTrial(campaign, ["strength", "wisdom", "will"]);
+  assignTrialKinds(campaign, { strength: "odin", wisdom: "heracles", will: "ordinary" });
+  chooseTrialNode(campaign, "strength");
+  const failedRoster = prepareBattle(campaign).roster;
+  const fallen = failedRoster.map((unit) => unit.team === "ally" ? { ...unit, currentHp: 0, alive: false } : unit);
+  assert.equal(finishBattle(campaign, "defeat", 0, [], fallen).trialOutcome, "retry");
+  chooseTrialNode(campaign, "wisdom");
+  const secondRoster = prepareBattle(campaign).roster.filter((unit) => unit.team === "ally");
+  assert.equal(finishBattle(campaign, "victory", secondRoster[0].currentHp, [], secondRoster).trialOutcome, "active");
+  chooseTrialNode(campaign, "will");
+  resolveTrialWill(campaign, "will_accept");
+  for (let battle = 0; battle < 3; battle += 1) {
+    const allies = prepareBattle(campaign).roster.filter((unit) => unit.team === "ally");
+    finishBattle(campaign, "victory", allies[0].currentHp, [], allies);
+  }
+  assert.equal(campaign.trial.failedCount, 1);
+  assert.equal(campaign.trial.completedCount, 2);
+  assert.equal(campaign.status, "trial_result");
+  assert.equal(campaign.evolutionPending, true);
+});
+
+test("one loss with no challenges remaining ends the trial without ending the run", () => {
+  const campaign = stageThree();
+  enterTrial(campaign, ["will", "strength", "wisdom"]);
+  chooseTrialNode(campaign, "will");
+  assert.equal(resolveTrialWill(campaign, "will_leave").status, "active");
+  chooseTrialNode(campaign, "strength");
+  const first = prepareBattle(campaign).roster.filter((unit) => unit.team === "ally");
+  finishBattle(campaign, "victory", first[0].currentHp, [], first);
+  chooseTrialNode(campaign, "wisdom");
+  const second = prepareBattle(campaign).roster;
+  const fallen = second.map((unit) => unit.team === "ally" ? { ...unit, currentHp: 0, alive: false } : unit);
+  const result = finishBattle(campaign, "defeat", 0, [], fallen);
+  assert.equal(result.trialOutcome, "incomplete");
+  assert.equal(campaign.status, "trial_result");
+  assert.equal(campaign.trial.failedCount, 1);
+  assert.equal(finishTrialResult(campaign), true);
+  assert.equal(campaign.status, "route");
+});
+
+test("losing one endless-trial fight fails that challenge, while a second loss ends the run", () => {
   const campaign = stageThree();
   enterTrial(campaign, ["will", "strength", "wisdom"]);
   assignTrialKinds(campaign, { will: "ordinary", strength: "heracles", wisdom: "odin" });
@@ -340,12 +393,17 @@ test("the endless trial also ends the run on its first defeated battle", () => {
   assert.ok(resolveTrialWill(campaign, "will_accept"));
   const first = prepareBattle(campaign);
   const fallen = first.roster.map((unit) => unit.team === "ally" ? { ...unit, currentHp: 0, alive: false } : unit);
-  assert.equal(finishBattle(campaign, "defeat", 0, [], fallen).trialOutcome, "failed");
+  assert.equal(finishBattle(campaign, "defeat", 0, [], fallen).trialOutcome, "retry");
   assert.equal(campaign.trial.tasks.will, "failed");
   assert.equal(campaign.trial.completedCount, 0);
   assert.equal(campaign.trial.failedCount, 1);
+  assert.equal(campaign.status, "trial_route");
+  assert.equal(campaign.runCharacterState.divinePunishment, null);
+  assert.ok(chooseTrialNode(campaign, "strength"));
+  const second = prepareBattle(campaign);
+  const secondFallen = second.roster.map((unit) => unit.team === "ally" ? { ...unit, currentHp: 0, alive: false } : unit);
+  assert.equal(finishBattle(campaign, "defeat", 0, [], secondFallen).trialOutcome, "failed");
   assert.equal(campaign.status, "defeat");
-  assert.equal(chooseTrialNode(campaign, "strength"), false);
 });
 
 test("ordinary trial enemies expose their actual active and passive skills in battle copies", () => {
@@ -362,7 +420,7 @@ test("ordinary trial enemies expose their actual active and passive skills in ba
   assert.match(hidan.trialPassiveSkill.description, /3 个战斗回合/);
 });
 
-test("a failed will challenge clears its temporary HP restriction before ending", () => {
+test("a failed will challenge clears its temporary HP restriction before the next trial", () => {
   const campaign = stageThree();
   const originalMax = campaign.runCharacterState.maxHp;
   enterTrial(campaign);
@@ -371,34 +429,44 @@ test("a failed will challenge clears its temporary HP restriction before ending"
   const prepared = prepareBattle(campaign);
   const final = prepared.roster.map((unit) => unit.team === "ally" ? { ...unit, currentHp: 0, alive: false } : unit);
   finishBattle(campaign, "defeat", 0, [], final);
-  assert.equal(campaign.status, "defeat");
+  assert.equal(campaign.status, "trial_route");
   assert.equal(campaign.runCharacterState.maxHp, originalMax);
-  assert.equal(campaign.runCharacterState.currentHp, 0);
+  assert.equal(campaign.runCharacterState.currentHp, Math.ceil(originalMax * .5));
   assert.equal(campaign.runCharacterState.divinePunishment, null);
 });
 
-test("each divine-punishment fight clears its HP cap before restoring to half", () => {
+test("endless-trial fights carry HP loss and the HP cap until the whole challenge ends", () => {
   const campaign = stageThree();
   enterTrial(campaign);
   assignTrialKinds(campaign, { will: "ordinary" });
   chooseTrialNode(campaign);
   const originalMax = campaign.runCharacterState.maxHp;
+  const originalMaxById = Object.fromEntries(campaign.partyIds.map((id) => [id, campaign.partyStates[id].maxHp]));
   resolveTrialWill(campaign, "will_accept");
   assert.equal(campaign.runCharacterState.divinePunishment.battlesLeft, 3);
   assert.equal(campaign.runCharacterState.maxHp, originalMax - Math.floor(originalMax * .2));
   for (let battle = 1; battle <= 3; battle += 1) {
     const prepared = prepareBattle(campaign);
     assert.ok(prepared.roster.filter((unit) => unit.team === "ally").every((unit) => !unit.healingBlocked));
+    if (battle > 1) assert.ok(prepared.roster.filter((unit) => unit.team === "ally")
+      .every((unit) => unit.currentHp === 1 &&
+        unit.maxHp === originalMaxById[unit.id] - Math.floor(originalMaxById[unit.id] * .2)));
     assert.equal(campaign.runCharacterState.maxHp, originalMax - Math.floor(originalMax * .2));
     const allies = prepared.roster.filter((unit) => unit.team === "ally").map((unit) => ({ ...unit,
       currentHp: 1 }));
     const result = finishBattle(campaign, "victory", allies[0].currentHp, [], allies);
-    assert.equal(campaign.runCharacterState.maxHp, originalMax);
-    assert.equal(campaign.runCharacterState.currentHp, Math.ceil(originalMax * .5));
-    assert.deepEqual(campaign.lastBattleRecovery.map((entry) => entry.kind), ["trial_half_heal", "trial_half_heal"]);
     assert.equal(campaign.trial.divinePunishmentBattlesLeft, 3 - battle);
-    if (battle < 3) assert.equal(result.status, "trial_next_battle");
-    else assert.equal(result.status, "trial_route");
+    if (battle < 3) {
+      assert.equal(result.status, "trial_next_battle");
+      assert.equal(campaign.runCharacterState.maxHp, originalMax - Math.floor(originalMax * .2));
+      assert.equal(campaign.runCharacterState.currentHp, 1);
+      assert.deepEqual(campaign.lastBattleRecovery, []);
+    } else {
+      assert.equal(result.status, "trial_route");
+      assert.equal(campaign.runCharacterState.maxHp, originalMax);
+      assert.equal(campaign.runCharacterState.currentHp, Math.ceil(originalMax * .5));
+      assert.deepEqual(campaign.lastBattleRecovery.map((entry) => entry.kind), ["trial_half_heal", "trial_half_heal"]);
+    }
   }
   assert.equal(campaign.runCharacterState.maxHp, originalMax);
   assert.equal(campaign.runCharacterState.currentHp, Math.ceil(originalMax * .5));
@@ -555,7 +623,7 @@ test("Jogo burn stacks, Nami escape, and Scorpion healing use real battle state"
     atk: 1, def: 0, spd: 100, rosterOrder: 1, trialPassive: "ah_fu" }], () => .999);
   assert.equal(escaped.events.filter((event) => event.type === "ah-fu-steal").length, 1);
   assert.equal(escaped.events.find((event) => event.type === "ah-fu-escape").round, 5);
-  assert.equal(escaped.finalCharacters.find((unit) => unit.id === "hero").def, 40);
+  assert.equal(escaped.finalCharacters.find((unit) => unit.id === "hero").def, 85);
 
   const state = initializeBattle([
     { ...hero, atk: 100, spd: 100 },

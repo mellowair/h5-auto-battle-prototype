@@ -533,6 +533,7 @@ export function getCampfireOptions(runState) {
 export function resolveCampfire(runState, sourceId, choiceId, skillId = null, settings = {}) {
   ensureRunState(runState);
   if (!sourceId || has(runState.completedCampfires, sourceId)) return false;
+  const selectedSkills = Array.isArray(skillId) ? skillId : [skillId];
   const options = getCampfireOptions(runState);
   if (choiceId === "rest") {
     const coffeeCount = settings.skipCoffeeGrowth ? 0 : runState.permanentEffects.filter((effect) => effect.id === "drip_coffee").length;
@@ -552,22 +553,33 @@ export function resolveCampfire(runState, sourceId, choiceId, skillId = null, se
     runState.completedCampfires.push(sourceId);
     return { choiceId, ...healing, coffeeMaxHpGain, maxHp: runState.maxHp };
   }
-  if (choiceId === "skill_upgrade" && skillId === "__skip_new_skill__" && canDeclineNewSkill(runState)) {
+  if (choiceId === "skill_upgrade" && selectedSkills[0] === "__skip_new_skill__" && canDeclineNewSkill(runState)) {
     runState.completedCampfires.push(sourceId);
     return { choiceId, skippedSkill: true };
   }
-  if (choiceId !== "skill_upgrade" || !options[1].enabled || !options[1].skills.some((entry) => entry.skillId === skillId)) return false;
-  const skill = applySkillTraining(runState, skillId, `campfire:${sourceId}`);
+  if (choiceId !== "skill_upgrade" || !options[1].enabled ||
+      !options[1].skills.some((entry) => entry.skillId === selectedSkills[0])) return false;
+  const extraEligible = runState.extraPassiveSkillIds?.includes("daily-progress");
+  if (extraEligible) {
+    const preview = structuredClone(runState);
+    applySkillTraining(preview, selectedSkills[0], `campfire:${sourceId}`);
+    const nextChoices = getSkillTrainingChoices(preview);
+    if (nextChoices.length && !nextChoices.includes(selectedSkills[1])) return false;
+    if (!nextChoices.length && selectedSkills[1] != null) return false;
+  } else if (selectedSkills.length > 1) return false;
+  const skill = applySkillTraining(runState, selectedSkills[0], `campfire:${sourceId}`);
   if (!skill) return false;
+  const extraSkill = extraEligible && selectedSkills[1]
+    ? applySkillTraining(runState, selectedSkills[1], `campfire:${sourceId}:daily-progress`) : null;
   let capsuleRestored = 0;
   if (runState.permanentEffects.some((effect) => effect.id === "universal_capsule") &&
       !hasStoneMask(runState)) {
     const before = runState.currentHp;
-    runState.currentHp = Math.min(runState.maxHp, before + Math.floor(runState.maxHp * .2));
+    runState.currentHp = Math.min(runState.maxHp, before + Math.floor(runState.maxHp * .2) * (extraSkill ? 2 : 1));
     capsuleRestored = runState.currentHp - before;
   }
   runState.completedCampfires.push(sourceId);
-  return { choiceId, skill, capsuleRestored, currentHp: runState.currentHp };
+  return { choiceId, skill, extraSkill, capsuleRestored, currentHp: runState.currentHp };
 }
 
 export function createBattleRewardOffer(runState, battleId, battleType = "normal", random = Math.random) {

@@ -55,13 +55,13 @@ test("Teruhashi's reaction stuns the attacker for one action", () => {
   assert.ok(result.events.some((event) => event.type === "trial-control-skip" && event.targetId === "hero" && event.reason === "眩晕"));
 });
 
-test("a Gollum surviving five rounds steals up to five essence once without changing stats", () => {
+test("a Gollum surviving five rounds steals up to three essence once without changing stats", () => {
   const result = simulateBattle([fighter("hero", "ally", { hp: 10000, atk: 100, spd: 100 }),
     fighter("friend", "ally", { hp: 10000, atk: 100, spd: 90 }),
     fighter("mage", "enemy", { hp: 2000, atk: 1, normalPassiveId: "gollum" })], () => .99);
   const thefts = result.events.filter((event) => event.type === "normal-passive-gollum");
   assert.equal(thefts.length, 1);
-  assert.deepEqual([thefts[0].round, thefts[0].amount], [5, 5]);
+  assert.deepEqual([thefts[0].round, thefts[0].amount], [5, 3]);
   assert.deepEqual(result.finalCharacters.filter((unit) => unit.team === "ally").map((unit) => [unit.atk, unit.def, unit.spd]),
     [[100, 0, 100], [100, 0, 90]]);
   assert.deepEqual(result.finalCharacters.filter((unit) => unit.team === "ally").map((unit) => unit.maxHp), [10000, 10000]);
@@ -70,7 +70,7 @@ test("a Gollum surviving five rounds steals up to five essence once without chan
   prepareBattle(campaign);
   campaign.essence = 3;
   const before = campaign.partyIds.map((id) => ({ ...campaign.partyStates[id] }));
-  const event = { type: "normal-passive-gollum", amount: 5 };
+  const event = { type: "normal-passive-gollum", amount: 3 };
   finishBattle(campaign, "victory", before[0].currentHp, [event], campaign.partyIds.map((id) => ({
     id, team: "ally", currentHp: campaign.partyStates[id].currentHp,
   })));

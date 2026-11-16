@@ -265,14 +265,14 @@ test("global crit reaches 100%, ordinary dodge reaches 99%, skill dodge stays on
   assert.equal(getDodgeChance({ spd: 1000 }), 0.395);
   assert.equal(getDodgeChance({ spd: 125, dodgeRateBonus: 0.5 }), 0.566875);
   assert.equal(getDodgeChance({ spd: 99999, dodgeRateBonus: 1 }), 0.99);
-  assert.equal(COMBAT_RULES.skillDodgeChanceCap, 0.5);
-  assert.equal(getSkillDodgeChance({ spd: 99999, dodgeRateBonus: 1 }), 0.5);
+  assert.equal(COMBAT_RULES.skillDodgeChanceCap, 0.25);
+  assert.equal(getSkillDodgeChance({ spd: 99999, dodgeRateBonus: 1 }), 0.25);
   assert.equal(getSkillDodgeChance({ spd: 125, dodgeRateBonus: 0.5 }), getSkillDodgeChance({ spd: 125 }));
   const skillUser = unit({ skills: [{ ...skillAt("kaneki-predator", 1), chance: 1 }] });
   const highDodgeTarget = enemy({ spd: 99999, dodgeRateBonus: 1 });
-  const skillDodged = executeAttack({ characters: [skillUser, highDodgeTarget], round: 1 }, skillUser, highDodgeTarget, rolls(0, 0.49));
+  const skillDodged = executeAttack({ characters: [skillUser, highDodgeTarget], round: 1 }, skillUser, highDodgeTarget, rolls(0, 0.24));
   assert.equal(skillDodged.dodged, true);
-  const skillHit = executeAttack({ characters: [skillUser, highDodgeTarget], round: 1 }, skillUser, highDodgeTarget, rolls(0, 0.5, 0.99));
+  const skillHit = executeAttack({ characters: [skillUser, highDodgeTarget], round: 1 }, skillUser, highDodgeTarget, rolls(0, 0.25, 0.99));
   assert.equal(skillHit.dodged, false);
   const attacker = unit({ critChance: 1, passiveSkillId: null });
   const target = enemy({ spd: 0 });
