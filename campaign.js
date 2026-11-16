@@ -324,7 +324,7 @@ export function createCampaign(random = Math.random, options = {}) {
     chapter3Entered: false, chapter3FirstEncounterAssigned: false, stage2AdventureCount: 0, trialOffered: false,
     hiddenBoss: { unlocked: false, storyShown: false, resolved: false, makimaCleared: false },
     trialAccepted: false, trialDeclined: false, trialCompleted: false, evolutionPending: false,
-    trialFailurePenaltyApplied: false, trial: null, trialBattle: null, evolutionRewards: null,
+    trial: null, trialBattle: null, evolutionRewards: null,
   };
 }
 
@@ -474,7 +474,7 @@ export function prepareBattle(campaign) {
       ally.odinMimirStat = stat;
       if (stat) {
         if (stat === "maxHp") ally.odinMimirHpBefore = ally.currentHp;
-        ally[stat] = Math.max(stat === "maxHp" ? 1 : 0, Math.floor(ally[stat] * .5));
+        ally[stat] = Math.max(stat === "maxHp" ? 1 : 0, Math.floor(ally[stat] * .7));
         if (stat === "maxHp") {
           ally.hp = ally.maxHp;
           ally.currentHp = Math.min(ally.currentHp, ally.maxHp);
@@ -768,8 +768,8 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
     const completedTrialBattle = campaign.currentBattle;
     if (outcome === "victory") applyVictoryTreasureGrowth(campaign);
     const result = settleTrialBattle(campaign, outcome);
-    if (result) {
-      applyTrialBattleRecovery(campaign, outcome);
+    if (result && outcome === "victory") {
+      applyTrialBattleRecovery(campaign);
       applyAngelBreathBattleRecovery(campaign);
     }
     if (outcome === "victory" && result) awardBattleEssence(campaign, completedTrialBattle);
@@ -1934,31 +1934,15 @@ function advanceDivinePunishment(campaign) {
   campaign.trial.divinePunishmentBattlesLeft = campaign.runCharacterState.divinePunishment?.battlesLeft ?? 0;
 }
 
-function applyTrialFailurePenalty(campaign) {
-  if (campaign.trialFailurePenaltyApplied) return false;
-  for (const id of campaign.partyIds) {
-    const state = campaign.partyStates[id];
-    state.maxHp = Math.max(1, Math.floor(state.maxHp * (1 - TRIAL_RULES.failureMaxHpFraction)));
-    state.spd = Math.max(0, Math.floor(state.spd * (1 - TRIAL_RULES.failureSpeedFraction)));
-    state.currentHp = Math.max(0, Math.min(state.maxHp, state.currentHp));
-    state.trialFailurePenalty = { maxHpFraction: TRIAL_RULES.failureMaxHpFraction, speedFraction: TRIAL_RULES.failureSpeedFraction };
-  }
-  campaign.trialFailurePenaltyApplied = true;
-  campaign.trial.failurePenaltyApplied = true;
-  campaign.playerHp = campaign.runCharacterState.currentHp;
-  campaign.playerMaxHp = campaign.runCharacterState.maxHp;
-  return true;
-}
-
-function applyTrialBattleRecovery(campaign, outcome) {
+function applyTrialBattleRecovery(campaign) {
   for (const id of campaign.partyIds) {
     const state = campaign.partyStates[id];
     if (!state) continue;
     const before = state.currentHp;
     const halfHp = Math.ceil(state.maxHp * .5);
-    state.currentHp = outcome === "defeat" ? halfHp : Math.max(before, halfHp);
+    state.currentHp = Math.max(before, halfHp);
     if (state.currentHp > before) campaign.lastBattleRecovery.push({ characterId: id,
-      kind: outcome === "defeat" ? "trial_failure_heal" : "trial_half_heal",
+      kind: "trial_half_heal",
       restored: state.currentHp - before, currentHp: state.currentHp });
   }
 }
@@ -1971,8 +1955,7 @@ export function settleTrialBattle(campaign, outcome) {
   if (outcome === "defeat") {
     const result = completeTrialTask(campaign.trial, taskId, "failed");
     if (!result) return false;
-    // Clear this challenge's temporary HP reduction before applying either
-    // the permanent trial failure penalty or the postbattle HP floor.
+    // The trial ends the run on defeat; remove only its battle-scoped HP limit.
     for (const id of campaign.partyIds) {
       const state = campaign.partyStates[id];
       if (state?.divinePunishment?.battlesLeft > 0) {
@@ -1981,13 +1964,9 @@ export function settleTrialBattle(campaign, outcome) {
       }
     }
     campaign.trial.divinePunishmentBattlesLeft = 0;
-    if (result.status === "failed") {
-      applyTrialFailurePenalty(campaign);
-      campaign.status = "trial_result";
-      return { status: campaign.status, trialOutcome: "failed", failedCount: result.failedCount };
-    }
-    campaign.status = "trial_route";
-    return { status: campaign.status, trialOutcome: "retry", failedCount: result.failedCount, completedCount: result.completedCount };
+    campaign.trial.status = "failed";
+    campaign.status = "defeat";
+    return { status: campaign.status, trialOutcome: "failed", failedCount: result.failedCount };
   }
   campaign.completedBattles += 1;
   if (encounterKind === "ordinary") {

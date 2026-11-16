@@ -10,8 +10,6 @@ export const TRIAL_RULES = Object.freeze({
   requiredTasks: 2,
   divinePunishmentHpFraction: .2,
   divinePunishmentBattles: 3,
-  failureMaxHpFraction: .4,
-  failureSpeedFraction: .4,
   // A tied point-count has a stable, testable result.
   odinPointTiePriority: ["maxHp", "atk", "def", "spd"],
   bleedFractionPerStack: .01,
@@ -41,7 +39,7 @@ export function createTrialState(random = Math.random) {
     completedCount: 0, failedCount: 0, battleIndex: 0, priorBattleEnemies: [],
     encounterByTask: {}, usedEncounterKinds: [],
     currentBattleEnemies: [], divinePunishmentBattlesLeft: 0,
-    failurePenaltyApplied: false, currentTask: null,
+    currentTask: null,
   };
 }
 

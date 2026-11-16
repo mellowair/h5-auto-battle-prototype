@@ -346,7 +346,9 @@ function applyTrialDamage(state, target, requested, kind = "attack", quinqueChec
     target.currentHp = 1;
     target.heraclesTrialsActive = true;
     target.heraclesHitsRemaining = 6;
-    return { dealt: before - 1, heraclesAwakened: true, heraclesHitsRemaining: 6 };
+    target.atk = Math.max(0, target.atk - 100);
+    return { dealt: before - 1, heraclesAwakened: true, heraclesHitsRemaining: 6,
+      heraclesAttackAfter: target.atk };
   }
   let emergencyHeal = 0;
   if (target.passiveSkillId === "eren-paths" && !target.pathsEmergencyUsed && !target.healingBlocked && !target.stoneMaskHealingBlocked &&
@@ -2252,7 +2254,20 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
           if (victim) {
             const special = { ...SKILL_DATA["tang-meditation-strike"], ...SKILL_DATA["tang-meditation-strike"].levels[1], level: 1 };
             const hit = executeAttack(state, tang, victim, random, { skill: special });
-            if (hit) { hit.round = state.round; events.push(hit); syncTangSummons(state, events); }
+            if (hit) {
+              hit.round = state.round;
+              if (hit.targetDied && hit.actualDamage > 0) {
+                tang.maxHp += 100;
+                tang.hp = tang.maxHp;
+                const run = state.runCharacterStates?.[tang.id]
+                  ?? (state.runCharacterState?.characterId === tang.id ? state.runCharacterState : null);
+                if (run) run.maxHp += 100;
+                hit.tangChantMaxHpGain = 100;
+                hit.tangMaxHpAfter = tang.maxHp;
+              }
+              events.push(hit);
+              syncTangSummons(state, events);
+            }
             outcome = isBattleOver(state);
             if (outcome) break;
           }

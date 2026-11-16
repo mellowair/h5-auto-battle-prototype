@@ -105,7 +105,7 @@ export const EVENT_ENEMY_DATA = Object.freeze({
 export const TRIAL_ENEMY_DATA = Object.freeze({
   heracles: { id: "heracles", name: "赫拉克勒斯", team: "enemy", type: "elite", role: "诸神试炼 · 力量", row: "front", position: "front",
     hp: 3000, atk: 420, def: 180, spd: 100, asset: "assets/trial-enemies/赫拉克勒斯.png", visualId: "heracles", attackType: "melee",
-    activeSkills: ["heracles-nine-heads"], trialPassive: "heracles", trialPassiveSkill: { name: "不死试炼", description: "首次倒地后进入不死模式，抵挡接下来的 12 次攻击。" }, rosterOrder: 2,
+    activeSkills: ["heracles-nine-heads"], trialPassive: "heracles", trialPassiveSkill: { name: "不死试炼", description: "首次倒地后 ATK 降低 100，进入不死模式；再承受 6 次有效攻击命中后倒下。" }, rosterOrder: 2,
     skillAnimationMap: { "heracles-nine-heads": "nineHeads" },
     animations: { idle: { type: "frames", frames: { idle: "assets/trial-enemies/赫拉克勒斯.png" } },
       meleeAttack: { type: "frames", frames: { punch: "assets/trial-enemies/赫拉克勒斯攻击.png" }, impactFrames: ["punch"] },

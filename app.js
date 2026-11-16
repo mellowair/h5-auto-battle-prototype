@@ -3074,19 +3074,17 @@ function playEvent(event, finish) {
           startIdleCycle(fighter, unit);
         }
       }
-      if (recovery.restored > 0) addLog(`<b>${unit?.name ?? recovery.characterId}</b> ${recovery.kind === "revive" ? "战后重新站起" : recovery.kind === "trial_half_heal" ? "试炼战后恢复" : recovery.kind === "trial_failure_heal" ? "试炼失败后恢复" : "大天使的气息"}：HP +${recovery.restored}。`, "log-skill");
+      if (recovery.restored > 0) addLog(`<b>${unit?.name ?? recovery.characterId}</b> ${recovery.kind === "revive" ? "战后重新站起" : recovery.kind === "trial_half_heal" ? "试炼战后恢复" : "大天使的气息"}：HP +${recovery.restored}。`, "log-skill");
     }
     const rasenganSpeedGain = (campaign.runCharacterState?.spd ?? speedBeforeSettlement) - speedBeforeSettlement;
     if (rasenganSpeedGain > 0) addLog(`螺旋丸击杀 · <b>本局 SPD +${rasenganSpeedGain}</b>`, "log-skill");
     updateProgressionDisplays();
-    setStatus(win ? "战斗胜利" : transition?.trialOutcome === "failed" ? "试炼失败" : transition?.trialOutcome === "retry" ? "试炼小关失败，继续挑战" : "战斗失败", "finished");
+    setStatus(win ? "战斗胜利" : transition?.trialOutcome === "failed" ? "试炼失败，本局结束" : "战斗失败", "finished");
     setBattleControls(false);
-    $("#battle-stamp").textContent = win ? "胜利！" : transition?.trialOutcome === "retry" ? "小关失败" : "战斗失败";
+    $("#battle-stamp").textContent = win ? "胜利！" : "战斗失败";
     $("#battle-stamp").classList.add("show", win ? "stamp-win" : "stamp-lose");
     addLog(win ? `第 ${campaign.battleNumber} 场 · <b>胜利</b>` : transition?.trialOutcome === "failed"
-      ? `第 ${campaign.battleNumber} 场 · <b>试炼失败，返回第三关</b>`
-      : transition?.trialOutcome === "retry"
-        ? `第 ${campaign.battleNumber} 场 · <b>小关失败，队伍恢复 50% 最大 HP，继续选择剩余试炼</b>`
+      ? `第 ${campaign.battleNumber} 场 · <b>试炼失败，本局结束</b>`
         : `第 ${campaign.battleNumber} 场 · <b>战败，本局结束</b>`, win ? "log-win" : "log-death");
     const normalHoldMs = playbackDelay(ANIMATION_TIMING.attack.resultHoldMs);
     const defeatHoldMs = playbackDelay(ANIMATION_TIMING.boss.defeatHoldMs);
@@ -3098,14 +3096,15 @@ function playEvent(event, finish) {
     }
     let transitionApplied = false;
     const applyBattleTransition = () => {
-      if (transitionApplied || !transition || !["settlement", "reward", "trial_next_battle", "trial_route", "trial_result"].includes(transition.status)) return;
+      if (transitionApplied || !transition || !["settlement", "reward", "trial_next_battle", "trial_route", "trial_result", "defeat"].includes(transition.status)) return;
       transitionApplied = true;
       playback = null;
       pendingResult = null;
       battleStartPhase = "idle";
       setBattleControls(false);
       const continueTransition = () => {
-      if (transition.status === "trial_next_battle") beginBattle();
+      if (transition.status === "defeat") renderEnding();
+      else if (transition.status === "trial_next_battle") beginBattle();
       else if (transition.status === "trial_route") renderTrialMap();
       else if (transition.status === "trial_result") renderTrialResult();
       else if (transition.status === "reward") renderBattleReward();
@@ -3250,7 +3249,7 @@ function playEvent(event, finish) {
       ?? (event.type === "odin-mimir" ? viewState.characters.find((unit) => unit.id === "odin") : null);
     if (event.type === "odin-mimir") {
       const label = { maxHp: "最大 HP", atk: "ATK", def: "DEF", spd: "SPD" }[event.stat] ?? event.stat;
-      addLog(`<b>奥丁</b> 看穿了 ${target?.name ?? "目标"}：选择最多的加点属性 ${label} 在本场减半。`, "log-enemy");
+      addLog(`<b>奥丁</b> 看穿了 ${target?.name ?? "目标"}：选择最多的加点属性 ${label} 在本场降低 30%。`, "log-enemy");
       const fighter = document.querySelector('[data-character="odin"]');
       if (fighter && actor) {
         showFighterFrame(fighter, actor, "passive1", "trigger");
@@ -3894,6 +3893,11 @@ function playEvent(event, finish) {
       }
     }
     if (Number.isFinite(event.targetDef)) target.def = event.targetDef;
+    if (Number.isFinite(event.trialDamage?.heraclesAttackAfter)) target.atk = event.trialDamage.heraclesAttackAfter;
+    if (event.tangChantMaxHpGain && attacker.id === "tang") {
+      attacker.maxHp = event.tangMaxHpAfter;
+      attacker.hp = attacker.maxHp;
+    }
     if (attacker.id === "arima" && event.arimaHitCount >= 3 && !event.targetDied && attacker.weaknessAsset
       && !targetEl.querySelector(".arima-weakpoint")) {
       const marker = document.createElement("img");
@@ -4014,7 +4018,8 @@ function playEvent(event, finish) {
       event.passiveTriggered?.damageImmune ? `<span class="skill-name">${event.passiveTriggered.skillId === "eren-2000-years" ? "2000年后的你免疫了这次攻击" : "被动免疫"}</span>` : "",
       event.jinchurikiExpired ? '<span class="skill-name">人柱力半血增益结束</span>' : "",
       event.armorReductionApplied ? '<span class="skill-name">铠甲减伤 25%</span>' : "",
-      event.trialDamage?.heraclesAwakened ? '<span class="skill-name">十二试炼觉醒：还需命中 6 次</span>' : "",
+      event.trialDamage?.heraclesAwakened ? '<span class="skill-name">十二试炼觉醒：ATK -100，还需命中 6 次</span>' : "",
+      event.tangChantMaxHpGain ? `<span class="skill-name">诵经击杀：最大 HP +${event.tangChantMaxHpGain}</span>` : "",
       event.trialDamage?.heraclesHitsRemaining != null && !event.trialDamage.heraclesAwakened ? `<span class="skill-name">十二试炼还需命中 ${event.trialDamage.heraclesHitsRemaining} 次</span>` : "",
       event.burnStacksApplied > 0 ? `<span class="skill-name">灼烧 +${event.burnStacksApplied} 层（共 ${event.burnStacks} 层）</span>` : "",
       event.bleedStacksApplied > 0 ? `<span class="skill-name">流血 +${event.bleedStacksApplied} 层（共 ${event.bleedStacks} 层）</span>` : "",
@@ -4630,10 +4635,10 @@ function renderTrialResult() {
   if (getDragonRadarOffer(campaign)) return renderDragonRadarOffer(() => renderTrialResult());
   if (campaign?.status !== "trial_result") return;
   const won = campaign.trial.status === "completed";
-  renderDecisionScreen(won ? "试炼完成" : "试炼失败", won
+  renderDecisionScreen(won ? "试炼完成" : "离开试炼", won
     ? "已完成两项试炼。两名角色将进化，并各获得四次技能升级。"
-    : "试炼结束。全队最大 HP 与 SPD 各降低 40%，效果持续至本局结束；当前 HP 恢复至惩罚后最大 HP 的 50%。", [
-    decisionChoice("__continue__", won ? "开始二阶段进化" : "返回第三关路线", won ? "进化后选择两名角色的技能升级。" : "本版本暂只开放试炼，常规路线等待后续内容。"),
+    : "试炼已结束，队伍属性保持不变。", [
+    decisionChoice("__continue__", won ? "开始二阶段进化" : "返回第三关路线", won ? "进化后选择两名角色的技能升级。" : "继续探索。"),
   ], "继续", () => {
     if (!finishTrialResult(campaign)) return false;
     updateProgressionDisplays();
@@ -4692,7 +4697,7 @@ function renderRoute() {
   const routeMap = getRouteMap(campaign);
   const options = orderRouteOptionsByPosition(routeMap, getRouteOptions(campaign));
   $("#route-progress").textContent = options.some((node) => node.type === "demon") ? "Boss" : `第 ${campaign.step} 步`;
-  $("#route-restart-btn").hidden = campaign.stageId !== 1;
+  $("#route-restart-btn").hidden = ![1, 2].includes(campaign.stageId);
   $("#route-screen").classList.toggle("stage-two", campaign.stageId >= 2);
   $("#route-screen").classList.toggle("stage-three", campaign.stageId === 3);
   $("#route-screen").setAttribute("aria-label", `第${campaign.stageId}大关路线选择`);
@@ -5945,7 +5950,7 @@ function renderAdventureEvent() {
   if (record.type === "gamble" && record.data.phase === "result") { renderGambleRoundResult(record.result); return; }
   if (record.eventId === "trial_land") {
     renderDecisionScreen("试炼之地", "道路上，是无尽的试炼", [
-      decisionChoice("trial_accept", "前往试炼，失败则受到严惩", ""),
+      decisionChoice("trial_accept", "前往试炼，战败则结束本局", ""),
       decisionChoice("trial_decline", "逃离这个是非之地", ""),
     ], "确认", (choiceId) => {
       const result = resolveTrialOffer(campaign, choiceId);
@@ -6443,13 +6448,13 @@ characterDialog.addEventListener("click", (event) => {
 });
 restartRunButton.addEventListener("click", restartToCharacterSelection);
 $("#route-restart-btn").addEventListener("click", () => {
-  if (campaign?.status !== "route" || campaign.stageId !== 1) return;
+  if (campaign?.status !== "route" || ![1, 2].includes(campaign.stageId)) return;
   $("#route-restart-dialog").showModal();
 });
 $("#route-restart-no").addEventListener("click", () => $("#route-restart-dialog").close());
 $("#route-restart-yes").addEventListener("click", () => {
   $("#route-restart-dialog").close();
-  if (campaign?.status === "route" && campaign.stageId === 1) restartToCharacterSelection();
+  if (campaign?.status === "route" && [1, 2].includes(campaign.stageId)) restartToCharacterSelection();
 });
 $("#route-map-open").addEventListener("click", openRouteMap);
 $("#shop-map-open").addEventListener("click", openRouteMap);

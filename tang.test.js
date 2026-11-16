@@ -88,6 +88,23 @@ test("successful summon meditates, acts independently from next speed order, and
   assert.ok(result.events.every((event) => event.type !== "attack" || event.attackerId !== "tang" || event.skillId === "tang-meditation-strike"));
 });
 
+test("a chant kill adds 100 permanent max HP once, while a nonlethal chant adds none", () => {
+  const runState = { characterId: "tang", maxHp: 900 };
+  const roster = (enemyHp) => [
+    { ...tang, hp: 900, maxHp: 900, currentHp: 900, skills: [journey(1)], critChance: 0, rosterOrder: 0 },
+    enemy(enemyHp),
+  ];
+  const lethal = simulateBattle(roster(800), () => .9, { runCharacterStates: { tang: runState } });
+  const chant = lethal.events.find((event) => event.skillId === "tang-meditation-strike");
+  assert.equal(chant.targetDied, true);
+  assert.equal(chant.tangChantMaxHpGain, 100);
+  assert.equal(lethal.finalCharacters.find((unit) => unit.id === "tang").maxHp, 1000);
+  assert.equal(runState.maxHp, 1000);
+  const nonlethal = simulateBattle(roster(900), () => .9);
+  assert.ok(nonlethal.events.some((event) => event.skillId === "tang-meditation-strike" && !event.targetDied));
+  assert.equal(nonlethal.finalCharacters.find((unit) => unit.id === "tang").maxHp, 900);
+});
+
 test("Tang Flesh level two heals from actual summon damage and level one does not", () => {
   const level1 = run(1, .9, { hp: 200, enemyHp: 1000 });
   const level2 = run(1, .9, { hp: 200, enemyHp: 1000, passiveLevel: 2 });

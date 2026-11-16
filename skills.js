@@ -146,7 +146,8 @@ export const SKILL_DATA = {
   },
   "tang-meditation-strike": {
     id: "tang-meditation-strike", name: "诵经冲击", type: "active", maxLevel: 1,
-    levels: { 1: { chance: 1, multiplier: 1.2, effectType: "damage", attackType: "magic" } },
+    levels: { 1: { chance: 1, multiplier: 1.2, effectType: "damage", attackType: "magic",
+      description: "召唤物存活时每 3 回合发动；诵经冲击每击杀一名敌人，永久增加 100 最大 HP。" } },
   },
   "horse-hoof": { id: "horse-hoof", name: "蹄朝西", type: "active", maxLevel: 1,
     levels: { 1: { chance: 1, multiplier: 1, attackFormula: "atk_plus_spd", effectType: "damage", attackType: "melee" } } },
