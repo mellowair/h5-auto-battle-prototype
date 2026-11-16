@@ -267,7 +267,7 @@ test("global crit reaches 100%, ordinary dodge reaches 99%, skill dodge stays on
   assert.equal(getDodgeChance({ spd: 99999, dodgeRateBonus: 1 }), 0.99);
   assert.equal(COMBAT_RULES.skillDodgeChanceCap, 0.25);
   assert.equal(getSkillDodgeChance({ spd: 99999, dodgeRateBonus: 1 }), 0.25);
-  assert.equal(getSkillDodgeChance({ spd: 125, dodgeRateBonus: 0.5 }), getSkillDodgeChance({ spd: 125 }));
+  assert.ok(getSkillDodgeChance({ spd: 125, dodgeRateBonus: 0.5 }) > getSkillDodgeChance({ spd: 125 }));
   const skillUser = unit({ skills: [{ ...skillAt("kaneki-predator", 1), chance: 1 }] });
   const highDodgeTarget = enemy({ spd: 99999, dodgeRateBonus: 1 });
   const skillDodged = executeAttack({ characters: [skillUser, highDodgeTarget], round: 1 }, skillUser, highDodgeTarget, rolls(0, 0.24));

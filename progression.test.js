@@ -82,14 +82,14 @@ test("Fate Gate starts a timed experiment even for a hero without learned skills
   const event = createAdventureEventResult(run, "fate-node", "fate_gate", () => 0);
   assert.equal(event.data.experiment, "long");
   const armed = resolveAdventureEvent(run, "fate-node", "fate_experiment");
-  assert.equal(armed.result.battlesRemaining, 10);
-  assert.equal(getTemporaryCombatModifiers(run).atkMultiplier, .75);
+  assert.equal(armed.result.battlesRemaining, 7);
+  assert.equal(getTemporaryCombatModifiers(run).atkMultiplier, .8);
   assert.equal(resolveAdventureEvent(run, "fate-node", "fate_experiment"), false, "event resolution is idempotent");
 
   const unskilled = createRunCharacterState(STARTING_CHARACTERS.find((character) => character.id === "eren"), null);
   createAdventureEventResult(unskilled, "empty-fate", "fate_gate", () => 0);
-  assert.equal(resolveAdventureEvent(unskilled, "empty-fate", "fate_experiment").result.battlesRemaining, 10);
-  assert.equal(getTemporaryCombatModifiers(unskilled).atkMultiplier, .75);
+  assert.equal(resolveAdventureEvent(unskilled, "empty-fate", "fate_experiment").result.battlesRemaining, 7);
+  assert.equal(getTemporaryCombatModifiers(unskilled).atkMultiplier, .8);
 });
 
 test("HP upgrade raises max HP without healing and preserves current HP", () => {
@@ -282,19 +282,19 @@ test("Gun Devil and spinal fluid drops grow linearly per recipient and restore t
     const effect = grantGiantSpinalFluid(giant, `titan-${index}`);
     assert.equal(effect.acquisitionCount, index);
     assert.deepEqual([effect.def, effect.maxHp, effect.restoredHp],
-      [20 + (index - 1) * 4, 150 + (index - 1) * 30, 150 + (index - 1) * 30]);
+      [10 + (index - 1) * 2, 100 + (index - 1) * 20, 100 + (index - 1) * 20]);
   }
-  assert.deepEqual([giant.def, giant.maxHp, giant.currentHp], [142, 2140, 1040]);
+  assert.deepEqual([giant.def, giant.maxHp, giant.currentHp], [106, 1960, 860]);
   assert.equal(grantGiantSpinalFluid(giant, "titan-3"), false);
   assert.equal(grantGunDevilFragment(giant, "bomb-other").acquisitionCount, 1,
     "the two item acquisition counts are independent");
 
   const finger = makeNaruto();
   finger.currentHp = 500;
-  assert.equal(grantEliteSukunaFinger(finger, "mahito").atk, 30);
+  assert.equal(grantEliteSukunaFinger(finger, "mahito").atk, 25);
   assert.ok(grantEliteSukunaFinger(finger, "second-elite"));
-  assert.deepEqual([finger.atk, finger.maxHp, finger.currentHp], [256, 1300, 500]);
-  assert.equal(finger.permanentEffects.at(-1).atk, 36);
+  assert.deepEqual([finger.atk, finger.maxHp, finger.currentHp], [245, 1300, 500]);
+  assert.equal(finger.permanentEffects.at(-1).atk, 30);
   assert.equal(grantEliteSukunaFinger(finger, "second-elite"), false);
 
   const conch = makeNaruto();
@@ -303,7 +303,7 @@ test("Gun Devil and spinal fluid drops grow linearly per recipient and restore t
   resolveAdventureEvent(conch, "treasury-conch", "treasury_steal", () => .1);
   conch.eventResults["treasury-conch"].data.treasureOffer.choices = ["magic_conch", "odm_gear"];
   assert.ok(claimTreasure(conch, "treasury-conch", "magic_conch", conch, conch.characterId));
-  assert.equal(getTreasureCombatModifiers(conch).damageReduction, .11);
+  assert.equal(getTreasureCombatModifiers(conch).damageReduction, .10);
 });
 
 test("first-stage giant encounter grants the same growing spinal fluid effect once", () => {
@@ -314,12 +314,12 @@ test("first-stage giant encounter grants the same growing spinal fluid effect on
   assert.ok(startAdventureBattle(run, "giant-first"));
   const result = completeAdventureBattle(run, "giant-first", "victory", () => 0);
   assert.equal(result.spinalFluidGranted, true);
-  assert.deepEqual([run.currentHp, run.maxHp, run.def], [650, 1750, 90]);
+  assert.deepEqual([run.currentHp, run.maxHp, run.def], [600, 1700, 80]);
   assert.equal(run.permanentEffects.at(-1).acquisitionCount, 1);
   assert.equal(completeAdventureBattle(run, "giant-first", "victory", () => 0), false);
   const repeat = grantGiantSpinalFluid(run, "giant-elite");
-  assert.deepEqual([repeat.acquisitionCount, repeat.maxHp, repeat.def, repeat.restoredHp], [2, 180, 24, 180]);
-  assert.deepEqual([run.currentHp, run.maxHp, run.def], [830, 1930, 114]);
+  assert.deepEqual([repeat.acquisitionCount, repeat.maxHp, repeat.def, repeat.restoredHp], [2, 120, 12, 120]);
+  assert.deepEqual([run.currentHp, run.maxHp, run.def], [720, 1820, 92]);
 });
 
 test("special drop stage growth and repeat growth both use first-stage base values", () => {
@@ -337,9 +337,9 @@ test("special drop stage growth and repeat growth both use first-stage base valu
   const giant = makeNaruto();
   const first = grantGiantSpinalFluid(giant, "fluid-1", 1);
   const crossStage = grantGiantSpinalFluid(giant, "fluid-2", 2);
-  assert.deepEqual([first.maxHp, first.def, crossStage.maxHp, crossStage.def], [150, 20, 210, 28]);
-  assert.deepEqual([grantGiantSpinalFluid(giant, "fluid-3", 3).maxHp, giant.def], [270, 154]);
-  for (const [stage, expectedHp, expectedDef] of [[1, 150, 20], [2, 180, 24], [3, 210, 28]]) {
+  assert.deepEqual([first.maxHp, first.def, crossStage.maxHp, crossStage.def], [100, 10, 140, 14]);
+  assert.deepEqual([grantGiantSpinalFluid(giant, "fluid-3", 3).maxHp, giant.def], [180, 112]);
+  for (const [stage, expectedHp, expectedDef] of [[1, 100, 10], [2, 120, 12], [3, 140, 14]]) {
     const fresh = makeNaruto();
     const effect = grantGiantSpinalFluid(fresh, `fresh-fluid-${stage}`, stage);
     assert.deepEqual([effect.maxHp, effect.def], [expectedHp, expectedDef]);
@@ -347,11 +347,11 @@ test("special drop stage growth and repeat growth both use first-stage base valu
   const finger = makeNaruto();
   const fingerFirst = grantEliteSukunaFinger(finger, "mahito-1", 1);
   const fingerSecond = grantEliteSukunaFinger(finger, "mahito-2", 2);
-  assert.deepEqual([fingerFirst.atk, fingerSecond.atk, fingerFirst.maxHp, fingerSecond.maxHp], [30, 42, -150, -150]);
-  assert.equal(grantEliteSukunaFinger(makeNaruto(), "mahito-3", 3).atk, 42);
+  assert.deepEqual([fingerFirst.atk, fingerSecond.atk, fingerFirst.maxHp, fingerSecond.maxHp], [25, 35, -150, -150]);
+  assert.equal(grantEliteSukunaFinger(makeNaruto(), "mahito-3", 3).atk, 35);
   const treasury = makeNaruto();
   assert.ok(grantEliteSukunaFinger(treasury, "stage-two-elite", 2));
-  assert.deepEqual([treasury.atk, treasury.maxHp], [226, 1450]);
+  assert.deepEqual([treasury.atk, treasury.maxHp], [220, 1450]);
 });
 
 test("campfire upgrades learned skills, then teaches an unlearned active skill at level one", () => {

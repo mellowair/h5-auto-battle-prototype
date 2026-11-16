@@ -116,7 +116,7 @@ test("new books and adjusted passives apply once at the correct scope", () => {
   const unit = initializeBattle([fighter("hero", "ally", { atk: 100, def: 200,
     extraPassiveSkillIds: ["brick-force"] })]).characters[0];
   assert.equal(unit.def, 0);
-  assert.equal(unit.atk, 400);
+  assert.equal(unit.atk, 500);
 });
 
 test("coffee grows max HP only when rest is selected; Fate Gate samples all three outcomes", () => {

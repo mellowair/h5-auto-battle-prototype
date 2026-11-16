@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { STARTING_CHARACTERS } from "./characters.js";
 import { executeAttack, initializeBattle, simulateBattle } from "./battle.js";
-import { beginJourney, buyShopItem, chooseRoute, createCampaign, finishBattle, getRouteOptions, getShopRouteOptions, leaveShop, prepareBattle, selectStartingCharacter, startCampaign } from "./campaign.js";
+import { beginJourney, buyShopItem, chooseRoute, claimFateReward, createCampaign, finishBattle, getRouteOptions, getShopRouteOptions, leaveShop, prepareBattle, selectStartingCharacter, startCampaign } from "./campaign.js";
 import { createRunCharacterState, grantGiantSpinalFluid, upgradePassiveSkill } from "./progression.js";
 import { analyzeRouteMap, generateRouteMap, validateRouteMap } from "./routeMap.js";
 import { essenceRewardForBattle, generateShopInventory, previewShopItem, refreshShopPrices } from "./shop.js";
@@ -128,8 +128,8 @@ test("shop purchase uses first-stage growth, all-source repeat count, and consum
   campaign.essence = 60;
   const before = { def: member.def, hp: member.maxHp, currentHp: member.currentHp };
   const first = buyShopItem(campaign, slot.index);
-  assert.deepEqual([first.def, first.maxHp, first.stageId], [20, 150, 3]);
-  assert.deepEqual([member.def - before.def, member.maxHp - before.hp, member.currentHp - before.currentHp], [20, 150, 150]);
+  assert.deepEqual([first.def, first.maxHp, first.stageId], [10, 100, 3]);
+  assert.deepEqual([member.def - before.def, member.maxHp - before.hp, member.currentHp - before.currentHp], [10, 100, 100]);
   assert.equal(campaign.essence, 40);
   assert.equal(buyShopItem(campaign, slot.index), false);
   assert.equal(campaign.essence, 40);
@@ -137,8 +137,8 @@ test("shop purchase uses first-stage growth, all-source repeat count, and consum
   const next = { ...slot, index: 1, purchased: false };
   campaign.activeShop.slots[1] = next;
   const secondShop = buyShopItem(campaign, 1);
-  assert.deepEqual([secondShop.def, secondShop.maxHp], [28, 210]);
-  assert.equal(member.permanentEffects[0].def, 20, "historical benefit stays fixed");
+  assert.deepEqual([secondShop.def, secondShop.maxHp], [14, 140]);
+  assert.equal(member.permanentEffects[0].def, 10, "historical benefit stays fixed");
   assert.equal(campaign.essence, 20);
   assert.equal(leaveShop(campaign), true);
   assert.equal(leaveShop(campaign), false);
@@ -285,8 +285,7 @@ test("iron bell reflects half the actual damage only against a lower-defense sou
   const reflection = result.events.find((event) => event.skillId === "iron-bell");
   assert.ok(hit && reflection);
   assert.equal(reflection.requested, Math.floor(hit.actualDamage * .5));
-  assert.equal(reflection.calculatedDamage,
-    Math.max(1, Math.floor(reflection.requested * 100 / (100 + reflection.targetDefense))));
+  assert.equal(reflection.calculatedDamage, reflection.requested);
   assert.equal(reflection.actualDamage, reflection.calculatedDamage);
   const blocked = simulateBattle([fighter("enemy", "enemy", 350), fighter("hero", "ally", 300, true)], () => .99);
   assert.equal(blocked.events.some((event) => event.skillId === "iron-bell"), false);
@@ -294,6 +293,23 @@ test("iron bell reflects half the actual damage only against a lower-defense sou
   assert.equal(equal.events.some((event) => event.skillId === "iron-bell"), false);
   assert.equal(result.events.filter((event) => event.skillId === "iron-bell").length,
     result.events.filter((event) => event.type === "attack" && event.attackerId === "enemy" && event.actualDamage > 0).length);
+});
+
+test("Tang cannot obtain Heavenly Restriction from either the shop or a Fate book reward", () => {
+  const campaign = shopFixture();
+  const tang = createRunCharacterState(STARTING_CHARACTERS.find((entry) => entry.id === "tang"));
+  campaign.playerId = "tang";
+  campaign.partyIds = ["tang"];
+  campaign.partyStates = { tang };
+  campaign.runCharacterState = tang;
+  campaign.essence = 100;
+  const slot = replaceSlot(campaign, "book", "heavenly_restriction_book", 40);
+  assert.equal(previewShopItem(campaign, slot, "tang").recipientIneligible, true);
+  assert.equal(buyShopItem(campaign, slot.index, "tang"), false);
+  assert.equal(tang.extraPassiveSkillIds?.includes("heavenly-restriction-book") ?? false, false);
+  campaign.pendingFateReward = { type: "long", bookId: "heavenly_restriction_book", sourceId: "fate-book" };
+  assert.equal(claimFateReward(campaign, "tang"), false);
+  assert.equal(tang.extraPassiveSkillIds?.includes("heavenly-restriction-book") ?? false, false);
 });
 
 test("iron bell grants no skill defense penetration", () => {

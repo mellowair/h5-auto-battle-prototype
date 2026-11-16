@@ -85,7 +85,8 @@ test("Tang's successful Wukong sequence persists across battles but squabble sta
   assert.equal(summon.character.maxHp, 3000);
   assert.equal(summon.character.currentHp, 1500);
   assert.equal(summon.tangAtkBonus, 30);
-  assert.equal(second.finalCharacters.find((entry) => entry.id === "tang").atk, 300);
+  assert.equal(second.finalCharacters.find((entry) => entry.id === "tang").atk, 305,
+    "Wukong's kill grants permanent ATK +5; the squabble bonus is battle-only");
 });
 
 test("ordinary enemies have no skills; Tang's base summon HP uses 900", () => {

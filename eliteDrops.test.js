@@ -30,7 +30,7 @@ test("Mahito elite keeps stat reward, then grants Sukuna finger once without a s
     hp: campaign.runCharacterState.currentHp, skills: campaign.runCharacterState.learnedActiveSkills.length };
   assert.equal(claimCampaignEliteDrop(campaign, "eren"), false);
   assert.ok(claimCampaignEliteDrop(campaign, "naruto"));
-  assert.equal(campaign.runCharacterState.atk, before.atk + 30);
+  assert.equal(campaign.runCharacterState.atk, before.atk + 25);
   assert.equal(campaign.runCharacterState.maxHp, before.maxHp - 150);
   assert.equal(campaign.runCharacterState.currentHp, Math.min(before.hp, before.maxHp - 150));
   assert.equal(campaign.runCharacterState.learnedActiveSkills.length, before.skills);
@@ -79,9 +79,9 @@ test("Swamp Giant awards two stat choices and one Giant Spinal Fluid without ski
   const claim = claimCampaignEliteDrop(campaign, "naruto");
   assert.equal(claim.effect.id, "giant_spinal_fluid");
   assert.equal(claim.status, "route");
-  assert.equal(campaign.runCharacterState.maxHp, before.maxHp + 150);
-  assert.equal(campaign.runCharacterState.currentHp, Math.min(before.maxHp + 150, before.currentHp + 150));
-  assert.equal(campaign.runCharacterState.def, before.def + 20);
+  assert.equal(campaign.runCharacterState.maxHp, before.maxHp + 100);
+  assert.equal(campaign.runCharacterState.currentHp, Math.min(before.maxHp + 100, before.currentHp + 100));
+  assert.equal(campaign.runCharacterState.def, before.def + 10);
   assert.equal(claimCampaignEliteDrop(campaign, "naruto"), false);
   assert.deepEqual(campaign.runCharacterState.skillLevels, skillLevels);
   assert.equal(campaign.status, "route");
@@ -242,7 +242,7 @@ test("Toji grants one stage-scaled Sukuna finger after both stage-two stat rewar
   const claim = claimCampaignEliteDrop(campaign, partnerId);
   assert.equal(claim.effect.id, "sukuna_finger");
   assert.equal(claim.effect.sourceLabel, "伏黑甚尔战斗奖励");
-  assert.equal(member.atk, before.atk + 36);
+  assert.equal(member.atk, before.atk + 30);
   assert.equal(member.maxHp, before.maxHp - 150);
   assert.equal(member.currentHp, Math.min(before.hp, before.maxHp - 150));
   assert.equal(member.permanentEffects.filter((effect) => effect.id === "sukuna_finger").length, 1);
@@ -266,7 +266,7 @@ test("titan duo grants one spinal fluid to chosen party member after both stat r
   assert.ok(claimCampaignEliteDrop(campaign, partnerId));
   assert.deepEqual([hero.maxHp, hero.atk, hero.def], heroBefore);
   assert.deepEqual([partner.maxHp, partner.atk, partner.def, partner.currentHp],
-    [partnerBefore[0] + 180, partnerBefore[1], partnerBefore[2] + 24, Math.min(partnerBefore[0] + 180, partnerBefore[3] + 180)]);
+    [partnerBefore[0] + 120, partnerBefore[1], partnerBefore[2] + 12, Math.min(partnerBefore[0] + 120, partnerBefore[3] + 120)]);
   assert.equal(partner.permanentEffects.filter((effect) => effect.id === "giant_spinal_fluid").length, 1);
   assert.equal(claimCampaignEliteDrop(campaign, partnerId), false);
   assert.equal(campaign.status, "route");

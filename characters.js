@@ -230,7 +230,7 @@ export const COMBAT_RULES = {
   dodgePerSpeed: 0.03 / 80,
   maxDodgeChance: 0.99,
   skillDodgeChanceCap: 0.25,
-  skillDodgeFactor: 0.1,
+  skillDodgeFactor: 1 / 3,
   baseCritChance: 0.05,
   maxCritChance: 1,
   critMultiplier: 1.5,
@@ -457,7 +457,7 @@ export const ELITE_ENEMY_DATA = [
     periodicPassive: { id: "colossal-steam-wave", name: "蒸汽波", everyRounds: 4, allyDamage: 300, armoredDamage: 100, onlyPeriodicActions: true },
   },
   { id: "shin", name: "心", type: "elite", stageId: 3, eliteEncounterId: "shin-noi", team: "enemy",
-    role: "精英", row: "front", position: "front", hp: 2500, atk: 600, def: 160, spd: 120,
+    role: "精英", row: "front", position: "front", hp: 2500, atk: 700, def: 160, spd: 120,
     attackType: "melee", asset: "assets/stage3-elites/shin_idle.png", visualId: "shin", activeSkills: ["shin-strike"],
     projectileAsset: "assets/stage3-elites/shin_hammer.png", skillAnimationMap: { "shin-strike": "hammerThrow" },
     animations: {
@@ -469,7 +469,7 @@ export const ELITE_ENEMY_DATA = [
     },
     extraPassiveSkillIds: ["stage3-resurrection"] },
   { id: "noi", name: "能井", type: "elite", stageId: 3, eliteEncounterId: "shin-noi", team: "enemy",
-    role: "精英", row: "front", position: "front", hp: 3000, atk: 260, def: 160, spd: 100,
+    role: "精英", row: "front", position: "front", hp: 3000, atk: 360, def: 160, spd: 100,
     attackType: "melee", asset: "assets/stage3-elites/noi_idle.png", visualId: "noi", activeSkills: ["noi-heal"],
     animations: {
       idle: { type: "frames", frames: { idle: "assets/stage3-elites/noi_idle.png" } },
@@ -494,7 +494,7 @@ export const ELITE_ENEMY_DATA = [
       death: { type: "frames", frames: { down: "assets/stage3-elites/falling/death.png" } },
     } },
   { id: "gold-king", name: "金角大王", type: "elite", stageId: 3, eliteEncounterId: "gold-silver-kings", team: "enemy",
-    role: "精英", row: "back", position: "back", hp: 2600, atk: 250, def: 180, spd: 100,
+    role: "精英", row: "back", position: "back", hp: 2700, atk: 250, def: 180, spd: 100,
     attackType: "ranged", attackAnimation: "magicAttack", asset: "assets/stage3-elites/gold-silver/gold-idle.png", visualId: "gold-king",
     activeSkills: ["gold-king-gourd"], extraPassiveSkillIds: ["gold-king-burn"],
     projectileAsset: "assets/stage3-elites/gold-silver/gourd.png",
@@ -503,7 +503,7 @@ export const ELITE_ENEMY_DATA = [
       magicAttack: { type: "frames", frames: { attack: "assets/stage3-elites/gold-silver/gold-attack.png" } },
       skill1: { type: "frames", frames: { cast: "assets/stage3-elites/gold-silver/gold-skill.png" } } } },
   { id: "silver-king", name: "银角大王", type: "elite", stageId: 3, eliteEncounterId: "gold-silver-kings", team: "enemy",
-    role: "精英", row: "back", position: "back", hp: 2200, atk: 280, def: 150, spd: 100,
+    role: "精英", row: "back", position: "back", hp: 2300, atk: 280, def: 150, spd: 100,
     attackType: "ranged", attackAnimation: "magicAttack", asset: "assets/stage3-elites/gold-silver/silver-idle.png", visualId: "silver-king",
     extraPassiveSkillIds: ["silver-king-bottle", "silver-king-stun"],
     projectileAsset: "assets/stage3-elites/gold-silver/bottle.png",
@@ -554,7 +554,7 @@ export const STAGE_TWO_BOSS_DATA = Object.freeze({
 // Stage-three presentation is independent of combat stats and route scaling.
 export const STAGE_THREE_BOSS_DATA = Object.freeze({
   id: "makima", name: "玛奇玛", type: "boss", team: "enemy", role: "支配恶魔",
-  row: "back", position: "back", hp: 3700, atk: 250, def: 160, spd: 160,
+  row: "back", position: "back", hp: 3700, atk: 150, def: 160, spd: 160,
   attackType: "ranged", asset: "assets/stage3-enemies/makima_hover_idle.png", visualId: "makima", stageThreeKind: "makima",
   attackAnimation: "hoverAttack",
   animations: {

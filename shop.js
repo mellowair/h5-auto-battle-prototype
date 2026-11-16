@@ -109,7 +109,8 @@ export function previewShopItem(campaign, slot, recipientId = campaign?.playerId
   const upgradeUnavailable = upgradeBook && (!passive?.passive || !passive.levels?.[2] ||
     (passive.maxLevel ?? 1) < 2 || (member.passiveLevel ?? 1) !== 1);
   const growth = GROWING_SHOP_IDS.has(slot.itemId) ? previewGrowingDrop(member, slot.itemId, 1) : null;
-  return { ...slot, ownedCount: count, alreadyOwned, upgradeUnavailable, recipientId,
+  return { ...slot, ownedCount: count, alreadyOwned, upgradeUnavailable,
+    recipientIneligible: slot.itemId === "heavenly_restriction_book" && recipientId === "tang", recipientId,
     expectedGains: growth ? { atk: growth.atk, def: growth.def, maxHp: growth.maxHp } : null,
     fullDescription: growth ? `${item.description} 本次购买预计：${growth.description.replace(/^第 1 关/, "商店")}` : slot.description };
 }
@@ -125,9 +126,8 @@ function grantTreasure(member, slot, sourceId, stageId) {
     const item = SHOP_TREASURES[slot.itemId];
     if (!item || member.consumedActions.includes(`shop-treasure:${sourceId}`)) return false;
     member.consumedActions.push(`shop-treasure:${sourceId}`);
-    const repeat = member.permanentEffects.some((entry) => entry.id === item.id) ? 1.2 : 1;
     const gains = Object.fromEntries(["atk", "maxHp", "damageReduction", "dodgeRateBonus", "critRateBonus", "lifesteal"]
-      .filter((key) => Number.isFinite(item[key])).map((key) => [key, item[key] > 0 ? item[key] * repeat : item[key]]));
+      .filter((key) => Number.isFinite(item[key])).map((key) => [key, item[key]]));
     member.atk += gains.atk ?? 0;
     member.maxHp = Math.max(1, member.maxHp + (gains.maxHp ?? 0));
     member.currentHp = Math.min(member.currentHp, member.maxHp);
@@ -148,6 +148,7 @@ export function buyShopItem(campaign, index, recipientId = campaign?.playerId) {
   const slot = campaign.activeShop.slots[index];
   const member = campaign.partyStates?.[recipientId];
   if (!slot?.available || slot.purchased || !member || !campaign.partyIds.includes(recipientId) ||
+      (slot.itemId === "heavenly_restriction_book" && recipientId === "tang") ||
       (slot.categoryId === "medicine" && (campaign.shopMedicines ?? []).some((effect) =>
         effect.recipientId === recipientId && effect.id === slot.itemId && effect.battlesLeft > 0)) ||
       !Number.isFinite(slot.price) || slot.price <= 0 || (campaign.essence ?? 0) < slot.price) return false;

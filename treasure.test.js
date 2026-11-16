@@ -69,7 +69,7 @@ test("Sukuna finger clamps HP, while ODM gear raises actual dodge and crit chanc
   finger.maxHp = 1600; finger.currentHp = 1500;
   const oldAtk = finger.atk;
   assert.ok(grantEliteSukunaFinger(finger, "mahito"));
-  assert.deepEqual([finger.maxHp, finger.currentHp, finger.atk], [1450, 1450, oldAtk + 30]);
+  assert.deepEqual([finger.maxHp, finger.currentHp, finger.atk], [1450, 1450, oldAtk + 25]);
   const gear = offerFor("odm_gear");
   const oldCrit = gear.member.critRate;
   assert.ok(claimTreasure(gear.owner, gear.sourceId, "odm_gear", gear.member, gear.member.characterId));

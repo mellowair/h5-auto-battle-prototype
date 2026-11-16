@@ -106,21 +106,21 @@ test("Tang Flesh Lv2 heals 30 percent of summon HP damage", () => {
   assert.equal(state.characters[0].currentHp, 530);
 });
 
-test("Silver King's round-eight bottle hurts both living kings by half the absorbed unit's current HP", () => {
+test("Silver King's round-five bottle hurts both living kings by half the absorbed unit's current HP", () => {
   const gold = unit("gold-king", "enemy", { hp: 30000, maxHp: 30000, currentHp: 30000, atk: 1, spd: 1, rosterOrder: 2 });
   const silver = { ...ELITE_ENEMY_DATA.find((entry) => entry.id === "silver-king"),
     hp: 30000, maxHp: 30000, currentHp: 30000, atk: 1, def: 0, spd: 1, rosterOrder: 3 };
   const result = simulateBattle([unit("hero", "ally", { atk: 10, rosterOrder: 0 }),
     unit("partner", "ally", { atk: 5, rosterOrder: 1 }), gold, silver], () => .99, { playerId: "hero" });
   const bottle = result.events.find((event) => event.type === "silver-bottle");
-  assert.equal(bottle?.round, 8);
+  assert.equal(bottle?.round, 5);
   assert.equal(bottle.kingHits.length, 2);
   assert.ok(bottle.kingHits.every((hit) => hit.actualDamage === Math.floor(bottle.targetHpBefore * .5)));
   assert.equal(result.events.filter((event) => event.type === "silver-bottle").length, 1);
 });
 
-test("configured skill dodge is halved once and Boros phase threshold is 1600", () => {
+test("configured skill dodge uses one third of normal dodge plus direct bonuses", () => {
   assert.equal(COMBAT_RULES.skillDodgeChanceCap, .25);
-  assert.equal(getSkillDodgeChance({ spd: 0, skillDodgeRateBonus: .15 }), .152);
+  assert.ok(Math.abs(getSkillDodgeChance({ spd: 0, skillDodgeRateBonus: .15 }) - (.15 + .02 / 3)) < 1e-12);
   assert.equal(SKILL_DATA["tang-flesh"].levels[2].summonHealRatio, .3);
 });

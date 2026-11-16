@@ -108,7 +108,7 @@ test("fate experiment actually lowers ATK, counts completed battles, then offers
   setEvent(campaign, "fate_gate");
   const result = resolveCampaignEvent(campaign, "fate_experiment");
   assert.equal(result.result.type, "short");
-  assert.equal(getTemporaryCombatModifiers(campaign.runCharacterState).atkMultiplier, .9);
+  assert.equal(getTemporaryCombatModifiers(campaign.runCharacterState).atkMultiplier, .95);
   for (let i = 0; i < 3; i += 1) {
     campaign.currentBattle = { id: `normal-${i}`, type: "normal", enemies: ["guard"] };
     campaign.status = "combat";
@@ -130,7 +130,7 @@ test("fate sequel reveals only the other two outcomes and VIP ticket applies to 
   setEvent(campaign, "fate_gate_2");
   assert.equal(resolveCampaignEvent(campaign, "fate_choose").data.phase, "select");
   assert.equal(resolveCampaignEvent(campaign, "fate_experiment|short"), false);
-  assert.equal(resolveCampaignEvent(campaign, "fate_experiment|long").result.battlesRemaining, 10);
+  assert.equal(resolveCampaignEvent(campaign, "fate_experiment|long").result.battlesRemaining, 7);
   const another = campaignFixture();
   setEvent(another, "fate_gate");
   resolveCampaignEvent(another, "fate_continue");

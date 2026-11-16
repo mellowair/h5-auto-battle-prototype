@@ -29,9 +29,10 @@ test("Makima and follower panels use the updated base DEF in both summon waves",
   for (const [id, stats] of Object.entries(expected))
     assert.deepEqual([STAGE_THREE_MINIONS[id].hp, STAGE_THREE_MINIONS[id].def], stats);
   assert.equal(STAGE_THREE_BOSS_DATA.hp, 3700);
+  assert.equal(STAGE_THREE_BOSS_DATA.atk, 150);
   assert.equal(STAGE_THREE_BOSS_DATA.def, 160);
-  assert.deepEqual([elite("shin").hp, elite("shin").atk, elite("shin").def], [2500, 600, 160]);
-  assert.deepEqual([elite("noi").hp, elite("noi").atk, elite("noi").def], [3000, 260, 160]);
+  assert.deepEqual([elite("shin").hp, elite("shin").atk, elite("shin").def, elite("shin").row], [2500, 700, 160, "front"]);
+  assert.deepEqual([elite("noi").hp, elite("noi").atk, elite("noi").def, elite("noi").row], [3000, 360, 160, "front"]);
   const campaign = createStageThreeTestCampaign({ heroId: "naruto", partnerId: "eren", opponent: "makima" });
   const prepared = prepareBattle(campaign);
   for (const id of ["makima-bomb", "flamethrower-devil"]) {
@@ -102,12 +103,12 @@ test("Makima summons after both first-wave deaths, controls only partner once, a
   const minion = state.characters.find((unit) => unit.id === "makima-bomb");
   minion.currentHp = 0; minion.alive = false;
   assert.equal(resolveStageThreeDeaths(state, []).filter((event) => event.type === "stage3-minion-death").length, 1);
-  assert.equal(boss.atk, 400);
+  assert.equal(boss.atk, 300);
   const flame = state.characters.find((unit) => unit.id === "flamethrower-devil");
   flame.currentHp = 0; flame.alive = false;
   const secondWave = resolveStageThreeDeaths(state, []);
   assert.deepEqual(secondWave.filter((event) => event.type === "summon").map((event) => event.character.id), ["katana-devil", "quanxi"]);
-  assert.equal(boss.atk, 550);
+  assert.equal(boss.atk, 450);
   assert.equal(resolveStageThreeDeaths(state, []).length, 0);
   state.round = 4;
   const roundFour = stageThreeRoundStart(state, () => .99);
@@ -116,7 +117,7 @@ test("Makima summons after both first-wave deaths, controls only partner once, a
   assert.equal(roundFour.filter((event) => event.type === "stage3-control").length, 0);
   const bang = roundFour.find((event) => event.skillId === "makima-bang");
   assert.equal(bang.round, 4);
-  assert.equal(bang.bangBaseDamage, 220);
+  assert.equal(bang.bangBaseDamage, 180);
   assert.ok(bang.actualDamage > 0);
   for (const id of ["katana-devil", "quanxi"]) {
     const unit = state.characters.find((entry) => entry.id === id);
@@ -124,16 +125,15 @@ test("Makima summons after both first-wave deaths, controls only partner once, a
   }
   const deaths = resolveStageThreeDeaths(state, []);
   assert.equal(deaths.filter((event) => event.type === "stage3-minion-death").length, 2);
-  assert.equal(deaths.filter((event) => event.type === "stage3-lifesteal").length, 1);
-  assert.equal(deaths.filter((event) => event.type === "stage3-minion-wipe-stun").length, 1);
-  assert.deepEqual(deaths.find((event) => event.type === "stage3-minion-wipe-stun").targetIds, ["hero", "partner"]);
-  assert.equal(state.characters.find((unit) => unit.id === "hero").stunNextAction, true);
-  assert.equal(state.characters.find((unit) => unit.id === "partner").stunNextAction, true);
-  assert.equal(boss.atk, 850);
-  assert.equal(boss.lifesteal, .25);
-  assert.equal(resolveStageThreeDeaths(state, []).some((event) => event.type === "stage3-minion-wipe-stun"), false);
+  assert.equal(deaths.filter((event) => event.type === "stage3-minion-wipe").length, 1);
+  assert.equal(deaths.filter((event) => event.type === "stage3-minion-wipe-stun").length, 0);
+  assert.equal(state.characters.find((unit) => unit.id === "hero").stunNextAction ?? false, false);
+  assert.equal(state.characters.find((unit) => unit.id === "partner").stunNextAction ?? false, false);
+  assert.equal(boss.atk, 750);
+  assert.equal(boss.lifesteal ?? 0, 0);
+  assert.equal(resolveStageThreeDeaths(state, []).some((event) => event.type === "stage3-minion-wipe"), false);
   state.round = 5;
-  assert.equal(stageThreeRoundStart(state, () => .99).find((event) => event.skillId === "makima-bang")?.bangBaseDamage, 425);
+  assert.equal(stageThreeRoundStart(state, () => .99).find((event) => event.skillId === "makima-bang")?.bangBaseDamage, 375);
 });
 
 test("Makima's dismissed minions do not grant attack, and control never selects a summoned ally", () => {
@@ -148,7 +148,7 @@ test("Makima's dismissed minions do not grant attack, and control never selects 
   assert.equal(events.filter((event) => event.type === "summon-dismissed").length, 1);
   assert.equal(events.some((event) => event.type === "stage3-minion-death"), false);
   assert.equal(state.makima.deadMinions.length, 0);
-  assert.equal(boss.atk, 250);
+  assert.equal(boss.atk, 150);
 });
 
 test("Makima's angel clears active skill buffs without removing a permanent reward", () => {

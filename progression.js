@@ -115,9 +115,12 @@ export function createRunCharacterState(character, initialSkillId) {
 
 export function getTreasureCombatModifiers(runState) {
   ensureRunState(runState);
-  const modifiers = { damageReduction: 0, dodgeRateBonus: 0, lifesteal: 0, normalAttackCurrentHpRatio: 0, unavoidableAttack: false };
+  const modifiers = { damageReduction: 0, dodgeRateBonus: 0, skillDodgeRateBonus: 0, lifesteal: 0, normalAttackCurrentHpRatio: 0, unavoidableAttack: false };
   for (const effect of runState.permanentEffects) {
-    if (effect.id === "six_ear_true_form") modifiers.unavoidableAttack = true;
+    if (effect.id === "six_ear_true_form") {
+      modifiers.unavoidableAttack = true;
+      modifiers.skillDodgeRateBonus += effect.skillDodgeRateBonus ?? .05;
+    }
     const treasure = TREASURE_DATA[effect.id];
     if (!treasure) continue;
     modifiers.damageReduction += effect.damageReduction ?? treasure.damageReduction ?? 0;
@@ -126,21 +129,6 @@ export function getTreasureCombatModifiers(runState) {
     modifiers.normalAttackCurrentHpRatio += treasure.normalAttackCurrentHpRatio ?? 0;
   }
   return modifiers;
-}
-
-function treasureAttributeMultiplier(member, treasureId) {
-  return member.permanentEffects.some((effect) => effect.id === treasureId) ? 1.2 : 1;
-}
-
-function scaledTreasureAttribute(value, multiplier) {
-  return value > 0 ? value * multiplier : value;
-}
-
-function repeatedTreasureDescription(treasure, multiplier, gains) {
-  if (multiplier === 1) return treasure.description;
-  const parts = Object.entries(gains).filter(([, value]) => value !== 0).map(([key, value]) =>
-    `${{ atk: "ATK", def: "DEF", maxHp: "最大 HP", damageReduction: "伤害减免", dodgeRateBonus: "闪避率", critRateBonus: "暴击率", lifesteal: "吸血" }[key]} ${value > 0 ? "+" : ""}${key.endsWith("Bonus") || ["damageReduction", "lifesteal"].includes(key) ? `${value * 100}%` : value}`);
-  return parts.length ? `重复获得，本次${parts.join("、")}。其余效果不变。` : treasure.description;
 }
 
 export function createTreasureOffer(runState, sourceId, tier, random = Math.random) {
@@ -169,19 +157,18 @@ export function claimTreasure(runState, sourceId, treasureId, recipientState, re
     recipientState.characterId !== recipientId) return false;
   const key = makeActionKey("treasure", sourceId);
   if (!recordAction(recipientState, key)) return false;
-  const multiplier = treasureAttributeMultiplier(recipientState, treasureId);
   const specialPreview = treasureId === "sukuna_finger"
     ? previewGrowingDrop(recipientState, treasureId, record.data.stageId ?? 1) : null;
   const gains = specialPreview ? { atk: specialPreview.atk, maxHp: specialPreview.maxHp }
     : Object.fromEntries(["atk", "maxHp", "damageReduction", "dodgeRateBonus", "critRateBonus", "lifesteal"]
       .filter((stat) => Number.isFinite(treasure[stat]))
-      .map((stat) => [stat, scaledTreasureAttribute(treasure[stat], multiplier)]));
+      .map((stat) => [stat, treasure[stat]]));
   if (gains.atk) recipientState.atk += gains.atk;
   if (gains.maxHp) recipientState.maxHp = Math.max(1, recipientState.maxHp + gains.maxHp);
   recipientState.currentHp = Math.min(recipientState.currentHp, recipientState.maxHp);
   if (gains.critRateBonus) recipientState.critRate = Math.min(COMBAT_RULES.maxCritChance, recipientState.critRate + gains.critRateBonus);
   const effect = { id: treasure.id, name: treasure.name,
-    description: specialPreview?.description ?? repeatedTreasureDescription(treasure, multiplier, gains), sourceId, sourceLabel: "王之宝库奇遇", stageId: record.data.stageId ?? 1, acquisitionCount: recipientState.permanentEffects.filter((effect) => effect.id === treasureId).length + 1, ...gains };
+    description: specialPreview?.description ?? treasure.description, sourceId, sourceLabel: "王之宝库奇遇", stageId: record.data.stageId ?? 1, acquisitionCount: recipientState.permanentEffects.filter((effect) => effect.id === treasureId).length + 1, ...gains };
   recipientState.permanentEffects.push(applyRockLeeWeight(recipientState, effect));
   offer.claimed = true;
   offer.treasureId = treasureId;
@@ -218,13 +205,12 @@ function grantGambleTreasure(member, sourceId, treasureId, stageId) {
   if (treasureId === TREASURE_DATA.sukuna_finger.id) return grantEliteSukunaFinger(member, sourceId, stageId);
   if (!treasure || !["magic_conch", "odm_gear"].includes(treasureId) ||
       !recordAction(member, makeActionKey(`gamble-treasure:${treasureId}`, sourceId))) return false;
-  const multiplier = treasureAttributeMultiplier(member, treasureId);
   const gains = Object.fromEntries(["damageReduction", "dodgeRateBonus", "critRateBonus"]
     .filter((stat) => Number.isFinite(treasure[stat]))
-    .map((stat) => [stat, scaledTreasureAttribute(treasure[stat], multiplier)]));
+    .map((stat) => [stat, treasure[stat]]));
   if (gains.critRateBonus) member.critRate = Math.min(COMBAT_RULES.maxCritChance, member.critRate + gains.critRateBonus);
   const effect = { id: treasure.id, name: treasure.name, sourceId,
-    description: repeatedTreasureDescription(treasure, multiplier, gains), ...gains };
+    description: treasure.description, ...gains };
   member.permanentEffects.push(effect);
   return effect;
 }
@@ -752,8 +738,8 @@ function applySharedEventEffect(runState, sourceId, result) {
   if (result.gains) for (const gain of result.gains) runState[gain.stat] += gain.amount;
 }
 
-const FATE_EXPERIMENTS = Object.freeze({ long: { battles: 10, multiplier: .75 },
-  medium: { battles: 5, multiplier: .8 }, short: { battles: 3, multiplier: .9 } });
+const FATE_EXPERIMENTS = Object.freeze({ long: { battles: 7, multiplier: .8 },
+  medium: { battles: 5, multiplier: .9 }, short: { battles: 3, multiplier: .95 } });
 
 function startFateExperiment(runState, partyStates, sourceId, type) {
   const rule = FATE_EXPERIMENTS[type];
@@ -1221,7 +1207,7 @@ export function grantAdventureSpecialReward(member, sourceId, rewardId) {
     !recordAction(member, makeActionKey(`special:${rewardId}`, sourceId))) return false;
   const reward = rewardId === "drip_coffee"
     ? TREASURE_DATA.drip_coffee
-    : { id: rewardId, name: "六耳真身", image: "assets/events/six_ear_true_form.png", description: "本局普通攻击和主动技能攻击无法被敌人闪避。" };
+    : { id: rewardId, name: "六耳真身", image: "assets/events/six_ear_true_form.png", description: "本局普通攻击和主动技能攻击无法被敌人闪避；技能闪避率额外 +5 个百分点。", skillDodgeRateBonus: .05 };
   const effect = { ...reward, sourceId };
   member.permanentEffects.push(effect);
   return effect;

@@ -102,7 +102,7 @@ export function claimDragonRadarOffer(campaign, treasureId) {
   const treasure = TREASURE_DATA[treasureId];
   if (!member || !treasure || treasure.grade !== "common") return false;
   const sourceId = `${offer.sourceId}:reward`;
-  // The radar reuses the King's Treasury settlement, including repeat bonuses.
+  // The radar reuses the King's Treasury settlement and its fixed common treasure values.
   const record = { eventId: "kings_treasury", status: "awaiting_treasure", data: {
     stageId: campaign.stageId, treasureOffer: { tier: "small", choices: offer.choices, claimed: false } } };
   campaign.runCharacterState.eventResults[sourceId] = record;
@@ -468,6 +468,7 @@ export function prepareBattle(campaign) {
       damageTakenMultiplier: temporaryModifiers.damageTakenMultiplier * (moneyBuff ? .8 : 1),
       damageDealtMultiplier: temporaryModifiers.damageDealtMultiplier * (moneyBuff ? 1.2 : 1),
       damageReductionBonus: treasureModifiers.damageReduction, dodgeRateBonus: treasureModifiers.dodgeRateBonus,
+      skillDodgeRateBonus: treasureModifiers.skillDodgeRateBonus,
       quinqueGuard: state.permanentEffects?.some((effect) => effect.id === "quinque_guard") ?? false,
       quinqueCrit: state.permanentEffects?.some((effect) => effect.id === "quinque_crit") ?? false,
       shikonOverhealShield: state.permanentEffects?.some((effect) => effect.id === "shikon_fragment") ?? false,
@@ -654,7 +655,8 @@ export function claimApocalypseReward(campaign, recipientId) {
 export function claimFateReward(campaign, recipientId, treasureId = null) {
   const offer = getFateReward(campaign);
   const member = campaign?.partyStates?.[recipientId];
-  if (!offer || !member || !campaign.partyIds.includes(recipientId)) return false;
+  if (!offer || !member || !campaign.partyIds.includes(recipientId) ||
+      (offer.type === "long" && offer.bookId === "heavenly_restriction_book" && recipientId === "tang")) return false;
   const sourceId = `${offer.sourceId}:fate-reward`;
   let result;
   if (offer.type === "long") {
@@ -698,7 +700,8 @@ function advanceFateExperiment(campaign) {
     const books = SHOP_RULES.books.filter((book) => campaign.partyIds.some((id) => {
       const member = campaign.partyStates[id];
       return book.skillType === "passive-upgrade" ? (member.passiveLevel ?? 1) === 1 && SKILL_DATA[member.passiveSkillId]?.levels?.[2]
-        : book.skillType === "passive" && !(member.extraPassiveSkillIds ?? []).includes(book.skillId);
+        : book.skillType === "passive" && !(member.extraPassiveSkillIds ?? []).includes(book.skillId)
+          && !(book.skillId === "heavenly-restriction-book" && id === "tang");
     }));
     offer.bookId = books[Math.floor(campaign.random() * books.length)]?.id ?? null;
   }

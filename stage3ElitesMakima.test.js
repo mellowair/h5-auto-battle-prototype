@@ -20,8 +20,8 @@ test("new stage-three elites use their documented panels, shared encounter and f
   const gold = ELITE_ENEMY_DATA.find((entry) => entry.id === "gold-king");
   const silver = ELITE_ENEMY_DATA.find((entry) => entry.id === "silver-king");
   const aging = ELITE_ENEMY_DATA.find((entry) => entry.id === "aging-devil");
-  assert.deepEqual([gold.hp, gold.atk, gold.def, gold.spd, gold.row], [2600, 250, 180, 100, "back"]);
-  assert.deepEqual([silver.hp, silver.atk, silver.def, silver.spd, silver.row], [2200, 280, 150, 100, "back"]);
+  assert.deepEqual([gold.hp, gold.atk, gold.def, gold.spd, gold.row], [2700, 250, 180, 100, "back"]);
+  assert.deepEqual([silver.hp, silver.atk, silver.def, silver.spd, silver.row], [2300, 280, 150, 100, "back"]);
   assert.equal(gold.eliteEncounterId, silver.eliteEncounterId);
   assert.deepEqual([aging.hp, aging.atk, aging.def, aging.spd, aging.row], [5000, 300, 160, 120, "back"]);
   for (const entry of [gold, silver, aging]) assert.equal(getCharacterVisual(entry).scale, 1.4);
@@ -76,7 +76,7 @@ test("Makima takes half damage while at least one minion lives, then full damage
   assert.equal(second.actualDamage, 1000);
 });
 
-test("Makima summons her second wave when both first-wave minions die, and heals only after all four die", () => {
+test("Makima summons her second wave and gains no lifesteal or stun when all four die", () => {
   const makima = { ...unit("makima", "enemy"), hp: 3700, currentHp: 3700, maxHp: 3700 };
   const bomb = unit("makima-bomb", "enemy", { stageThreeMinion: true, hp: 100, currentHp: 100 });
   const flame = unit("flamethrower-devil", "enemy", { stageThreeMinion: true, hp: 100, currentHp: 100 });
@@ -97,7 +97,9 @@ test("Makima summons her second wave when both first-wave minions die, and heals
   assert.equal(events.filter((event) => event.type === "summon").length, 2);
   for (const id of ["katana-devil", "quanxi"]) state.characters.find((unit) => unit.id === id).alive = false;
   resolveStageThreeDeaths(state, events);
-  assert.equal(state.characters.find((unit) => unit.id === "makima").lifesteal, .25);
+  assert.equal(state.characters.find((unit) => unit.id === "makima").lifesteal ?? 0, 0);
+  assert.equal(events.filter((event) => event.type === "stage3-minion-wipe").length, 1);
+  assert.equal(events.filter((event) => event.type === "stage3-minion-wipe-stun").length, 0);
 });
 
 test("Gold King's gourd adds passive plus three burn stacks and ticks immediately", () => {
@@ -123,7 +125,7 @@ test("stun doubles both immediate and end-of-round burn damage", () => {
   assert.equal(result.events.find((event) => event.type === "trial-dot" && event.name === "灼烧")?.stunnedBurn, true);
 });
 
-test("Silver King bottles the living ally with the highest actual damage at round eight", () => {
+test("Silver King bottles the living ally with the highest actual damage at round five", () => {
   const silver = { ...ELITE_ENEMY_DATA.find((entry) => entry.id === "silver-king"),
     hp: 9000, maxHp: 9000, currentHp: 9000, def: 0, atk: 1, spd: 1, rosterOrder: 2 };
   const result = simulateBattle([
@@ -132,13 +134,13 @@ test("Silver King bottles the living ally with the highest actual damage at roun
   ], () => .99, { playerId: "hero" });
   const bottles = result.events.filter((event) => event.type === "silver-bottle");
   assert.equal(bottles.length, 1);
-  assert.equal(bottles[0].round, 8);
-  assert.equal(result.events.filter((event) => event.type === "silver-bottle" && event.round < 8).length, 0);
+  assert.equal(bottles[0].round, 5);
+  assert.equal(result.events.filter((event) => event.type === "silver-bottle" && event.round < 5).length, 0);
   assert.equal(bottles[0].targetId, "partner");
   assert.equal(result.finalCharacters.find((entry) => entry.id === "partner").absorbedByBottle, true);
 });
 
-test("Silver King defeated before round eight never uses his bottle", () => {
+test("Silver King defeated before round five never uses his bottle", () => {
   const silver = { ...ELITE_ENEMY_DATA.find((entry) => entry.id === "silver-king"),
     hp: 400, maxHp: 400, currentHp: 400, def: 0, atk: 1, spd: 1 };
   const result = simulateBattle([unit("hero", "ally", { atk: 100 }), silver], () => .99,

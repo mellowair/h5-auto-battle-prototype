@@ -17,11 +17,11 @@ const unit = (id, team, extras = {}) => ({ id, team, name: id, row: "front", pos
 test("passive skill books have battle artwork, battle-start presentation, and their own shop prices", () => {
   const books = SHOP_RULES.books.filter((book) => book.skillType === "passive");
   assert.deepEqual(books.map((book) => book.price), [40, 30, 40, 40, 30, 40, 30]);
-  for (const book of books) assert.ok(existsSync(book.effectImage), book.name);
+  for (const book of books.filter((entry) => entry.effectImage)) assert.ok(existsSync(book.effectImage), book.name);
   const ally = unit("hero", "ally", { extraPassiveSkillIds: books.map((book) => book.skillId) });
   const result = simulateBattle([ally, unit("foe", "enemy", { currentHp: 1, maxHp: 1, hp: 1 })], () => .99);
   const openings = result.events.filter((event) => event.type === "skill-book-opening");
-  assert.deepEqual(openings.map((event) => event.skillName), books.map((book) => book.name));
+  assert.deepEqual(openings.map((event) => event.skillName), books.filter((book) => book.effectImage).map((book) => book.name));
   assert.ok(openings.every((event) => event.asset && existsSync(event.asset)));
 });
 
@@ -32,7 +32,9 @@ test("heavenly restriction disables active skills once and retains Kaneki's seco
     skills: [first, second] }), unit("foe", "enemy")]);
   const kaneki = state.characters[0];
   assert.deepEqual(kaneki.heavenlyDisabledSkillIds, ["kaneki-glutton"]);
-  assert.equal(kaneki.atk, 160);
+  assert.equal(kaneki.atk, 180);
+  assert.equal(kaneki.def, 80);
+  assert.equal(kaneki.spd, 180);
   assert.deepEqual(kaneki.skills.map((skill) => skill.id), ["kaneki-2000-14"]);
 });
 
@@ -44,6 +46,8 @@ test("heavenly restriction reaches four hits then alternates one action and one 
   const hits = (round) => result.events.filter((event) => event.type === "attack" && event.attackerId === "hero" && event.round === round).length;
   assert.deepEqual([1, 2, 3, 4, 5, 6].map(hits), [2, 3, 4, 0, 4, 0]);
   assert.deepEqual(result.events.filter((event) => event.type === "heavenly-rest").slice(0, 2).map((event) => event.round), [4, 6]);
+  assert.equal(result.events.filter((event) => event.type === "heavenly-fortitude").length, 1);
+  assert.equal(result.finalCharacters.find((unit) => unit.id === "hero").heavenlyDamageReduction, true);
 });
 
 test("armament makes ordinary damage independent of target defense", () => {

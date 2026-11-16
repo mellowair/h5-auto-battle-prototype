@@ -1197,6 +1197,9 @@ function renderAllyStatusIcons() {
       if (unit.extraPassiveSkillIds?.includes(id)) statuses.push({ id: `${id}-${unit.id}`,
         name: `${unit.name} · ${SKILL_DATA[id].name}${id === "apocalypse-knight" ? ` Lv.${unit.apocalypseKnightLevel ?? 1}` : ""}`, image: "assets/shop/skill-book.png", tone: "buff",
         description: SKILL_DATA[id].description });
+    if (unit.heavenlyDamageReduction) statuses.push({ id: `heavenly-fortitude-${unit.id}`,
+      name: `${unit.name} · 四拳减伤`, image: "assets/shop/heavenly-restriction-effect.png", tone: "buff",
+      description: "累计出拳四次后，本场受到伤害减少 10%。" });
     if (unit.extraPassiveSkillIds?.includes("undying-subspecies") &&
         (unit.undyingActionHealUntilRound ?? 0) >= battleStatusState.currentRound && unit.undyingUsed)
       statuses.push({ id: `undying-heal-block-${unit.id}`, name: `${unit.name} · 吸血减半`,
@@ -1530,9 +1533,11 @@ function openCharacterDetail(characterId) {
     stats.maxHp = battleUnit.maxHp;
     stats.currentHp = battleUnit.currentHp;
   }
-  const probabilityStats = battleUnit ?? { ...effectiveStats, critChance: stats.critChance,
+  const probabilityStats = battleUnit ?? { ...effectiveStats, id: characterId,
+    evolutionPhase: run?.evolution?.phase ?? 1, critChance: stats.critChance,
     critRateBonus: run?.passiveSkillId === "kaneki-one-eye" && run.passiveLevel >= 2 ? .10 : 0,
-    dodgeRateBonus: treasureModifiers.dodgeRateBonus };
+    dodgeRateBonus: treasureModifiers.dodgeRateBonus,
+    skillDodgeRateBonus: treasureModifiers.skillDodgeRateBonus ?? 0 };
   const rowName = character.row === "front" ? "前排" : "后排";
   const learned = run ? run.learnedActiveSkills.map((id) => getSkillAtLevel(run, id)).filter(Boolean) : character.skill ? [character.skill] : [];
   const skillMarkup = learned.length
@@ -2456,11 +2461,18 @@ function playEvent(event, finish) {
     renderAllyStatusIcons();
     return finish();
   }
+  if (event.type === "heavenly-fortitude") {
+    const unit = viewState.characters.find((entry) => entry.id === event.attackerId);
+    if (unit) unit.heavenlyDamageReduction = true;
+    renderAllyStatusIcons();
+    addLog(`<b>${unit?.name ?? "角色"}</b> 累计出拳四次，本场受到伤害减少 10%。`, "log-skill");
+    return finish();
+  }
   if (event.type === "heavenly-rest") {
     const unit = viewState.characters.find((entry) => entry.id === event.attackerId);
     if (unit) unit.heavenlyRestPending = false;
     renderAllyStatusIcons();
-    addLog(`<span class="round-label">R${event.round}</span> <b>${unit?.name ?? "角色"}</b> 受天予咒缚疲劳影响，休息一回合。`, "log-skill");
+    addLog(`<span class="round-label">R${event.round}</span> <b>${unit?.name ?? "角色"}</b> 受天与咒缚疲劳影响，休息一回合。`, "log-skill");
     return window.setTimeout(finish, playbackDelay(500, 220));
   }
   if (event.type === "jason-max-hp") {
@@ -2503,7 +2515,7 @@ function playEvent(event, finish) {
       }
     }
     addLog(event.skillId === "iron-bell"
-      ? `<b>金钟罩铁布衫</b> 以实际承伤的 50%（${event.requested} 点）反击，经目标 DEF 减免后造成 ${event.actualDamage} 点伤害。`
+      ? `<b>金钟罩铁布衫</b> 以实际承伤的 50%（${event.requested} 点）造成 ${event.actualDamage} 点真实伤害。`
       : `<b>${event.skillName ?? "摄魂怪"}</b> 反弹 ${event.actualDamage} 点伤害。`, "log-skill");
     return finish();
   }
@@ -2606,7 +2618,7 @@ function playEvent(event, finish) {
     }, playbackDelay(700, 350));
     return;
   }
-  if (["stage3-revive-pending", "stage3-minion-death", "stage3-lifesteal", "stage3-buff-clear"].includes(event.type)) {
+  if (["stage3-revive-pending", "stage3-minion-death", "stage3-minion-wipe", "stage3-buff-clear"].includes(event.type)) {
     const target = viewState.characters.find((entry) => entry.id === event.targetId);
     if (event.type === "stage3-minion-death") {
       const boss = viewState.characters.find((entry) => entry.id === event.attackerId);
@@ -2620,12 +2632,11 @@ function playEvent(event, finish) {
     }
     const message = event.type === "stage3-revive-pending" ? `${target?.name ?? event.targetId}将在第 ${event.reviveAtRound} 回合复活。`
       : event.type === "stage3-minion-death" ? `玛奇玛的眷属阵亡，ATK +150（当前 ${event.currentAtk}）。`
-      : event.type === "stage3-lifesteal" ? "四名眷属全部阵亡，玛奇玛获得 25% 吸血。"
+      : event.type === "stage3-minion-wipe" ? "四名眷属全部阵亡，玛奇玛落地继续战斗。"
       : `天使恶魔抹除 ${target?.name ?? event.targetId} 的当前技能增益${event.cleared.length ? `：${event.cleared.join("、")}` : ""}。`;
     addLog(`<span class="round-label">R${event.round}</span> ${message}`, "log-skill");
-    if (event.type === "stage3-lifesteal") {
+    if (event.type === "stage3-minion-wipe") {
       const makima = viewState.characters.find((unit) => unit.id === "makima");
-      if (makima) makima.lifesteal = (makima.lifesteal ?? 0) + event.lifesteal;
       const fighter = makima && document.querySelector('[data-character="makima"]');
       if (makima && fighter) {
         makima.makimaGrounded = true;
@@ -2650,15 +2661,6 @@ function playEvent(event, finish) {
         return;
       }
     }
-    return finish();
-  }
-  if (event.type === "stage3-minion-wipe-stun") {
-    for (const id of event.targetIds) {
-      const unit = viewState.characters.find((entry) => entry.id === id);
-      if (unit?.alive) unit.stunNextAction = true;
-    }
-    renderAllyStatusIcons();
-    addLog(`<span class="round-label">R${event.round}</span> <b>玛奇玛</b> 的四名眷属全部倒下，使玩家阵营存活单位眩晕一次行动。`, "log-enemy");
     return finish();
   }
   if (event.type === "steam-wave") {
@@ -3943,9 +3945,13 @@ function playEvent(event, finish) {
     }
     if (Number.isFinite(event.targetDef)) target.def = event.targetDef;
     if (Number.isFinite(event.trialDamage?.heraclesAttackAfter)) target.atk = event.trialDamage.heraclesAttackAfter;
-    if (event.tangChantMaxHpGain && attacker.id === "tang") {
-      attacker.maxHp = event.tangMaxHpAfter;
-      updateHealth(attacker);
+    if (event.tangSummonGrowth) {
+      const tang = viewState.characters.find((unit) => unit.id === event.tangSummonGrowth.recipientId);
+      if (tang) {
+        for (const stat of ["atk", "def", "spd", "maxHp"]) tang[stat] += event.tangSummonGrowth[stat] ?? 0;
+        updateHealth(tang);
+        if (squadSide === "ally") renderSquad();
+      }
     }
     if (attacker.id === "arima" && event.arimaHitCount >= 3 && !event.targetDied && attacker.weaknessAsset
       && !targetEl.querySelector(".arima-weakpoint")) {
@@ -4064,7 +4070,8 @@ function playEvent(event, finish) {
       event.jinchurikiExpired ? '<span class="skill-name">人柱力半血增益结束</span>' : "",
       event.armorReductionApplied ? '<span class="skill-name">铠甲减伤 25%</span>' : "",
       event.trialDamage?.heraclesAwakened ? '<span class="skill-name">十二试炼觉醒：ATK -100，还需命中 6 次</span>' : "",
-      event.tangChantMaxHpGain ? `<span class="skill-name">诵经击杀：最大 HP +${event.tangChantMaxHpGain}</span>` : "",
+      event.tangChantHeal ? `<span class="skill-name">诵经击杀：恢复 ${event.tangChantHeal} HP</span>` : "",
+      event.tangSummonGrowth ? `<span class="skill-name">取经之路：唐僧${Object.entries(event.tangSummonGrowth).filter(([key]) => key !== "recipientId").map(([key, value]) => `${({atk:"ATK",def:"DEF",spd:"SPD",maxHp:"最大 HP"})[key]} +${value}`).join("、")}</span>` : "",
       event.trialDamage?.heraclesHitsRemaining != null && !event.trialDamage.heraclesAwakened ? `<span class="skill-name">十二试炼还需命中 ${event.trialDamage.heraclesHitsRemaining} 次</span>` : "",
       event.burnStacksApplied > 0 ? `<span class="skill-name">灼烧 +${event.burnStacksApplied} 层（共 ${event.burnStacks} 层）</span>` : "",
       event.bleedStacksApplied > 0 ? `<span class="skill-name">流血 +${event.bleedStacksApplied} 层（共 ${event.bleedStacks} 层）</span>` : "",
@@ -4899,11 +4906,11 @@ function chooseShopRecipient() {
       recipients.querySelectorAll(".shop-recipient-choice").forEach((button) => button.classList.toggle("is-selected", button === choice));
       const preview = previewShopItem(campaign, slot, id);
       $("#shop-detail-description").textContent = preview?.fullDescription ?? slot.description;
-      $("#shop-detail-price").textContent = preview?.alreadyOwned ? "该角色已拥有此药剂" :
+      $("#shop-detail-price").textContent = preview?.recipientIneligible ? "唐僧无法获得天与咒缚" : preview?.alreadyOwned ? "该角色已拥有此药剂" :
         preview?.upgradeUnavailable ? "该角色没有可升级的 Lv.1 被动" :
         slot.categoryId === "medicine" ? `◆ ${slot.price} 精华` : `◆ ${slot.price} 精华 · 此角色已有 ${preview?.ownedCount ?? 0} 件`;
-      $("#shop-detail-buy").disabled = Boolean(preview?.alreadyOwned || preview?.upgradeUnavailable);
-      $("#shop-detail-buy").textContent = preview?.alreadyOwned ? "已拥有" : preview?.upgradeUnavailable ? "无法升级" : "确认购买";
+      $("#shop-detail-buy").disabled = Boolean(preview?.recipientIneligible || preview?.alreadyOwned || preview?.upgradeUnavailable);
+      $("#shop-detail-buy").textContent = preview?.recipientIneligible ? "无法学习" : preview?.alreadyOwned ? "已拥有" : preview?.upgradeUnavailable ? "无法升级" : "确认购买";
     });
     recipients.append(choice);
   }
@@ -5514,7 +5521,8 @@ function renderFateReward(onComplete = null) {
     if (offer.type === "long") {
       const eligible = book?.skillType === "passive-upgrade"
         ? (member.passiveLevel ?? 1) === 1 && Boolean(SKILL_DATA[member.passiveSkillId]?.levels?.[2])
-        : book?.skillType === "passive" && !(member.extraPassiveSkillIds ?? []).includes(book.skillId);
+        : book?.skillType === "passive" && !(member.extraPassiveSkillIds ?? []).includes(book.skillId)
+          && !(book.skillId === "heavenly-restriction-book" && recipientId === "tang");
       return eligible ? [decisionChoice(recipientId, `${owner}学习「${book.name}」`, book.description, false, book.image)] : [];
     }
     return offer.choices.map((treasureId) => {
@@ -6159,15 +6167,15 @@ function renderAdventureEvent() {
     choices.push(decisionChoice("death_nothing", "我什么都不想要", "恢复相当于最大 HP 44% 的生命。"));
   } else if (record.eventId === "fate_gate") {
     const experimentPreview = {
-      long: "ATK -25%，持续 10 场战斗；完成后获得随机技能书，可选择学习角色。",
-      medium: "ATK -20%，持续 5 场战斗；完成后从脊髓液、枪魔碎片、宿傩手指中选一件。",
-      short: "ATK -10%，持续 3 场战斗；完成后获得随机普通宝物。",
+      long: "ATK -20%，持续 7 场战斗；完成后获得随机技能书，可选择学习角色。",
+      medium: "ATK -10%，持续 5 场战斗；完成后从脊髓液、枪魔碎片、宿傩手指中选一件。",
+      short: "ATK -5%，持续 3 场战斗；完成后获得随机普通宝物。",
     };
     choices.push(decisionChoice("fate_experiment", "这一切都是命运石之门的选择", experimentPreview[record.data.experiment]));
     choices.push(decisionChoice("fate_continue", "继续实验", "开启命运石之门（2）。"));
   } else if (record.eventId === "fate_gate_2") {
     if (record.data.phase === "select") for (const type of ["long", "medium", "short"].filter((type) => type !== campaign.runCharacterState.eventSeries.fateGate?.shownResult))
-      choices.push(decisionChoice(`fate_experiment|${type}`, ({long:"长期实验 · 10场 / ATK -25%",medium:"中期实验 · 5场 / ATK -20%",short:"短期实验 · 3场 / ATK -10%"})[type], "完成后领取对应奖励。"));
+      choices.push(decisionChoice(`fate_experiment|${type}`, ({long:"长期实验 · 7场 / ATK -20%",medium:"中期实验 · 5场 / ATK -10%",short:"短期实验 · 3场 / ATK -5%"})[type], "完成后领取对应奖励。"));
     else {
       choices.push(decisionChoice("fate_choose", "这一切都是命运石之门的选择", "从上次未展示的两种实验中选择。"));
       choices.push(decisionChoice("fate_vip", "比起做实验还是VIP吧", "下一间商店六折购买一件商品。"));

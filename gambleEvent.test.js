@@ -219,7 +219,7 @@ test("third-round loss revokes two earlier stat wins but keeps its penalty and t
   assert.deepEqual(final.result.settled.revoked.map((entry) => [entry.round, entry.stat, entry.amount]),
     [[1, "atk", 20], [2, "def", 20]]);
   assert.equal(final.result.treasures[0].id, "sukuna_finger");
-  assert.equal(run.atk, before.atk + 30, "the separate treasure reward remains");
+  assert.equal(run.atk, before.atk + 25, "the separate treasure reward remains");
   assert.equal(run.def, before.def - 20);
 });
 
