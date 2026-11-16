@@ -131,7 +131,7 @@ test("three trial nodes assign each candidate encounter once even after a failed
   assert.deepEqual(campaign.trial.usedEncounterKinds, ["odin", "heracles", "ordinary"]);
 });
 
-test("eternal shackles may draw one boss, allow healing, then restore maximum HP without extra current HP", () => {
+test("eternal shackles restore normal maximum HP before the victory HP floor", () => {
   const campaign = stageThree();
   enterTrial(campaign);
   assignTrialKinds(campaign, { will: "odin" });
@@ -145,7 +145,7 @@ test("eternal shackles may draw one boss, allow healing, then restore maximum HP
   const final = prepared.roster.filter((unit) => unit.team === "ally").map((unit) => ({ ...unit, currentHp: 100 }));
   finishBattle(campaign, "victory", 100, [], final);
   assert.equal(campaign.runCharacterState.maxHp, originalMax);
-  assert.equal(campaign.runCharacterState.currentHp, 100);
+  assert.equal(campaign.runCharacterState.currentHp, Math.ceil(originalMax * .5));
   assert.equal(campaign.runCharacterState.divinePunishment, null);
   assert.equal(campaign.trial.tasks.will, "completed");
 });
@@ -160,8 +160,9 @@ test("a trial victory applies angel-breath healing once while the next trial sti
   const maxHp = campaign.runCharacterState.maxHp;
   const final = prepared.roster.filter((unit) => unit.team === "ally").map((unit) => ({ ...unit, currentHp: 100 }));
   finishBattle(campaign, "victory", 100, [], final);
-  assert.equal(campaign.runCharacterState.currentHp, 100 + Math.floor(maxHp * .3));
-  assert.deepEqual(campaign.lastBattleRecovery.map((entry) => entry.kind), ["angel_breath"]);
+  assert.equal(campaign.runCharacterState.currentHp, Math.ceil(maxHp * .5) + Math.floor(maxHp * .3));
+  assert.deepEqual(campaign.lastBattleRecovery.map((entry) => entry.kind),
+    ["trial_half_heal", "trial_half_heal", "angel_breath"]);
   assert.equal(campaign.status, "trial_route");
 });
 
@@ -223,7 +224,7 @@ test("two completed trial bosses exit immediately, leaving the third node untouc
   assert.equal(chooseTrialNode(campaign), false);
 });
 
-test("a completed trial challenge carries each member's HP into the next challenge", () => {
+test("a completed trial challenge raises low HP to half before the next challenge", () => {
   const campaign = stageThree();
   enterTrial(campaign, ["strength", "wisdom", "will"]);
   chooseTrialNode(campaign);
@@ -233,15 +234,39 @@ test("a completed trial challenge carries each member's HP into the next challen
   }));
   const result = finishBattle(campaign, "victory", 1, [], allies);
   assert.equal(result.status, "trial_route");
-  for (const [index, id] of campaign.partyIds.entries()) {
-    assert.equal(campaign.partyStates[id].currentHp, index === 0 ? 1 : 0);
-    assert.equal(campaign.lastBattleRecovery.length, 0);
+  for (const id of campaign.partyIds) {
+    assert.equal(campaign.partyStates[id].currentHp, Math.ceil(campaign.partyStates[id].maxHp * .5));
   }
+  assert.equal(campaign.lastBattleRecovery.length, 2);
   assert.equal(finishBattle(campaign, "victory", 1, [], allies), false);
   chooseTrialNode(campaign);
   const next = prepareBattle(campaign);
   assert.deepEqual(next.roster.filter((unit) => unit.team === "ally").map((unit) => unit.currentHp),
     campaign.partyIds.map((id) => campaign.partyStates[id].currentHp));
+});
+
+test("trial victory preserves HP above half, including when the second task completes the trial", () => {
+  const campaign = stageThree();
+  enterTrial(campaign, ["strength", "wisdom", "will"]);
+  assignTrialKinds(campaign, { strength: "heracles", wisdom: "odin" });
+  chooseTrialNode(campaign, "strength");
+  const first = prepareBattle(campaign);
+  const firstAllies = first.roster.filter((unit) => unit.team === "ally").map((unit, index) => ({ ...unit,
+    currentHp: Math.floor(unit.maxHp * (index === 0 ? .7 : .1)) }));
+  finishBattle(campaign, "victory", firstAllies[0].currentHp, [], firstAllies);
+  assert.equal(campaign.partyStates[campaign.partyIds[0]].currentHp, firstAllies[0].currentHp);
+  assert.equal(campaign.partyStates[campaign.partyIds[1]].currentHp,
+    Math.ceil(campaign.partyStates[campaign.partyIds[1]].maxHp * .5));
+  assert.deepEqual(campaign.lastBattleRecovery.map((entry) => entry.characterId), [campaign.partyIds[1]]);
+
+  chooseTrialNode(campaign, "wisdom");
+  const second = prepareBattle(campaign);
+  const secondAllies = second.roster.filter((unit) => unit.team === "ally").map((unit) => ({ ...unit,
+    currentHp: Math.floor(unit.maxHp * .7) }));
+  assert.equal(finishBattle(campaign, "victory", secondAllies[0].currentHp, [], secondAllies).trialOutcome, "completed");
+  assert.deepEqual(campaign.partyIds.map((id) => campaign.partyStates[id].currentHp),
+    secondAllies.map((unit) => unit.currentHp));
+  assert.deepEqual(campaign.lastBattleRecovery, []);
 });
 
 test("each eternal-shackles battle draws one front and one back enemy at 80% of stage-three row stats", () => {
@@ -276,7 +301,6 @@ test("each eternal-shackles battle draws one front and one back enemy at 80% of 
 test("one trial challenge defeat heals half HP and a second defeat applies the trial penalty once", () => {
   const campaign = stageThree();
   campaign.partyStates.eren.currentHp = 250;
-  const before = Object.fromEntries(campaign.partyIds.map((id) => [id, campaign.partyStates[id].currentHp]));
   enterTrial(campaign, ["strength", "wisdom", "will"]);
   chooseTrialNode(campaign);
   const prepared = prepareBattle(campaign);
@@ -300,7 +324,7 @@ test("one trial challenge defeat heals half HP and a second defeat applies the t
   assert.equal(campaign.status, "trial_result");
   for (const id of campaign.partyIds) {
     const state = campaign.partyStates[id];
-    assert.equal(state.currentHp, Math.min(before[id], state.maxHp));
+    assert.equal(state.currentHp, Math.ceil(state.maxHp * .5));
     assert.equal(state.maxHp, Math.floor(STARTING_CHARACTERS.find((hero) => hero.id === id).baseStats.maxHp * .6));
     assert.equal(state.spd, Math.floor(STARTING_CHARACTERS.find((hero) => hero.id === id).baseStats.spd * .6));
   }
@@ -359,7 +383,7 @@ test("a failed will challenge clears its temporary HP restriction before another
   assert.equal(campaign.runCharacterState.divinePunishment, null);
 });
 
-test("the three divine-punishment fights carry HP through to the next challenge", () => {
+test("each divine-punishment fight clears its HP cap before restoring to half", () => {
   const campaign = stageThree();
   enterTrial(campaign);
   assignTrialKinds(campaign, { will: "ordinary" });
@@ -371,23 +395,19 @@ test("the three divine-punishment fights carry HP through to the next challenge"
   for (let battle = 1; battle <= 3; battle += 1) {
     const prepared = prepareBattle(campaign);
     assert.ok(prepared.roster.filter((unit) => unit.team === "ally").every((unit) => !unit.healingBlocked));
+    assert.equal(campaign.runCharacterState.maxHp, originalMax - Math.floor(originalMax * .2));
     const allies = prepared.roster.filter((unit) => unit.team === "ally").map((unit) => ({ ...unit,
-      currentHp: Math.max(1, unit.currentHp - 10) }));
+      currentHp: 1 }));
     const result = finishBattle(campaign, "victory", allies[0].currentHp, [], allies);
-    if (battle < 3) {
-      assert.equal(campaign.lastBattleRecovery.length, 0);
-      assert.equal(campaign.runCharacterState.currentHp,
-        originalMax - Math.floor(originalMax * .2) - battle * 10);
-    } else {
-      assert.equal(campaign.lastBattleRecovery.length, 0);
-      for (const id of campaign.partyIds) assert.ok(campaign.partyStates[id].currentHp < campaign.partyStates[id].maxHp);
-    }
+    assert.equal(campaign.runCharacterState.maxHp, originalMax);
+    assert.equal(campaign.runCharacterState.currentHp, Math.ceil(originalMax * .5));
+    assert.deepEqual(campaign.lastBattleRecovery.map((entry) => entry.kind), ["trial_half_heal", "trial_half_heal"]);
     assert.equal(campaign.trial.divinePunishmentBattlesLeft, 3 - battle);
     if (battle < 3) assert.equal(result.status, "trial_next_battle");
     else assert.equal(result.status, "trial_route");
   }
   assert.equal(campaign.runCharacterState.maxHp, originalMax);
-  assert.equal(campaign.runCharacterState.currentHp, originalMax - Math.floor(originalMax * .2) - 30);
+  assert.equal(campaign.runCharacterState.currentHp, Math.ceil(originalMax * .5));
   assert.equal(campaign.runCharacterState.divinePunishment, null);
 });
 

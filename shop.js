@@ -1,6 +1,6 @@
 import { createSeededRandom } from "./routeMap.js";
 import { GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT, SKILL_DATA, TREASURE_DATA } from "./skills.js";
-import { applyRockLeeWeight, grantAdventureSpecialReward, grantEliteSukunaFinger, grantGiantSpinalFluid, grantGunDevilFragment, grantQuinque, learnActiveSkill, previewGrowingDrop, upgradePassiveSkill } from "./progression.js";
+import { applyPassiveBookStats, applyRockLeeWeight, grantAdventureSpecialReward, grantEliteSukunaFinger, grantGiantSpinalFluid, grantGunDevilFragment, grantQuinque, learnActiveSkill, previewGrowingDrop, upgradePassiveSkill } from "./progression.js";
 import { SHOP_RULES } from "./shopConfig.js";
 
 export const SHOP_TREASURES = Object.freeze({ ...TREASURE_DATA,
@@ -166,6 +166,7 @@ export function buyShopItem(campaign, index, recipientId = campaign?.playerId) {
       else if (book.skillType === "passive" && !(member.extraPassiveSkillIds ?? []).includes(book.skillId)) {
         member.extraPassiveSkillIds ??= [];
         member.extraPassiveSkillIds.push(book.skillId);
+        applyPassiveBookStats(member);
         member.skillHistory.push({ skillId: book.skillId, level: 1, sourceId, kind: "learn" });
         result = book;
       }

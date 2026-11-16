@@ -18,7 +18,7 @@ test("new stage-one elites, hidden bosses, and Heracles use the requested panel 
   assert.ok(["swamp-giant", "eternity-devil"].every((id) => enemy(id).row === "front"));
   assert.deepEqual([GUN_DEVIL.hp, GUN_DEVIL.atk, GUN_DEVIL.def, GUN_DEVIL.spd], [4500, 999, 220, 300]);
   assert.deepEqual([YORU.hp, YORU.atk, YORU.def, YORU.spd], [6500, 1444, 300, 250]);
-  assert.deepEqual([TRIAL_ENEMY_DATA.heracles.atk, TRIAL_ENEMY_DATA.heracles.def], [520, 180]);
+  assert.deepEqual([TRIAL_ENEMY_DATA.heracles.atk, TRIAL_ENEMY_DATA.heracles.def], [420, 180]);
   assert.equal(eliteDropId({ currentBattle: { type: "elite", enemies: ["swamp-giant"] } }), "giant_spinal_fluid");
 });
 

@@ -48,11 +48,17 @@ export function initializeBattle(config = CHARACTER_DATA, options = {}) {
     const disabledSkills = heavenly ? (character.skills ?? (character.skill ? [character.skill] : []))
       .filter((skill) => skill.type !== "passive" && !retainedKanekiSkill(skill)) : [];
     const heavenlyAttackBonus = disabledSkills.reduce((sum, skill) => sum + 15 * (agingSkillSuppression ? 1 : skill.level ?? 1), 0);
+    const bookDefense = character.extraPassiveSkillIds?.includes("iron-bell") &&
+      !character.bookStatAppliedIds?.includes("iron-bell") ? 30 : 0;
+    const bookAttack = character.extraPassiveSkillIds?.includes("armament-haki") &&
+      !character.bookStatAppliedIds?.includes("armament-haki") ? 10 : 0;
+    const entryDefense = Math.max(0, character.def + (normalBonus.def ?? 0) + bookDefense);
+    const brickForce = character.extraPassiveSkillIds?.includes("brick-force");
     const usableSkills = (character.skills ?? (character.skill ? [character.skill] : []))
       .filter((skill) => !disabledSkills.some((disabled) => disabled.id === skill.id))
       .map((skill) => agingSkillSuppression && SKILL_DATA[skill.id]?.levels?.[1]
         ? { ...SKILL_DATA[skill.id], ...SKILL_DATA[skill.id].levels[1], level: 1 } : skill);
-    return { ...character, atk: character.atk + (normalBonus.atk ?? 0) + heavenlyAttackBonus, def: character.def + (normalBonus.def ?? 0), entryDef: Math.max(0, character.def + (normalBonus.def ?? 0)), originalTeam: character.team, passiveLevel: agingSkillSuppression ? 1 : character.passiveLevel, skillLevelSuppressed: agingSkillSuppression, skill: usableSkills[0] ? { ...usableSkills[0] } : null, skills: usableSkills.map((skill) => ({ ...skill })), heavenlyAttackBonus, heavenlyDisabledSkillIds: disabledSkills.map((skill) => skill.id), heavenlyFasterActions: 0, heavenlyRestPending: false, undyingUsed: false, undyingActionHealUntilRound: 0, skillBookEffects: character.extraPassiveSkillIds?.filter((id) => ["iron-bell", "armament-haki", "heavenly-restriction-book", "undying-subspecies"].includes(id)) ?? [], maxHp, currentHp, alive: currentHp > 0, elitePassiveActive: false, elitePassiveLastRound: 0, freeWillTriggers: 0, damageTakenHits: 0, critRateBonus: (character.critRateBonus ?? 0) + (character.id === "kaneki" && ["kaneki-one-eye", "kaneki-one-eye-king"].includes(character.passiveSkillId) ? .20 : 0) + (character.passiveSkillId === "kaneki-one-eye" && !agingSkillSuppression && character.passiveLevel >= 2 ? 0.10 : 0), dodgeRateBonus: character.dodgeRateBonus ?? 0, baseDodgeRateBonus: character.dodgeRateBonus ?? 0, battleAttackBonus: 0, shieldHp: 0, tauntRounds: [], jinchurikiActive: false, jinchurikiAttackBonus: 0,
+    return { ...character, atk: character.atk + (normalBonus.atk ?? 0) + heavenlyAttackBonus + bookAttack + (brickForce ? Math.floor(entryDefense * 1.5) : 0), def: brickForce ? 0 : entryDefense, spd: character.spd + heavenlyAttackBonus, entryDef: brickForce ? 0 : entryDefense, originalTeam: character.team, passiveLevel: agingSkillSuppression ? 1 : character.passiveLevel, skillLevelSuppressed: agingSkillSuppression, skill: usableSkills[0] ? { ...usableSkills[0] } : null, skills: usableSkills.map((skill) => ({ ...skill })), heavenlyAttackBonus, heavenlyDisabledSkillIds: disabledSkills.map((skill) => skill.id), heavenlyFasterActions: 0, heavenlyRestPending: false, undyingUsed: false, undyingActionHealUntilRound: 0, skillBookEffects: character.extraPassiveSkillIds?.filter((id) => ["iron-bell", "armament-haki", "heavenly-restriction-book", "undying-subspecies", "brick-force", "three-teachers", "apocalypse-knight"].includes(id)) ?? [], maxHp, currentHp, alive: currentHp > 0, elitePassiveActive: false, elitePassiveLastRound: 0, freeWillTriggers: 0, damageTakenHits: 0, critRateBonus: (character.critRateBonus ?? 0) + (character.id === "kaneki" && ["kaneki-one-eye", "kaneki-one-eye-king"].includes(character.passiveSkillId) ? .20 : 0) + (character.passiveSkillId === "kaneki-one-eye" && !agingSkillSuppression && character.passiveLevel >= 2 ? 0.10 : 0), dodgeRateBonus: character.dodgeRateBonus ?? 0, baseDodgeRateBonus: character.dodgeRateBonus ?? 0, battleAttackBonus: 0, shieldHp: 0, tauntRounds: [], jinchurikiActive: false,
       evolutionBaseAtk: character.atk, pathsImmuneRemaining: character.passiveSkillId === "eren-paths" ? 1 : 0,
       pathsEmergencyUsed: false, oneEyeKingEmergencyUsed: false, oneEyeKingUntilRound: 0,
       oneEyeKingCritRateBonus: 0, baseCritRateBonus: (character.critRateBonus ?? 0) +
@@ -74,6 +80,10 @@ export function initializeBattle(config = CHARACTER_DATA, options = {}) {
       ...(character.periodicPassive?.id === "colossal-steam-wave" ? { lastSteamRound: 0 } : {}),
       ...(character.id === "gilgamesh" ? { gilgameshCasts: 0 } : {}) };
   });
+  for (const unit of characters) {
+    unit.entryPanelStats = { maxHp: unit.maxHp, atk: unit.atk, def: unit.def, spd: unit.spd };
+    unit.quinqueGuardUses = 0;
+  }
   const c0Boss = characters.find((character) => Number.isFinite(character.c0DamagePerRound));
   const state = {
     characters,
@@ -129,6 +139,7 @@ export function skillTriggers(character, random = Math.random) {
 }
 
 export function triggeredSkill(character, random, round = 0) {
+  if (character.apocalypseSwordOnly) return null;
   if (character.id === "kira" && round <= 4) return null;
   const phaseSkillId = character.phaseSkills?.[character.borosPhase];
   if (character.phaseSkills) {
@@ -159,8 +170,11 @@ function applyNormalDamageReduction(target, damage) {
 }
 
 function actionHealingBlocked(character, round, lifesteal = false) {
-  return character.healingBlocked || (!lifesteal && character.stoneMaskHealingBlocked) ||
-    ((character.undyingActionHealUntilRound ?? 0) > 0 && character.undyingActionHealUntilRound >= round);
+  return character.healingBlocked || (!lifesteal && character.stoneMaskHealingBlocked);
+}
+
+function actionLifestealRatio(character, round) {
+  return character.undyingUsed && character.undyingActionHealUntilRound >= round ? .5 : 1;
 }
 
 function applyBattleHeal(character, requested) {
@@ -215,7 +229,13 @@ export function handleDeath(character) {
   return false;
 }
 
-function applyTrialDamage(state, target, requested, kind = "attack") {
+function consumeQuinqueGuard(target, damage, random = Math.random) {
+  if (damage <= 0 || !target.quinqueGuard || (target.quinqueGuardUses ?? 0) >= 3 || random() >= .15) return false;
+  target.quinqueGuardUses = (target.quinqueGuardUses ?? 0) + 1;
+  return true;
+}
+
+function applyTrialDamage(state, target, requested, kind = "attack", quinqueChecked = false) {
   let amount = Math.max(0, Math.floor(requested));
   if (!amount || !target.alive) return { dealt: 0 };
   // A living weapon devil protects Makima even when it was summoned mid-battle.
@@ -256,6 +276,8 @@ function applyTrialDamage(state, target, requested, kind = "attack") {
     target.pathsImmuneRemaining -= 1;
     return { dealt: 0, pathsImmune: true };
   }
+  if (!quinqueChecked && consumeQuinqueGuard(target, amount, state.random))
+    return { dealt: 0, quinqueGuardTriggered: true, quinqueGuardUses: target.quinqueGuardUses };
   const naruto = state.characters.find((unit) => unit.id === "naruto" && unit.team === target.team && unit.alive && unit.chakraClones > 0);
   const clonePassive = SKILL_DATA["naruto-chakra-clones"].levels[1];
   let cloneSpent = false;
@@ -266,7 +288,7 @@ function applyTrialDamage(state, target, requested, kind = "attack") {
     cloneSpent = true;
   }
   let sharedDamage = null;
-  if (kind !== "shared" && tang && target.summonerId === tang.id && amount > 0) {
+  if (kind !== "shared" && tang && !tang.apocalypseSwordOnly && target.summonerId === tang.id && amount > 0) {
     const portion = Math.floor(amount * .1);
     if (portion > 0) {
       amount -= portion;
@@ -378,8 +400,65 @@ function healScorpionAllies(state, target, actualDamage) {
   return healed;
 }
 
+function resolveApocalypseSword(state) {
+  const owners = state.characters.filter((unit) => unit.originalTeam === "ally" && !unit.summonerId &&
+    unit.extraPassiveSkillIds?.includes("apocalypse-knight") && !unit.apocalypseSwordTriggered);
+  for (const owner of owners) {
+    const partner = state.characters.find((unit) => unit.originalTeam === "ally" && !unit.summonerId &&
+      unit.id !== owner.id && !unit.spinalSwordConverted);
+    if (!partner) continue;
+    const ownerAlive = owner.alive && owner.currentHp > 0;
+    const partnerAlive = partner.alive && partner.currentHp > 0;
+    const level = owner.apocalypseKnightLevel ?? 1;
+    const sword = !ownerAlive && partnerAlive ? owner : level >= 2 && ownerAlive && !partnerAlive ? partner : null;
+    const recipient = sword === owner ? partner : sword === partner ? owner : null;
+    if (!sword || !recipient || recipient.team !== "ally" || sword.absorbedByBottle || partner.absorbedByBottle) continue;
+    owner.apocalypseSwordTriggered = true;
+    sword.spinalSwordConverted = true;
+    sword.apocalypseSwordConverted = true;
+    sword.alive = false;
+    sword.currentHp = 0;
+    const ratio = sword === owner ? .5 : .4;
+    const absorbed = Object.fromEntries(["maxHp", "atk", "def", "spd"].map((stat) =>
+      [stat, Math.floor((sword.entryPanelStats?.[stat] ?? sword[stat] ?? 0) * ratio)]));
+    const requestedHeal = Math.floor(recipient.maxHp * ratio);
+    for (const stat of ["maxHp", "atk", "def", "spd"]) recipient[stat] += absorbed[stat];
+    const healed = actionHealingBlocked(recipient, state.round) ? 0 : applyBattleHeal(recipient, requestedHeal);
+    recipient.apocalypseSwordBonus = absorbed;
+    recipient.apocalypseSwordAsset = SPINAL_SWORD_BY_PARTNER[sword.id] ?? null;
+    if (sword === owner) {
+      recipient.apocalypseSwordOnly = true;
+      recipient.skills = [];
+      recipient.skill = null;
+      recipient.extraPassiveSkillIds = [];
+      recipient.passiveSkillId = null;
+      recipient.normalPassiveId = null;
+      recipient.skillBookEffects = [];
+      recipient.jinchurikiActive = false;
+      recipient.chakraClones = 0;
+      recipient.pathsImmuneRemaining = 0;
+      recipient.nineTailsLowHpActive = false;
+      recipient.nineTailsTriggeredIds = [];
+      recipient.atk = Math.max(0, recipient.atk - (recipient.nineTailsLowHpBonus ?? 0) - (recipient.nineTailsTeammateBonus ?? 0));
+      recipient.nineTailsLowHpBonus = 0;
+      recipient.nineTailsTeammateBonus = 0;
+    }
+    const dismissedIds = [];
+    for (const summon of state.characters.filter((unit) => unit.summonerId === sword.id && unit.alive)) {
+      summon.alive = false;
+      summon.currentHp = 0;
+      dismissedIds.push(summon.id);
+    }
+    state.eventSink?.push({ type: "apocalypse-sword", round: state.round, holderId: owner.id,
+      swordId: sword.id, recipientId: recipient.id, absorbed, healed,
+      currentHp: recipient.currentHp, maxHp: recipient.maxHp, swordOnly: sword === owner,
+      swordAsset: recipient.apocalypseSwordAsset, dismissedIds });
+  }
+}
+
 export function isBattleOver(state) {
   if (state.forcedOutcome) return state.forcedOutcome;
+  resolveApocalypseSword(state);
   const livingTeams = new Set(state.characters.filter((c) => c.alive && c.currentHp > 0).map((c) => c.team));
   if (!livingTeams.has("ally")) return "defeat";
   if (state.hiddenBoss) {
@@ -430,7 +509,7 @@ export function isBattleOver(state) {
 
 function resolveSilverBottle(state, events) {
   const silver = state.characters.find((unit) => unit.id === "silver-king" && unit.alive && unit.currentHp > 0);
-  if (!silver || state.round !== 4 || state.silverBottleUsed) return;
+  if (!silver || state.round !== 5 || state.silverBottleUsed) return;
   state.silverBottleUsed = true;
   const allies = state.characters.filter((unit) => unit.originalTeam === "ally" && unit.alive && unit.currentHp > 0);
   const dealtBy = new Map(allies.map((unit) => [unit.id, 0]));
@@ -847,8 +926,10 @@ export function executeAttack(state, attacker, target, random = Math.random, att
     elitePassiveTriggered = { skillId: "mahito-domain", skillName: "自闭圆顿裹", attackBonus: MAHITO_ATTACK_BONUS, effectiveAtk: attacker.atk, round: state.round ?? 1 };
   }
   let jinchurikiTriggered = null;
-  const attackerRun = state.runCharacterStates?.[attacker.id] ?? (attacker.id === state.playerId ? state.runCharacterState : null);
-  const targetRun = state.runCharacterStates?.[target.id] ?? (target.id === state.playerId ? state.runCharacterState : null);
+  const attackerRun = attacker.apocalypseSwordOnly ? null
+    : state.runCharacterStates?.[attacker.id] ?? (attacker.id === state.playerId ? state.runCharacterState : null);
+  const targetRun = target.apocalypseSwordOnly ? null
+    : state.runCharacterStates?.[target.id] ?? (target.id === state.playerId ? state.runCharacterState : null);
   const jinchurikiLevel = attacker.passiveLevel ?? attackerRun?.passiveLevel ?? 1;
   const isJinchuriki = (attacker.passiveSkillId ?? attackerRun?.passiveSkillId) === "jinchuriki";
   if (isJinchuriki && jinchurikiLevel >= 2) {
@@ -978,6 +1059,7 @@ export function executeAttack(state, attacker, target, random = Math.random, att
   const ignoredDef = skill?.ignoreDefenseFromOwnDef
     ? Math.floor((attacker.entryDef ?? attacker.def) * skill.ignoreDefenseFromOwnDef) : 0;
   const critMultiplier = (attacker.critMultiplier ?? COMBAT_RULES.critMultiplier)
+    + (attacker.quinqueCrit && attacker.currentHp < attacker.maxHp * .6 ? .2 : 0)
     + (attacker.passiveSkillId === "kaneki-one-eye" && attacker.passiveLevel >= 2 ? SKILL_DATA["kaneki-one-eye"].levels[2].critDamageBonus : 0)
     + (attacker.passiveSkillId === "kaneki-one-eye-king" && state.round <= attacker.oneEyeKingUntilRound ? .4 : 0)
     + (attacker.reactiveCritDamageBonus ?? 0);
@@ -1003,7 +1085,7 @@ export function executeAttack(state, attacker, target, random = Math.random, att
   if (!dodged && Number.isFinite(target.damageTakenMultiplier) && target.damageTakenMultiplier !== 1) damage = Math.floor(damage * target.damageTakenMultiplier);
   if (damage > 0 && !dodged && target.bulletHoleStacks > 0) damage = Math.max(1, Math.floor(damage * (1 + target.bulletHoleStacks * .1)));
   if (damage > 0 && target.borosPhase === 1) damage = Math.max(1, Math.floor(damage * .9));
-  if (damage > 0 && target.id === "tang" && state.characters.some((unit) => unit.summonerId === "tang" && unit.alive && unit.currentHp > 0))
+  if (damage > 0 && target.id === "tang" && !target.apocalypseSwordOnly && state.characters.some((unit) => unit.summonerId === "tang" && unit.alive && unit.currentHp > 0))
     damage = Math.max(1, Math.floor(damage * .8));
   if (damage > 0 && target.tangSummonKind === "wukong" && target.wukongReductionRound === state.round)
     damage = Math.max(1, Math.floor(damage * (1 - SKILL_DATA["wukong-fate"].levels[1].damageResistance)));
@@ -1013,9 +1095,10 @@ export function executeAttack(state, attacker, target, random = Math.random, att
   if (armorReductionApplied) damage = Math.max(1, Math.floor(damage * (1 - SKILL_DATA["reiner-sat-down"].levels[1].reduction)));
   damage = applyNormalDamageReduction(target, damage);
   damage = applyTojiExhaustion(target, damage);
-  const attackGuard = !dodged && damage > 0 && !directDamageSkill &&
-    (target.stageThreeKind === "arima" || target.quinqueGuard) && random() < .5;
+  const attackGuard = !dodged && damage > 0 && !directDamageSkill && target.stageThreeKind === "arima" && random() < .5;
   if (attackGuard) damage = Math.max(1, Math.floor(damage * .5));
+  const quinqueGuardTriggered = (target.pathsImmuneRemaining ?? 0) <= 0 && consumeQuinqueGuard(target, damage, random);
+  if (quinqueGuardTriggered) damage = 0;
   const yoruCounterTriggered = target.id === YORU.id && attacker.team !== target.team &&
     !dodged && damage > 0 && random() < .6;
   const yoruCounterPreventedDamage = yoruCounterTriggered ? damage - Math.floor(damage * .4) : 0;
@@ -1023,7 +1106,7 @@ export function executeAttack(state, attacker, target, random = Math.random, att
   const shieldAbsorbed = Math.min(damage, target.shieldHp ?? 0);
   target.shieldHp = Math.max(0, (target.shieldHp ?? 0) - shieldAbsorbed);
   damage -= shieldAbsorbed;
-  const trialDamage = applyTrialDamage(state, target, damage);
+  const trialDamage = applyTrialDamage(state, target, damage, "attack", true);
   if (trialDamage.odinImmune || trialDamage.delayedDamage || trialDamage.heraclesHitsRemaining != null ||
       trialDamage.pathsImmune || trialDamage.cloneSpent || trialDamage.damageAdjusted) damage = trialDamage.dealt;
   const actualDamage = trialDamage.emergencyHeal ? trialDamage.dealt : targetHpBefore - target.currentHp;
@@ -1039,7 +1122,7 @@ export function executeAttack(state, attacker, target, random = Math.random, att
   if (oneEyeTriggered && !actionHealingBlocked(attacker, state.round, true)) {
     const ratio = attacker.passiveSkillId === "kaneki-one-eye-king" ? .3
       : SKILL_DATA["kaneki-one-eye"].levels[attacker.passiveLevel ?? 1].healFromCalculatedDamage;
-    oneEyeHealedAmount = applyBattleHeal(attacker, (attacker.passiveSkillId === "kaneki-one-eye-king" ? actualDamage : damage) * ratio);
+    oneEyeHealedAmount = applyBattleHeal(attacker, (attacker.passiveSkillId === "kaneki-one-eye-king" ? actualDamage : damage) * ratio * actionLifestealRatio(attacker, state.round));
     healedAmount += oneEyeHealedAmount;
   }
   let damageSkillTriggered = null;
@@ -1151,20 +1234,26 @@ export function executeAttack(state, attacker, target, random = Math.random, att
     }
   }
   const jinchurikiLifesteal = !actionHealingBlocked(attacker, state.round, true) && isJinchuriki && jinchurikiLevel >= 2 && attacker.jinchurikiActive && actualDamage > 0
-    ? applyBattleHeal(attacker, actualDamage * (SKILL_DATA.jinchuriki.levels[2].lifesteal ?? 0)) : 0;
+    ? applyBattleHeal(attacker, actualDamage * (SKILL_DATA.jinchuriki.levels[2].lifesteal ?? 0) * actionLifestealRatio(attacker, state.round)) : 0;
   healedAmount += jinchurikiLifesteal;
   const treasureLifesteal = !actionHealingBlocked(attacker, state.round, true) && actualDamage > 0 && attacker.lifesteal > 0
-    ? applyBattleHeal(attacker, actualDamage * attacker.lifesteal) : 0;
+    ? applyBattleHeal(attacker, actualDamage * attacker.lifesteal * actionLifestealRatio(attacker, state.round)) : 0;
   healedAmount += treasureLifesteal;
   const yoruLifesteal = attacker.id === YORU.id && !skill && actualDamage > 0 && !actionHealingBlocked(attacker, state.round, true)
-    ? applyBattleHeal(attacker, actualDamage * .7) : 0;
+    ? applyBattleHeal(attacker, actualDamage * .7 * actionLifestealRatio(attacker, state.round)) : 0;
   healedAmount += yoruLifesteal;
   const nineTailsLifesteal = !actionHealingBlocked(attacker, state.round, true) && actualDamage > 0 && attacker.nineTailsLowHpActive
-    ? applyBattleHeal(attacker, actualDamage * SKILL_DATA["naruto-nine-tails-bond"].levels[1].lifesteal) : 0;
+    ? applyBattleHeal(attacker, actualDamage * SKILL_DATA["naruto-nine-tails-bond"].levels[1].lifesteal * actionLifestealRatio(attacker, state.round)) : 0;
   healedAmount += nineTailsLifesteal;
   syncNineTailsPassive(attacker, state);
   // An attack attempt grants armor even when the target dodges; one action grants one stack.
   if (deepSeaDefenseGain) attacker.def += deepSeaDefenseGain;
+  const teacherBuffs = [];
+  if (isNormalAttack && state.characters.filter((unit) => unit.alive && unit.currentHp > 0 && unit.team === attacker.team).length >= 3)
+    for (const ally of state.characters.filter((unit) => unit.alive && unit.currentHp > 0 && unit.team === attacker.team && unit.id !== attacker.id && unit.extraPassiveSkillIds?.includes("three-teachers"))) {
+      ally.atk += 5;
+      teacherBuffs.push({ targetId: ally.id, attackGain: 5, effectiveAtk: ally.atk });
+    }
   const jinchurikiExpired = attacker.jinchurikiActive && attacker.currentHp >= attacker.maxHp * .5;
   if (jinchurikiExpired) {
     attacker.atk -= attacker.jinchurikiAttackBonus;
@@ -1172,7 +1261,7 @@ export function executeAttack(state, attacker, target, random = Math.random, att
     attacker.jinchurikiActive = false;
   }
   return {
-    type: "attack", attackerId: attacker.id, targetId: target.id, damage, dodged,
+    type: "attack", attackerId: attacker.id, targetId: target.id, damage, dodged, teacherBuffs,
     hit: !dodged, dodgeChance, critical, critChance, skilled: Boolean(skill),
     attackKind: directDamageSkill ? "skill" : "normal",
     attackType: skill?.attackType || attacker.attackType || "melee",
@@ -1202,7 +1291,8 @@ export function executeAttack(state, attacker, target, random = Math.random, att
     jinchurikiTriggered,
     elitePassiveTriggered,
     passiveTriggered: passiveTriggered ? { skillId: passiveTriggered.skillId, damageImmune: Boolean(passiveTriggered.damageImmune) } : null,
-    defenseReduced, armorReductionApplied, attackGuard, arimaHitCount, arimaWeaknessRevealed, arimaCritAwakened,
+    defenseReduced, armorReductionApplied, attackGuard, quinqueGuardTriggered,
+    quinqueGuardUses: target.quinqueGuardUses, arimaHitCount, arimaWeaknessRevealed, arimaCritAwakened,
     silenceUntilRound: skill?.id === "arima-pierce" && actualDamage > 0 || shijiSilence ? target.silencedThroughRound : null,
     phaseChange, bombAttached, segmentIndex: attackOptions.segmentIndex ?? null,
     segmentCount: attackOptions.segmentCount ?? null, skillCastNumber: attackOptions.skillCastNumber ?? null,
@@ -1581,8 +1671,8 @@ function resolveGoldGourd(state, attacker, target, skill) {
     targetHp: target.currentHp, targetMaxHp: target.maxHp, targetDied, effect: result };
 }
 
-const AGING_CHOICE_ROUNDS = Object.freeze([3, 10, 20]);
-const AGING_TREASURE_GRADES = Object.freeze({ 3: "common", 10: "rare", 20: "legendary" });
+const AGING_CHOICE_ROUNDS = Object.freeze([3, 15, 30]);
+const AGING_TREASURE_GRADES = Object.freeze({ 3: "common", 15: "rare", 30: "legendary" });
 
 function agingTreasureGrade(id) {
   if (id === GIANT_SPINAL_FLUID.id || id === GUN_DEVIL_FRAGMENT.id) return "rare";
@@ -1681,12 +1771,12 @@ function applyAgingPenalties(state, events) {
       let amount = 0;
       let stat;
       if (penalty.choiceId === "battle") {
-        stat = penalty.round === 10 ? "def" : "currentHp";
-        amount = penalty.round === 10 ? 20 : Math.max(1, Math.floor(unit.maxHp * (penalty.round === 3 ? .05 : .15)));
+        stat = penalty.round === 15 ? "def" : "currentHp";
+        amount = penalty.round === 15 ? 20 : Math.max(1, Math.floor(unit.maxHp * (penalty.round === 3 ? .05 : .15)));
         unit[stat] = Math.max(0, unit[stat] - amount);
         if (stat === "currentHp") handleDeath(unit);
       } else {
-        stat = penalty.round === 3 ? "def" : penalty.round === 10 ? "maxHp" : "atk";
+        stat = penalty.round === 3 ? "def" : penalty.round === 15 ? "maxHp" : "atk";
         amount = stat === "maxHp" ? Math.max(1, Math.floor((member?.maxHp ?? unit.maxHp) * .03)) : stat === "def" ? 3 : 10;
         if (member) {
           member[stat] = Math.max(stat === "maxHp" ? 1 : 0, member[stat] - amount);
@@ -1720,7 +1810,7 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
   }
   if (state.agingSkillSuppression && !resuming)
     events.push({ type: "aging-suppression", round: 0, attackerId: "aging-devil" });
-  if (state.hiddenBoss) state.eventSink = events;
+  state.eventSink = events;
   if (!resuming) applyTrialBattleStart(state, events, random);
   const fallingDevil = state.characters.find((unit) => unit.id === "falling-devil" && unit.alive);
   if (fallingDevil && !resuming) events.push({ type: "gravity-domain", round: 0, attackerId: fallingDevil.id,
@@ -1864,15 +1954,17 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
             defenseDurationRounds: selectedSkill.summonerDefenseDurationRounds,
             defenseUntilRound: summoner?.wukongDefenseBuffUntilRound ?? null });
         } else {
-          const victim = chooseTarget(state, attacker, random);
-          if (victim) {
+          const victims = state.characters.filter((unit) => unit.team !== attacker.team && unit.alive && unit.currentHp > 0);
+          if (victims.length) {
             const summoner = state.characters.find((unit) => unit.id === attacker.summonerId);
             const trueDamage = Math.floor(selectedSkill.trueDamageBase + Math.max(0, summoner?.atk ?? 0) * selectedSkill.summonerAttackRatio);
-            const hit = resolveTrueDamageSkill(state, attacker, victim, selectedSkill, trueDamage);
-            hit.round = state.round;
-            hit.wukongTeleportAttack = true;
-            events.push(hit);
-            if (hit.targetDied) resolveAhFuDefeat(state, victim, events);
+            for (const victim of victims) {
+              const hit = resolveTrueDamageSkill(state, attacker, victim, selectedSkill, trueDamage);
+              hit.round = state.round;
+              hit.wukongTeleportAttack = true;
+              events.push(hit);
+              if (hit.targetDied) resolveAhFuDefeat(state, victim, events);
+            }
             syncTangSummons(state, events);
             outcome = isBattleOver(state);
           }
@@ -1993,7 +2085,7 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
         const treasureHit = event.type === "attack" ? resolveNichirinBonus(state, attacker, struck, event) : null;
         if (treasureHit) events.push(treasureHit);
         let hpDamageEvent = null;
-        if (attacker.id === "eren" && attacker.evolutionPhase === 2 && event.type === "attack" &&
+        if (attacker.id === "eren" && attacker.evolutionPhase === 2 && !attacker.apocalypseSwordOnly && event.type === "attack" &&
             event.actualDamage > 0 && !event.dodged) {
           hpDamageEvent = resolveAttackTitanHpDamage(state, attacker, struck, event.skilled ? "skill" : "normal");
           if (hpDamageEvent) events.push(hpDamageEvent);
@@ -2086,7 +2178,7 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
             const splashTarget = state.characters.find((unit) => unit.id === splash.targetId);
             const splashTreasure = splashTarget && resolveNichirinBonus(state, attacker, splashTarget, splash);
             if (splashTreasure) events.push(splashTreasure);
-            if (attacker.id === "eren" && attacker.evolutionPhase === 2 && splash.actualDamage > 0 && !splash.dodged) {
+            if (attacker.id === "eren" && attacker.evolutionPhase === 2 && !attacker.apocalypseSwordOnly && splash.actualDamage > 0 && !splash.dodged) {
               const hpDamage = resolveAttackTitanHpDamage(state, attacker, splashTarget, "skill");
               if (hpDamage) events.push(hpDamage);
             }

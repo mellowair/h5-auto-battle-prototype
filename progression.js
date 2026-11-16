@@ -12,6 +12,13 @@ function ensureRunState(state) {
   state.learnedActiveSkills ??= [];
   state.skillLevels ??= {};
   state.passiveLevel ??= 1;
+  state.bookStatAppliedIds ??= [];
+  for (const [id, stat, amount] of [["iron-bell", "def", 30], ["armament-haki", "atk", 10]]) {
+    if (state.extraPassiveSkillIds?.includes(id) && !state.bookStatAppliedIds.includes(id)) {
+      state[stat] = (state[stat] ?? 0) + amount;
+      state.bookStatAppliedIds.push(id);
+    }
+  }
   state.statOffers ??= {};
   state.rewardOffers ??= {};
   state.eventResults ??= {};
@@ -33,6 +40,11 @@ function ensureRunState(state) {
     Object.values(state.eventResults).filter((event) => event.eventId === "fall_rock" && event.status === "completed").length);
   state.fallRockCompleted ??= state.fallRockCount >= ADVENTURE_EVENT_DATA.fall_rock.stages.length;
   return state;
+}
+
+export function applyPassiveBookStats(runState) {
+  ensureRunState(runState);
+  return runState;
 }
 
 function makeActionKey(kind, sourceId) { return `${kind}:${sourceId}`; }
@@ -506,8 +518,7 @@ export function upgradeActiveSkill(runState, skillId, sourceId) {
 export function getCampfireOptions(runState) {
   ensureRunState(runState);
   const cannotHeal = runState.permanentEffects.some((effect) => effect.id === "stone_mask");
-  const healFraction = CAMPFIRE_RULES.rest.healFraction +
-    (runState.permanentEffects.some((effect) => effect.id === "drip_coffee") ? .15 : 0);
+  const healFraction = CAMPFIRE_RULES.rest.healFraction;
   const eligible = getSkillTrainingChoices(runState).map((id) => ({
     skillId: id, name: SKILL_DATA[id].name, currentLevel: runState.skillLevels[id] ?? 0,
     nextLevel: (runState.skillLevels[id] ?? 0) + 1, currentEffect: getSkillAtLevel(runState, id),
@@ -519,19 +530,27 @@ export function getCampfireOptions(runState) {
   ];
 }
 
-export function resolveCampfire(runState, sourceId, choiceId, skillId = null) {
+export function resolveCampfire(runState, sourceId, choiceId, skillId = null, settings = {}) {
   ensureRunState(runState);
   if (!sourceId || has(runState.completedCampfires, sourceId)) return false;
   const options = getCampfireOptions(runState);
   if (choiceId === "rest") {
+    const coffeeCount = settings.skipCoffeeGrowth ? 0 : runState.permanentEffects.filter((effect) => effect.id === "drip_coffee").length;
+    const coffeeMaxHpGain = coffeeCount * 150;
     if (options[0].blockedBy) {
+      runState.maxHp += coffeeMaxHpGain;
+      if (coffeeMaxHpGain) runState.permanentEffects.push({ id: "drip_coffee_growth", name: "挂耳咖啡·篝火成长",
+        sourceId: `campfire:${sourceId}`, maxHp: coffeeMaxHpGain, sourceLabel: "篝火回血" });
       runState.completedCampfires.push(sourceId);
-      return { choiceId, restored: 0, currentHp: runState.currentHp, maxHp: runState.maxHp, blockedBy: options[0].blockedBy };
+      return { choiceId, restored: 0, currentHp: runState.currentHp, maxHp: runState.maxHp, coffeeMaxHpGain, blockedBy: options[0].blockedBy };
     }
     const healing = healRunCharacter(runState, options[0].healAmount, `campfire:${sourceId}`);
     if (!healing) return false;
+    runState.maxHp += coffeeMaxHpGain;
+    if (coffeeMaxHpGain) runState.permanentEffects.push({ id: "drip_coffee_growth", name: "挂耳咖啡·篝火成长",
+      sourceId: `campfire:${sourceId}`, maxHp: coffeeMaxHpGain, sourceLabel: "篝火回血" });
     runState.completedCampfires.push(sourceId);
-    return { choiceId, ...healing };
+    return { choiceId, ...healing, coffeeMaxHpGain, maxHp: runState.maxHp };
   }
   if (choiceId === "skill_upgrade" && skillId === "__skip_new_skill__" && canDeclineNewSkill(runState)) {
     runState.completedCampfires.push(sourceId);
@@ -1016,12 +1035,12 @@ export function resolveAdventureEvent(runState, sourceId, choiceId = null, rando
       result = { sequelUnlocked: true };
     } else if (sequel && choiceId === "death_read") {
       const before = runState.maxHp;
-      runState.maxHp = Math.max(1, Math.floor(before * .56));
+      runState.maxHp = Math.max(1, Math.floor(before * .75));
       const maxHpLoss = before - runState.maxHp;
       runState.currentHp = Math.min(runState.currentHp, runState.maxHp);
-      const ids = [GIANT_SPINAL_FLUID.id, GUN_DEVIL_FRAGMENT.id, "sukuna_finger"];
+      const ids = Object.values(TREASURE_DATA).filter((item) => item.grade === "legendary").map((item) => item.id);
       const treasureId = ids[rngIndex(ids.length, random)];
-      const treasure = grantEventTreasure(runState, `${sourceId}:rare`, treasureId, stageId, "死亡笔记奇遇");
+      const treasure = grantEventTreasure(runState, `${sourceId}:legendary`, treasureId, stageId, "死亡笔记奇遇");
       if (!treasure) return false;
       result = { maxHpLoss, treasureId, currentHp: runState.currentHp };
     } else if (sequel && choiceId === "death_nothing") {

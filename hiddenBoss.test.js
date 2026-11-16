@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { simulateBattle } from "./battle.js";
-import { beginHiddenBossChallenge, completeSettlement, createCampaign, deferHiddenBossChallenge,
+import { beginHiddenBossChallenge, claimApocalypseReward, completeSettlement, createCampaign, deferHiddenBossChallenge,
   finishBattle, prepareBattle, queueHiddenBossIntro, resolveCampaignEvent,
   resumeHiddenBossAtCampfire } from "./campaign.js";
 import { STARTING_CHARACTERS } from "./characters.js";
@@ -148,6 +148,8 @@ test("one continuous battle carries bullet holes into Yoru and absorbs partner s
   assert.equal(campaign.partyStates[campaign.partyIds[1]].currentHp, partnerHp);
   assert.equal(campaign.lastEssenceReward.amount, 20);
   assert.equal(campaign.essenceHistory.filter((entry) => entry.reason === "hidden_boss").length, 1);
+  assert.equal(campaign.pendingApocalypseReward, true);
+  assert.equal(claimApocalypseReward(campaign, campaign.playerId).level, 1);
   assert.equal(completeSettlement(campaign), "route");
   assert.equal(completeSettlement(campaign), null);
 });

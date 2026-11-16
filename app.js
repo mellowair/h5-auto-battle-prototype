@@ -2,7 +2,7 @@ import { ANIMATION_TIMING, CHARACTER_DATA, COMBAT_RULES, STAGE_TWO_NORMAL_PASSIV
 import { beginHiddenBossChallenge, deferHiddenBossChallenge, queueHiddenBossIntro, resumeHiddenBossAtCampfire,
   beginArimaCampfireChallenge, canChallengeArimaAtCampfire } from "./campaign.js";
 import { HIDDEN_BOSS_RULES, GUN_DEVIL, hiddenBossShotLayout, SPINAL_SWORD_BY_PARTNER, YORU } from "./hiddenBoss.js";
-import { advanceEventEpilogue, advanceStageTransition, beginJourney, beginStageTwo, beginStageThree, buyShopItem, chooseEvolutionUpgrade, chooseRoute, chooseTrialNode, chooseStartingSkill, claimCampaignEliteDrop, claimCampaignReward, claimCampaignSpecialReward, claimCampaignQuinque, claimCampaignTreasure, claimDragonRadarOffer, claimFateReward, claimStageTwoEliteSkill, claimStageTwoEliteSkip, claimStageTwoGiantRecipient, claimStageTwoStatReward, completeLocation, completeSettlement, createCampaign, eliteDropId, enterTrialMap, finishBattle, finishTrialResult, getActiveCampfireOptions, getCampaignRewardOffer, getCampaignTreasureOffer, getDragonRadarOffer, getFateReward, getRouteMap, getRouteOptions, getShopRouteOptions, getStageTransitionChoices, getStageTwoCampfireOptions, leaveShop, prepareBattle, previewShopItem, resolveCampaignEvent, resolveStageTwoCampfire, resolveTrialOffer, resolveTrialWill, selectStartingCharacter, startCampaign, startCampaignEventBattle, STAGE_TWO_STAT_UPGRADES } from "./campaign.js";
+import { advanceEventEpilogue, advanceStageTransition, beginJourney, beginStageTwo, beginStageThree, buyShopItem, chooseEvolutionUpgrade, chooseRoute, chooseTrialNode, chooseStartingSkill, claimApocalypseReward, claimCampaignEliteDrop, claimCampaignReward, claimCampaignSpecialReward, claimCampaignQuinque, claimCampaignTreasure, claimDragonRadarOffer, claimFateReward, claimStageTwoEliteSkill, claimStageTwoEliteSkip, claimStageTwoGiantRecipient, claimStageTwoStatReward, completeLocation, completeSettlement, createCampaign, eliteDropId, enterTrialMap, finishBattle, finishTrialResult, getActiveCampfireOptions, getApocalypseUpgradeOffer, getCampaignRewardOffer, getCampaignTreasureOffer, getDragonRadarOffer, getFateReward, getRouteMap, getRouteOptions, getShopRouteOptions, getStageTransitionChoices, getStageTwoCampfireOptions, leaveShop, prepareBattle, previewShopItem, resolveCampaignEvent, resolveStageTwoCampfire, resolveTrialOffer, resolveTrialWill, selectStartingCharacter, startCampaign, startCampaignEventBattle, STAGE_TWO_STAT_UPGRADES, upgradeApocalypseAtCampfire } from "./campaign.js";
 import { getCritChance, getDodgeChance, getSkillDodgeChance, initializeBattle, simulateBattle } from "./battle.js";
 import { canDeclineNewSkill, getSeaBeyondOfferDetails, getSkillAtLevel, getSkillTrainingChoices, getTemporaryCombatModifiers, getTemporaryEffectDisplayRows, getTreasureCombatModifiers, getUnlearnedActiveSkills, previewGrowingDrop } from "./progression.js";
 import { ATTRIBUTE_UPGRADES, ELITE_BONUS_REWARDS, GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT, SKILL_DATA, TREASURE_DATA } from "./skills.js";
@@ -414,7 +414,7 @@ function describeEventResult(result) {
   if (Number.isFinite(result.maxHpGain)) return `最大生命值 +${result.maxHpGain}，当前生命值保持不变。`;
   if (result.gains?.length && !Number.isFinite(result.hpLoss)) return `${partyPresentation(result.recipientId)?.name ?? "角色"}本局额外获得：${result.gains.map(({ stat, amount }) => `${({ atk: "攻击", def: "防御", spd: "速度" })[stat]} +${amount}`).join("、")}，本次未扣除生命值。`;
   if (Number.isFinite(result.essenceBlockedBattles)) return `接下来 ${result.essenceBlockedBattles} 场战斗不获得精华；本关精英入场 HP ×${result.eliteHpMultiplier}，Boss 入场 HP ×${result.bossHpMultiplier}。`;
-  if (result.treasureId && Number.isFinite(result.maxHpLoss)) return `最大 HP 减少 ${result.maxHpLoss}，获得「${({giant_spinal_fluid:"巨人脊髓液",gun_devil_fragment:"枪魔碎片",sukuna_finger:"宿傩手指"})[result.treasureId]}」。`;
+  if (result.treasureId && Number.isFinite(result.maxHpLoss)) return `最大 HP 减少 ${result.maxHpLoss}，获得传说宝物「${TREASURE_DATA[result.treasureId]?.name ?? result.treasureId}」。`;
   if (result.sequelUnlocked) return result.shownResult ? `本次看见了「${({long:"长期实验",medium:"中期实验",short:"短期实验"})[result.shownResult]}」的可能性；下次可从另外两种实验中选择。` : "后续事件已开启。";
   if (result.atkMultiplier) return `绿色果冻香蕉：ATK ×${result.atkMultiplier}，持续 ${result.battlesRemaining} 场战斗；完成后领取奖励。`;
   if (result.vipTicket) return "获得临时高级 VIP 体验券；下一间商店可六折购买一件商品。";
@@ -1193,15 +1193,15 @@ function renderAllyStatusIcons() {
         image: "assets/shop/skill-book.png", tone: "buff",
         description: SKILL_DATA["iron-bell"].description });
     }
-    for (const id of ["armament-haki", "heavenly-restriction-book", "undying-subspecies"])
+    for (const id of ["armament-haki", "heavenly-restriction-book", "undying-subspecies", "brick-force", "three-teachers", "apocalypse-knight"])
       if (unit.extraPassiveSkillIds?.includes(id)) statuses.push({ id: `${id}-${unit.id}`,
-        name: `${unit.name} · ${SKILL_DATA[id].name}`, image: "assets/shop/skill-book.png", tone: "buff",
+        name: `${unit.name} · ${SKILL_DATA[id].name}${id === "apocalypse-knight" ? ` Lv.${unit.apocalypseKnightLevel ?? 1}` : ""}`, image: "assets/shop/skill-book.png", tone: "buff",
         description: SKILL_DATA[id].description });
     if (unit.extraPassiveSkillIds?.includes("undying-subspecies") &&
         (unit.undyingActionHealUntilRound ?? 0) >= battleStatusState.currentRound && unit.undyingUsed)
-      statuses.push({ id: `undying-heal-block-${unit.id}`, name: `${unit.name} · 行动禁疗`,
+      statuses.push({ id: `undying-heal-block-${unit.id}`, name: `${unit.name} · 吸血减半`,
         image: "assets/status-cannot-act.png", tone: "debuff",
-        description: `不死亚种生效后，直到第 ${unit.undyingActionHealUntilRound} 回合结束前无法通过行动恢复 HP。` });
+        description: `不死亚种生效后，直到第 ${unit.undyingActionHealUntilRound} 回合结束前吸血降低 50%。` });
     if (unit.id === "eren" && unit.evolutionPhase === 2 &&
         (unit.warhammerVulnerableUntilRound ?? 0) >= battleStatusState.currentRound &&
         unit.warhammerVulnerableUntilRound > 0) {
@@ -1277,7 +1277,7 @@ function renderAllyStatusIcons() {
   }
   if (campaign?.trial?.divinePunishmentBattlesLeft > 0) {
     allyStatuses.push({ id: "divine-punishment", name: "永恒的枷锁", image: "assets/route-signs/question.png", tone: "danger",
-      description: `本项试炼最大 HP 临时 -20%，仍可正常吸血；完成后恢复原最大 HP，当前 HP 不额外恢复。剩余 ${campaign.trial.divinePunishmentBattlesLeft} 场。` });
+      description: `本项试炼最大 HP 临时 -20%，仍可正常吸血；战后先恢复原最大 HP，再按试炼规则恢复当前 HP。剩余 ${campaign.trial.divinePunishmentBattlesLeft} 场。` });
   }
   if (campaign?.trialBattle?.taskId === "strength")
     allyStatuses.push({ id: "trial-strength", name: "力量试炼", image: "assets/route-signs/question.png", tone: "debuff",
@@ -1620,11 +1620,11 @@ function renderTrialProgress() {
   $("#trial-panel-count").textContent = `${trial.completedCount}/2`;
   $("#trial-panel-tasks").replaceChildren(...trial.order.map((id) => {
     const row = document.createElement("li");
-    row.textContent = `${TRIAL_TASKS[id].kind} · ${TRIAL_TASKS[id].name}：${({ pending: "未开始", active: "进行中", completed: "已完成", declined: "已放弃", failed: "失败" })[trial.tasks[id]]}`;
+    row.textContent = `${TRIAL_TASKS[id].name}：${({ pending: "未开始", active: "进行中", completed: "已完成", declined: "已放弃", failed: "失败" })[trial.tasks[id]]}`;
     return row;
   }));
   $("#trial-punishment-note").textContent = trial.divinePunishmentBattlesLeft > 0
-    ? `永恒的枷锁：剩余 ${trial.divinePunishmentBattlesLeft} 场战斗，最大 HP -20%；结束后恢复上限，保留当前 HP。` : "";
+    ? `永恒的枷锁：剩余 ${trial.divinePunishmentBattlesLeft} 场战斗，最大 HP -20%；战后先恢复上限，再结算生命恢复。` : "";
 }
 
 function updateBossProgress() {
@@ -1701,7 +1701,7 @@ function clearEffects() {
   clearBorosVisuals();
   lastBorosVisualCastId = null;
   lastGilgameshVisualCastId = null;
-  document.querySelectorAll(".colossal-battle-smoke, .gilgamesh-visual, .trial-projectile, .shin-hammer-projectile, .eren-warhammer-strike, .evolution-entrance, .clone-protect-effect, .summon-portal, .arima-weakpoint, .cannot-act-effect, .skill-book-opening, .gravity-circle, .gravity-dish, .hidden-yoru-entrance, .hidden-spinal-sword, .hidden-boss-projectile, .hidden-boss-ground-effect, .hidden-yoru-summoned-gun, .hidden-yoru-tank, .aging-choice-overlay, .aging-projectile, .aging-absorbed, .aging-passive-effect").forEach((node) => node.remove());
+  document.querySelectorAll(".colossal-battle-smoke, .gilgamesh-visual, .trial-projectile, .shin-hammer-projectile, .eren-warhammer-strike, .evolution-entrance, .clone-protect-effect, .summon-portal, .arima-weakpoint, .cannot-act-effect, .skill-book-opening, .apocalypse-sword, .gravity-circle, .gravity-dish, .hidden-yoru-entrance, .hidden-spinal-sword, .hidden-boss-projectile, .hidden-boss-ground-effect, .hidden-yoru-summoned-gun, .hidden-yoru-tank, .aging-choice-overlay, .aging-projectile, .aging-absorbed, .aging-passive-effect").forEach((node) => node.remove());
   document.querySelectorAll(".fighter.is-yoru-countering").forEach((node) => node.classList.remove("is-yoru-countering"));
   clearAllSpriteFrameCycles();
   timer = null;
@@ -2169,6 +2169,40 @@ function playEvent(event, finish) {
   }
   if (event.type === "hidden-boss-phase") return playHiddenBossPhase(event, finish);
   if (event.type === "hidden-boss-counter") return playHiddenBossCounter(event, finish);
+  if (event.type === "apocalypse-sword") {
+    const sword = viewState.characters.find((unit) => unit.id === event.swordId);
+    const recipient = viewState.characters.find((unit) => unit.id === event.recipientId);
+    if (sword) { sword.alive = false; sword.currentHp = 0; sword.spinalSwordConverted = true; updateHealth(sword); }
+    if (recipient) {
+      for (const stat of ["maxHp", "atk", "def", "spd"]) recipient[stat] += event.absorbed[stat];
+      recipient.currentHp = event.currentHp;
+      recipient.apocalypseSwordOnly = event.swordOnly;
+      if (event.swordOnly) {
+        recipient.skills = []; recipient.skill = null;
+        recipient.extraPassiveSkillIds = [];
+        recipient.passiveSkillId = null;
+        recipient.normalPassiveId = null;
+        recipient.chakraClones = 0;
+      }
+      updateHealth(recipient);
+      const fighter = document.querySelector(`[data-character="${recipient.id}"]`);
+      if (fighter && event.swordAsset) {
+        fighter.querySelector(".apocalypse-sword")?.remove();
+        const swordArt = document.createElement("img");
+        swordArt.className = "apocalypse-sword";
+        swordArt.src = event.swordAsset;
+        swordArt.alt = "脊髓剑";
+        fighter.append(swordArt);
+      }
+    }
+    for (const id of event.dismissedIds) {
+      const summon = viewState.characters.find((unit) => unit.id === id);
+      if (summon) { summon.alive = false; summon.currentHp = 0; updateHealth(summon); }
+    }
+    addLog(`<b>天启骑士</b>：${sword?.name ?? event.swordId}化为脊髓剑，${recipient?.name ?? event.recipientId}恢复 ${event.healed} HP 并继承入场属性。`, "log-ally");
+    renderAllyStatusIcons();
+    return finish();
+  }
   if (event.type === "skill-book-opening") {
     const fighter = document.querySelector(`[data-character="${event.targetId}"]`);
     if (!fighter || !event.asset) return finish();
@@ -3040,7 +3074,7 @@ function playEvent(event, finish) {
           startIdleCycle(fighter, unit);
         }
       }
-      if (recovery.restored > 0) addLog(`<b>${unit?.name ?? recovery.characterId}</b> ${recovery.kind === "revive" ? "战后重新站起" : recovery.kind === "trial_quarter_heal" ? "试炼小关完成" : recovery.kind === "trial_failure_heal" ? "试炼小关失败后恢复" : "大天使的气息"}：HP +${recovery.restored}。`, "log-skill");
+      if (recovery.restored > 0) addLog(`<b>${unit?.name ?? recovery.characterId}</b> ${recovery.kind === "revive" ? "战后重新站起" : recovery.kind === "trial_half_heal" ? "试炼战后恢复" : recovery.kind === "trial_failure_heal" ? "试炼失败后恢复" : "大天使的气息"}：HP +${recovery.restored}。`, "log-skill");
     }
     const rasenganSpeedGain = (campaign.runCharacterState?.spd ?? speedBeforeSettlement) - speedBeforeSettlement;
     if (rasenganSpeedGain > 0) addLog(`螺旋丸击杀 · <b>本局 SPD +${rasenganSpeedGain}</b>`, "log-skill");
@@ -3083,6 +3117,7 @@ function playEvent(event, finish) {
         else renderEnding();
       }
       };
+      if (campaign.pendingApocalypseReward) return renderApocalypseReward(continueTransition);
       if (getFateReward(campaign)) return renderFateReward(continueTransition);
       if (getDragonRadarOffer(campaign)) return renderDragonRadarOffer(continueTransition);
       else continueTransition();
@@ -3258,6 +3293,11 @@ function playEvent(event, finish) {
     return finish();
   }
   if (event.type !== "attack") return finish();
+  for (const buff of event.teacherBuffs ?? []) {
+    const holder = viewState.characters.find((unit) => unit.id === buff.targetId);
+    if (holder) holder.atk = buff.effectiveAtk;
+    addLog(`<b>${holder?.name ?? buff.targetId}</b> 的「必有我师」生效：ATK +${buff.attackGain}（当前 ${buff.effectiveAtk}）。`, "log-skill");
+  }
   if (event.type === "attack" && (event.splash || event.chakraBurst)) {
     const counterFighter = event.yoruCounterTriggered ? document.querySelector('[data-character="yoru"]') : null;
     const counterUnit = counterFighter && viewState.characters.find((unit) => unit.id === YORU.id);
@@ -3897,6 +3937,10 @@ function playEvent(event, finish) {
       if (ally) { ally.shieldHp = granted.total; updateHealth(ally); }
     }
     if (Number.isFinite(event.targetShield)) { target.shieldHp = event.targetShield; updateHealth(target); }
+    if (event.quinqueGuardTriggered) {
+      target.quinqueGuardUses = event.quinqueGuardUses;
+      addLog(`<b>${target.name}</b> 的库因克格挡免疫了本次伤害（本场 ${event.quinqueGuardUses}/3 次）。`, "log-skill");
+    }
     if (event.shieldsGranted?.length) addLog(event.shieldsGranted[0].cap != null
       ? `<b>${attacker.name}</b> 将存活队友护盾刷新至最多 ${event.shieldsGranted[0].cap} 点。`
       : `<b>${attacker.name}</b> 九尾羁绊为队友提供护盾。`, "log-skill");
@@ -3965,7 +4009,7 @@ function playEvent(event, finish) {
       event.defenseBonusApplied > 0 ? `<span class="skill-name">DEF +${event.defenseBonusApplied}</span>` : "",
       event.oneEyeTriggered ? `<span class="skill-name">独眼触发：${event.oneEyeHealedAmount > 0 ? `HP +${event.oneEyeHealedAmount}` : "生命值已满"}</span>` : event.healedAmount > 0 ? `<span class="skill-name">HP +${event.healedAmount}</span>` : "",
       event.damageSkillTriggered ? `<span class="skill-name">${event.damageSkillTriggered.skillName} 生效：ATK +${event.damageSkillTriggered.attackGain ?? 0}、SPD +${event.damageSkillTriggered.speedGain ?? 0}</span>` : "",
-      event.trialDamage?.undyingTriggered ? '<span class="skill-name">不死亚种：保留 1 HP，行动禁疗 3 回合</span>' : "",
+      event.trialDamage?.undyingTriggered ? '<span class="skill-name">不死亚种：保留 1 HP，随后 3 回合吸血减半</span>' : "",
       event.tauntApplied ? '<span class="skill-name">下回合嘲讽敌方单体攻击</span>' : "",
       event.passiveTriggered?.damageImmune ? `<span class="skill-name">${event.passiveTriggered.skillId === "eren-2000-years" ? "2000年后的你免疫了这次攻击" : "被动免疫"}</span>` : "",
       event.jinchurikiExpired ? '<span class="skill-name">人柱力半血增益结束</span>' : "",
@@ -4178,7 +4222,7 @@ function renderAgingChoice(token) {
     ? [["battle", "承受本场惩罚：此后每回合当前 HP -最大 HP 的 5%"],
       ["permanent", "永久扣除：此后每回合 DEF -3"],
       ["treasure", "牺牲一件随机普通宝物，免除本阶段惩罚"]]
-    : pending.round === 10
+    : pending.round === 15
     ? [["battle", "承受本场惩罚：此后每回合 DEF -20"],
       ["permanent", "永久扣除：此后每回合最大 HP -3%"],
       ["treasure", "牺牲一件随机稀有宝物，免除本阶段惩罚"]]
@@ -4549,11 +4593,11 @@ function renderTrialMap() {
     button.className = `trial-node${trial.tasks[id] === "pending" ? " is-current" : ""}`;
     button.disabled = trial.tasks[id] !== "pending";
     const state = ({ pending: "未开始", active: "进行中", completed: "已完成", declined: "已放弃", failed: "失败" })[trial.tasks[id]];
-    button.textContent = `${TRIAL_TASKS[id].kind} · ${TRIAL_TASKS[id].name}`;
+    button.textContent = TRIAL_TASKS[id].name;
     const label = document.createElement("small"); label.textContent = state;
     button.append(label);
     const penalty = document.createElement("small");
-    penalty.textContent = ({ will: "最大 HP -20%", strength: "ATK -20%", wisdom: "DEF -20%" })[id];
+    penalty.textContent = ({ will: "本场战斗最大 HP 降低 20%", strength: "本场战斗攻击力降低 20%", wisdom: "本场战斗防御力降低 20%" })[id];
     button.append(penalty);
     button.addEventListener("click", () => {
       const selected = chooseTrialNode(campaign, id);
@@ -4588,7 +4632,7 @@ function renderTrialResult() {
   const won = campaign.trial.status === "completed";
   renderDecisionScreen(won ? "试炼完成" : "试炼失败", won
     ? "已完成两项试炼。两名角色将进化，并各获得四次技能升级。"
-    : "试炼结束。全队最大 HP 与 SPD 各降低 40%，效果持续至本局结束；当前 HP 恢复到进入试炼前的数值，但不超过现有上限。", [
+    : "试炼结束。全队最大 HP 与 SPD 各降低 40%，效果持续至本局结束；当前 HP 恢复至惩罚后最大 HP 的 50%。", [
     decisionChoice("__continue__", won ? "开始二阶段进化" : "返回第三关路线", won ? "进化后选择两名角色的技能升级。" : "本版本暂只开放试炼，常规路线等待后续内容。"),
   ], "继续", () => {
     if (!finishTrialResult(campaign)) return false;
@@ -5396,6 +5440,20 @@ function renderDragonRadarOffer(onComplete = null) {
   return true;
 }
 
+function renderApocalypseReward(onComplete = null) {
+  if (!campaign?.pendingApocalypseReward) return false;
+  renderDecisionScreen("战争恶魔 · 天启骑士", "击败战争恶魔获得传说技能书。选择一名角色学习。",
+    campaign.partyIds.map((id) => decisionChoice(id, partyPresentation(id)?.name ?? id,
+      SKILL_DATA["apocalypse-knight"].description, false, "assets/shop/skill-book.png")),
+    "确认学习", (id) => {
+      if (!claimApocalypseReward(campaign, id)) return false;
+      updateProgressionDisplays();
+      if (onComplete) onComplete();
+      return true;
+    }, "ACT · LEGENDARY BOOK");
+  return true;
+}
+
 function renderFateReward(onComplete = null) {
   const offer = getFateReward(campaign);
   if (!offer) return false;
@@ -5469,8 +5527,8 @@ function renderBattleReward() {
   if (campaign.rewardPhase === "quinque") {
     const choices = campaign.partyIds.flatMap((id) => {
       const name = partyPresentation(id)?.name ?? id;
-      return [decisionChoice(`${id}|quinque_guard`, `${name} · 库因克防御`, "普通攻击命中时有 50% 概率抵挡一半伤害。", false, "assets/treasures/quinque-guard.png"),
-        decisionChoice(`${id}|quinque_crit`, `${name} · 库因克暴击`, "HP 低于 60% 时暴击率增加 30 个百分点。", false, "assets/treasures/quinque-crit.png")];
+      return [decisionChoice(`${id}|quinque_guard`, `${name} · 库因克格挡`, TREASURE_DATA.quinque_guard.description, false, TREASURE_DATA.quinque_guard.image),
+        decisionChoice(`${id}|quinque_crit`, `${name} · 库因克暴击`, TREASURE_DATA.quinque_crit.description, false, TREASURE_DATA.quinque_crit.image)];
     });
     renderDecisionScreen("领取库因克", "选择一种被动，并指定一名角色领取。", choices, "确认领取", (choice) => {
       const [recipientId, rewardId] = choice.split("|");
@@ -5489,7 +5547,7 @@ function renderBattleReward() {
     const record = campaign.runCharacterState.eventResults[campaign.eventBattleSourceId];
     const name = record?.data.specialRewardId === "drip_coffee" ? "挂耳咖啡" : "六耳真身";
     const description = record?.data.specialRewardId === "drip_coffee"
-      ? "本局之后每次篝火回血额外增加最大 HP 的 15%；石鬼面持有者仍不能通过篝火回血。"
+      ? "每次在篝火选择回血，全队永久增加 150 最大 HP；石鬼面持有者仍不能通过篝火恢复当前 HP。"
       : "本局普通攻击和主动技能攻击无法被敌人闪避。";
     const recipients = campaign.partyIds.map((id) => {
       const character = partyPresentation(id);
@@ -5773,9 +5831,12 @@ function renderCampfire() {
     const canUpgrade = members.some(({ options }) => options[1].enabled);
     const deferredBoss = campaign.hiddenBoss?.unlocked && !campaign.hiddenBoss.resolved && !campaign.hiddenBoss.attempted;
     const arimaChallenge = canChallengeArimaAtCampfire(campaign);
+    const apocalypseUpgrade = getApocalypseUpgradeOffer(campaign);
     renderDecisionScreen(`第${campaign.stageId}关篝火`, "休息治疗全队，或每名队员分别获得一次技能训练机会。", [
       decisionChoice("rest", "全队休息", healText),
       decisionChoice("skill_upgrade", "全队技能升级", "每名符合条件的队员各升级一次。", !canUpgrade),
+      ...(apocalypseUpgrade ? [decisionChoice("upgrade_apocalypse", "天启骑士 Lv2",
+        `献祭 4 个枪魔碎片，移除其属性收益（现有 ${apocalypseUpgrade.fragments}/4）。`, apocalypseUpgrade.fragments < 4)] : []),
       ...(arimaChallenge ? [decisionChoice("arima_challenge", "挑战有马贵将", "可留待之后的篝火挑战。")]: []),
       ...(deferredBoss ? [decisionChoice("hidden_boss", "挑战枪之恶魔与战争恶魔·夜", "可留待之后的篝火挑战。")]: []),
     ], "确认", (id) => {
@@ -5789,6 +5850,11 @@ function renderCampfire() {
         if (!beginHiddenBossChallenge(campaign)) return false;
         beginBattle();
         return true;
+      }
+      if (id === "upgrade_apocalypse") {
+        const result = upgradeApocalypseAtCampfire(campaign);
+        if (!result) return false;
+        updateProgressionDisplays(); renderEventResult({ result }); return true;
       }
       if (id === "rest") {
         const result = resolveStageTwoCampfire(campaign, "rest");
@@ -6015,7 +6081,7 @@ function renderAdventureEvent() {
     choices.push(decisionChoice("death_temptation", "死神诱惑", "收起笔记，开启死亡笔记（2）。"));
   } else if (record.eventId === "death_note_2") {
     choices.push(decisionChoice("death_light", "走向光明", "后续 3 场战斗无精华；本关精英入场 HP -25%，Boss -15%。"));
-    choices.push(decisionChoice("death_read", "读万卷书", "永久失去 44% 最大 HP，随机获得一件稀有宝物。"));
+    choices.push(decisionChoice("death_read", "读万卷书", "永久失去 25% 最大 HP，随机获得一件传说宝物。"));
     choices.push(decisionChoice("death_nothing", "我什么都不想要", "恢复相当于最大 HP 44% 的生命。"));
   } else if (record.eventId === "fate_gate") {
     const experimentPreview = {
@@ -6283,6 +6349,7 @@ function initializeGame() {
           else if (campaign.status === "hidden_boss_intro") renderHiddenBossIntro();
           else renderEnding();
         };
+        if (campaign.pendingApocalypseReward) return renderApocalypseReward(resumeSettlement);
         if (getFateReward(campaign)) return renderFateReward(resumeSettlement);
         if (getDragonRadarOffer(campaign)) return renderDragonRadarOffer(resumeSettlement);
         else resumeSettlement();

@@ -19,7 +19,8 @@ const run = (level, roll = .9, options = {}) => simulateBattle([
 ], typeof roll === "function" ? roll : () => roll);
 
 test("Tang joins both selectable stages with the new landing frame and exact base stats", () => {
-  assert.deepEqual([tang.hp, tang.atk, tang.def, tang.spd, tang.row], [900, 300, 30, 10, "back"]);
+  assert.deepEqual([tang.hp, tang.atk, tang.def, tang.spd, tang.row], [1100, 300, 50, 10, "back"]);
+  assert.deepEqual([tang.baseStats.maxHp, tang.baseStats.def], [1100, 50]);
   for (const name of ["tang_landing", "tang_idle", "tang_meditate", "tang_skill1", "tang_death"])
     assert.ok(existsSync(new URL(`./assets/tang/${name}.png`, import.meta.url)));
   for (const kind of ["white-horse", "bajie", "shaseng", "wukong"])
@@ -71,7 +72,7 @@ test("battle preparation excludes short combat buffs and current HP loss from Ta
   const rosterTang = prepareBattle(campaign).roster.find((unit) => unit.id === "tang");
   assert.deepEqual(rosterTang.tangGrowth, { maxHp: 300, atk: 50, def: 40, spd: 20 });
   assert.equal(rosterTang.currentHp, 200);
-  assert.equal(rosterTang.def, 110);
+  assert.equal(rosterTang.def, 130);
   assert.deepEqual(tangSummonStats("white-horse", rosterTang), { hp: 1650, atk: 175, def: 100, spd: 70 });
 });
 
@@ -123,5 +124,5 @@ test("Wukong's Tang DEF buff affects only the charge round, then expires", () =>
     { ...enemy(10000, 260), def: 1000, rosterOrder: 2 },
   ], () => ++rolls === 1 ? 0 : .99);
   const hits = result.events.filter((event) => event.type === "attack" && event.attackerId === "test-enemy" && event.targetId === "tang");
-  assert.deepEqual(hits.slice(0, 3).map((event) => [event.round, event.damage]), [[1, 98], [2, 160], [3, 160]]);
+  assert.deepEqual(hits.slice(0, 3).map((event) => [event.round, event.damage]), [[1, 90], [2, 138], [3, 138]]);
 });

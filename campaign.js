@@ -6,7 +6,7 @@ import { SKILL_DATA, TREASURE_DATA } from "./skills.js";
 import { SHOP_RULES } from "./shopConfig.js";
 import { createSeededRandom, generateRouteMap, ROUTE_MAP_FINAL_STEP } from "./routeMap.js";
 import {
-  applyAdventureBattleBonusReward, applyAdventureBattleStatReward, applyBattleBonusReward,
+  applyAdventureBattleBonusReward, applyAdventureBattleStatReward, applyBattleBonusReward, applyPassiveBookStats,
   advanceTemporaryEffectsAfterBattle, applyAdventurePartyOutcome, applyBattleStatReward, chooseAdventureEventId, completeAdventureBattle, createAdventureEventResult,
   canDeclineNewSkill, createBattleRewardOffer, createRunCharacterState, getAvailableAdventureEventIds, getCampfireOptions, getSkillAtLevel,
   getTemporaryCombatModifiers, getTemporaryEffects, getTreasureCombatModifiers, getUnlearnedActiveSkills, getUpgradeableSkills, getSkillTrainingChoices, grantGiantSpinalFluid, grantEliteSukunaFinger, grantGunDevilFragment, grantAdventureSpecialReward, grantEventTreasure, grantQuinque, claimTreasure, learnActiveSkill, upgradeActiveSkill,
@@ -390,6 +390,18 @@ export function prepareBattle(campaign) {
   if (!playerTemplate) return null;
   const run = campaign.runCharacterState;
   if (!run || run.characterId !== playerTemplate.id) return null;
+  if (campaign.trialBattle?.taskId === "will" && campaign.trial?.divinePunishmentBattlesLeft > 0 &&
+      !run.divinePunishment) {
+    for (const id of campaign.partyIds) {
+      const state = campaign.partyStates[id];
+      const reduction = Math.min(state.maxHp - 1, Math.floor(state.maxHp * TRIAL_RULES.divinePunishmentHpFraction));
+      state.maxHp -= reduction;
+      state.currentHp = Math.min(state.currentHp, state.maxHp);
+      state.divinePunishment = { reduction, battlesLeft: campaign.trial.divinePunishmentBattlesLeft };
+    }
+    campaign.playerHp = run.currentHp;
+    campaign.playerMaxHp = run.maxHp;
+  }
   const agingBattle = battle.enemies.includes("aging-devil");
   const battleStartEffects = [];
   const routeStep = campaign.stageId >= 2 ? campaign.stageStep ?? battle.stageStep : battle.step;
@@ -448,6 +460,8 @@ export function prepareBattle(campaign) {
       critChance: state.critRate, critMultiplier: state.critMultiplier,
       passiveSkillId: state.passiveSkillId, passiveLevel: agingBattle ? 1 : state.passiveLevel ?? 1,
       extraPassiveSkillIds: state.extraPassiveSkillIds ?? [], evolutionPhase: state.evolution?.phase ?? 1,
+      bookStatAppliedIds: state.bookStatAppliedIds ?? [],
+      apocalypseKnightLevel: state.skillLevels?.["apocalypse-knight"] ?? 1,
       skills: skillEffects, skill: skillEffects[0] ?? null,
     };
     if (id === "tang" && state.evolution?.phase === 2) {
@@ -604,6 +618,23 @@ export function prepareBattle(campaign) {
 
 export function getFateReward(campaign) { return campaign?.pendingFateReward ?? null; }
 
+export function claimApocalypseReward(campaign, recipientId) {
+  if (!campaign?.pendingApocalypseReward || campaign.status !== "settlement" ||
+      campaign.settlementNext !== "hidden_boss_win" || !campaign.partyIds.includes(recipientId)) return false;
+  const member = campaign.partyStates?.[recipientId];
+  if (!member || member.extraPassiveSkillIds?.includes("apocalypse-knight")) return false;
+  member.extraPassiveSkillIds ??= [];
+  member.extraPassiveSkillIds.push("apocalypse-knight");
+  member.skillLevels ??= {};
+  member.skillLevels["apocalypse-knight"] = 1;
+  member.skillHistory ??= [];
+  member.skillHistory.push({ skillId: "apocalypse-knight", level: 1,
+    sourceId: `hidden-boss:${campaign.currentBattle?.id ?? "yoru"}`, kind: "learn" });
+  campaign.pendingApocalypseReward = false;
+  campaign.hiddenBoss.apocalypseRewarded = true;
+  return { skillId: "apocalypse-knight", recipientId, level: 1 };
+}
+
 export function claimFateReward(campaign, recipientId, treasureId = null) {
   const offer = getFateReward(campaign);
   const member = campaign?.partyStates?.[recipientId];
@@ -617,6 +648,7 @@ export function claimFateReward(campaign, recipientId, treasureId = null) {
     else if (book.skillType === "passive" && !(member.extraPassiveSkillIds ?? []).includes(book.skillId)) {
       member.extraPassiveSkillIds ??= [];
       member.extraPassiveSkillIds.push(book.skillId);
+      applyPassiveBookStats(member);
       result = { bookId: book.id, skillId: book.skillId };
     }
     if (result) member.skillHistory.push({ skillId: book.skillId ?? result.skillId, sourceId, kind: "fate-book" });
@@ -708,7 +740,7 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
     const finished = finalCharacters?.find((character) => character.id === id &&
       (character.originalTeam === "ally" || (!character.originalTeam && character.team === "ally")));
     if (state) {
-      if (campaign.currentBattle?.hiddenBoss && finished?.spinalSwordConverted) continue;
+      if (campaign.currentBattle?.hiddenBoss && finished?.spinalSwordConverted && !finished?.apocalypseSwordConverted) continue;
       const finalHp = finished?.currentHp ?? (id === campaign.playerId ? campaign.playerHp : state.currentHp);
       const restoredOdinHp = finalHp > 0 && Number.isFinite(finished?.odinMimirHpBefore) &&
         Number.isFinite(finished?.odinMimirBattleStartHp)
@@ -736,18 +768,11 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
     const completedTrialBattle = campaign.currentBattle;
     if (outcome === "victory") applyVictoryTreasureGrowth(campaign);
     const result = settleTrialBattle(campaign, outcome);
-    if (result) applyAngelBreathBattleRecovery(campaign);
-    if (outcome === "victory" && result) awardBattleEssence(campaign, completedTrialBattle);
-    if (outcome === "victory" && result?.trialOutcome === "completed") {
-      // Restore only after the final trial; carry current HP between tasks.
-      for (const id of campaign.partyIds) {
-        const state = campaign.partyStates[id];
-        if (!state) continue;
-        const before = state.currentHp;
-        state.currentHp = hasStoneMask(state) ? before : Math.min(state.maxHp, before + Math.floor(state.maxHp * .25));
-        campaign.lastBattleRecovery.push({ characterId: id, kind: "trial_quarter_heal", restored: state.currentHp - before, currentHp: state.currentHp });
-      }
+    if (result) {
+      applyTrialBattleRecovery(campaign, outcome);
+      applyAngelBreathBattleRecovery(campaign);
     }
+    if (outcome === "victory" && result) awardBattleEssence(campaign, completedTrialBattle);
     campaign.playerHp = campaign.runCharacterState.currentHp;
     campaign.playerMaxHp = campaign.runCharacterState.maxHp;
     return result;
@@ -775,6 +800,7 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
         amount, reason: blocked ? "death_note" : "hidden_boss" });
       campaign.hiddenBoss.rewarded = true;
     }
+    if (!campaign.hiddenBoss.apocalypseRewarded) campaign.pendingApocalypseReward = true;
     campaign.settlementNext = "hidden_boss_win";
     campaign.status = "settlement";
     return { status: "settlement", next: "hidden_boss_win" };
@@ -851,6 +877,7 @@ function awardBattleEssence(campaign, battle = campaign.currentBattle) {
 
 export function completeSettlement(campaign) {
   if (!campaign || campaign.status !== "settlement" || !campaign.settlementNext) return null;
+  if (campaign.pendingApocalypseReward) return null;
   const next = campaign.settlementNext;
   campaign.settlementNext = null;
   if (next === "victory" && campaign.activeNode) {
@@ -1398,6 +1425,7 @@ export function resolveCampaignEvent(campaign, choiceId = null, skillId = null) 
   if (!result) return false;
   campaign.pendingEvent = campaign.runCharacterState.eventResults[campaign.activeNode.id] ?? campaign.pendingEvent;
   if (result.result?.vipTicket) campaign.vipTrialTicket = { used: false, shopId: null, multiplier: .6 };
+  if (result.result?.treasureId === "premium_vip_card") activateVipCard(campaign, "premium_vip_card");
   campaign.playerHp = campaign.runCharacterState.currentHp;
   campaign.playerMaxHp = campaign.runCharacterState.maxHp;
   const eventRecord = campaign.runCharacterState.eventResults[campaign.activeNode.id];
@@ -1462,6 +1490,44 @@ export function getStageTwoCampfireOptions(campaign) {
   return campaign.partyIds.map((id) => ({ characterId: id, ...{ options: getCampfireOptions(campaign.partyStates[id]) } }));
 }
 
+export function getApocalypseUpgradeOffer(campaign) {
+  if (campaign?.status !== "event" || campaign.activeEventType !== "campfire" || campaign.eventResolved) return null;
+  const holderId = campaign.partyIds.find((id) => campaign.partyStates[id]?.extraPassiveSkillIds?.includes("apocalypse-knight") &&
+    (campaign.partyStates[id].skillLevels?.["apocalypse-knight"] ?? 1) === 1);
+  if (!holderId) return null;
+  return { holderId, fragments: fragmentCount(campaign), required: 4 };
+}
+
+export function upgradeApocalypseAtCampfire(campaign) {
+  const offer = getApocalypseUpgradeOffer(campaign);
+  if (!offer || offer.fragments < offer.required) return false;
+  const sacrifices = [];
+  for (const id of campaign.partyIds) for (const effect of campaign.partyStates[id].permanentEffects)
+    if (effect.id === "gun_devil_fragment" && sacrifices.length < offer.required) sacrifices.push({ id, effect });
+  if (sacrifices.length !== offer.required) return false;
+  for (const { id, effect } of sacrifices) {
+    const member = campaign.partyStates[id];
+    member.permanentEffects.splice(member.permanentEffects.indexOf(effect), 1);
+    for (const stat of ["atk", "def", "spd"]) member[stat] = Math.max(0, member[stat] - (effect[stat] ?? 0));
+    member.maxHp = Math.max(1, member.maxHp - (effect.maxHp ?? 0));
+    member.currentHp = Math.min(member.currentHp, member.maxHp);
+  }
+  const holder = campaign.partyStates[offer.holderId];
+  holder.skillLevels ??= {};
+  holder.skillHistory ??= [];
+  holder.skillLevels["apocalypse-knight"] = 2;
+  holder.skillHistory.push({ skillId: "apocalypse-knight", level: 2,
+    sourceId: `campfire:${campaign.activeNode.id}`, kind: "fragment-sacrifice" });
+  campaign.playerHp = campaign.runCharacterState.currentHp;
+  campaign.playerMaxHp = campaign.runCharacterState.maxHp;
+  const result = { choiceId: "upgrade_apocalypse", holderId: offer.holderId, level: 2,
+    sacrifices: sacrifices.map(({ id, effect }) => ({ characterId: id, sourceId: effect.sourceId, maxHp: effect.maxHp })) };
+  campaign.eventResolved = true;
+  campaign.activeNode.resolutionResult = result;
+  campaign.resolvedEvents.push({ id: campaign.activeNode.id, title: "篝火", result });
+  return result;
+}
+
 export function resolveStageTwoCampfire(campaign, choiceId, skillChoices = {}) {
   if (campaign?.stageId < 2 || campaign.status !== "event" || campaign.activeEventType !== "campfire" || campaign.eventResolved) return false;
   const sourceId = campaign.activeNode?.id;
@@ -1477,9 +1543,23 @@ export function resolveStageTwoCampfire(campaign, choiceId, skillChoices = {}) {
   for (const { characterId, options } of members) {
     const state = campaign.partyStates[characterId];
     if (choiceId === "skill_upgrade" && !options[1].enabled) continue;
-    const result = resolveCampfire(state, sourceId, choiceId, skillChoices[characterId] ?? null);
+    const result = resolveCampfire(state, sourceId, choiceId, skillChoices[characterId] ?? null, { skipCoffeeGrowth: true });
     if (!result) return false;
     results.push({ characterId, result });
+  }
+  if (choiceId === "rest") {
+    const coffeeMaxHpGain = campaign.partyIds.reduce((total, id) => total +
+      campaign.partyStates[id].permanentEffects.filter((effect) => effect.id === "drip_coffee").length * 150, 0);
+    for (const { characterId, result } of results) {
+      campaign.partyStates[characterId].maxHp += coffeeMaxHpGain;
+      if (coffeeMaxHpGain) campaign.partyStates[characterId].permanentEffects.push({
+        id: "drip_coffee_growth", name: "挂耳咖啡·篝火成长", sourceId: `campfire:${sourceId}`,
+        maxHp: coffeeMaxHpGain, sourceLabel: "篝火回血" });
+      result.coffeeMaxHpGain = coffeeMaxHpGain;
+      result.maxHp = campaign.partyStates[characterId].maxHp;
+    }
+    campaign.playerMaxHp = campaign.runCharacterState.maxHp;
+    campaign.playerHp = campaign.runCharacterState.currentHp;
   }
   campaign.eventResolved = true;
   campaign.activeNode.resolutionResult = { choiceId, results };
@@ -1858,15 +1938,9 @@ function applyTrialFailurePenalty(campaign) {
   if (campaign.trialFailurePenaltyApplied) return false;
   for (const id of campaign.partyIds) {
     const state = campaign.partyStates[id];
-    const divine = state.divinePunishment;
-    const permanentMaxHp = state.maxHp + (divine?.reduction ?? 0);
-    const penalizedMaxHp = Math.max(1, Math.floor(permanentMaxHp * (1 - TRIAL_RULES.failureMaxHpFraction)));
-    if (divine?.battlesLeft > 0) {
-      divine.reduction = Math.min(penalizedMaxHp - 1, Math.floor(penalizedMaxHp * TRIAL_RULES.divinePunishmentHpFraction));
-    }
-    state.maxHp = Math.max(1, penalizedMaxHp - (divine?.reduction ?? 0));
+    state.maxHp = Math.max(1, Math.floor(state.maxHp * (1 - TRIAL_RULES.failureMaxHpFraction)));
     state.spd = Math.max(0, Math.floor(state.spd * (1 - TRIAL_RULES.failureSpeedFraction)));
-    state.currentHp = Math.max(0, Math.min(state.maxHp, hasStoneMask(state) ? state.currentHp : campaign.trial.entryHp?.[id] ?? state.currentHp));
+    state.currentHp = Math.max(0, Math.min(state.maxHp, state.currentHp));
     state.trialFailurePenalty = { maxHpFraction: TRIAL_RULES.failureMaxHpFraction, speedFraction: TRIAL_RULES.failureSpeedFraction };
   }
   campaign.trialFailurePenaltyApplied = true;
@@ -1874,6 +1948,19 @@ function applyTrialFailurePenalty(campaign) {
   campaign.playerHp = campaign.runCharacterState.currentHp;
   campaign.playerMaxHp = campaign.runCharacterState.maxHp;
   return true;
+}
+
+function applyTrialBattleRecovery(campaign, outcome) {
+  for (const id of campaign.partyIds) {
+    const state = campaign.partyStates[id];
+    if (!state) continue;
+    const before = state.currentHp;
+    const halfHp = Math.ceil(state.maxHp * .5);
+    state.currentHp = outcome === "defeat" ? halfHp : Math.max(before, halfHp);
+    if (state.currentHp > before) campaign.lastBattleRecovery.push({ characterId: id,
+      kind: outcome === "defeat" ? "trial_failure_heal" : "trial_half_heal",
+      restored: state.currentHp - before, currentHp: state.currentHp });
+  }
 }
 
 export function settleTrialBattle(campaign, outcome) {
@@ -1884,25 +1971,21 @@ export function settleTrialBattle(campaign, outcome) {
   if (outcome === "defeat") {
     const result = completeTrialTask(campaign.trial, taskId, "failed");
     if (!result) return false;
+    // Clear this challenge's temporary HP reduction before applying either
+    // the permanent trial failure penalty or the postbattle HP floor.
+    for (const id of campaign.partyIds) {
+      const state = campaign.partyStates[id];
+      if (state?.divinePunishment?.battlesLeft > 0) {
+        state.maxHp += state.divinePunishment.reduction;
+        state.divinePunishment = null;
+      }
+    }
+    campaign.trial.divinePunishmentBattlesLeft = 0;
     if (result.status === "failed") {
       applyTrialFailurePenalty(campaign);
       campaign.status = "trial_result";
       return { status: campaign.status, trialOutcome: "failed", failedCount: result.failedCount };
     }
-    // The challenge ended; any unfinished divine-punishment battles must not
-    // carry its temporary maximum-HP reduction into another challenge.
-    for (const id of campaign.partyIds) {
-      const state = campaign.partyStates[id];
-      if (!state) continue;
-      if (state.divinePunishment?.battlesLeft > 0) {
-        state.maxHp += state.divinePunishment.reduction;
-        state.divinePunishment = null;
-      }
-      const before = state.currentHp;
-      state.currentHp = hasStoneMask(state) ? before : Math.min(state.maxHp, before + Math.max(1, Math.floor(state.maxHp * .5)));
-      campaign.lastBattleRecovery.push({ characterId: id, kind: "trial_failure_heal", restored: state.currentHp - before, currentHp: state.currentHp });
-    }
-    campaign.trial.divinePunishmentBattlesLeft = 0;
     campaign.status = "trial_route";
     return { status: campaign.status, trialOutcome: "retry", failedCount: result.failedCount, completedCount: result.completedCount };
   }
@@ -1910,6 +1993,13 @@ export function settleTrialBattle(campaign, outcome) {
   if (encounterKind === "ordinary") {
     campaign.trial.battleIndex += 1;
     if (campaign.trial.battleIndex < 3) {
+      if (taskId === "will") for (const id of campaign.partyIds) {
+        const state = campaign.partyStates[id];
+        if (state?.divinePunishment?.battlesLeft > 0) {
+          state.maxHp += state.divinePunishment.reduction;
+          state.divinePunishment = null;
+        }
+      }
       return { status: "trial_next_battle", trialOutcome: "active", next: beginTrialBattle(campaign, taskId) };
     }
   } else campaign.trial.battleIndex += 1;

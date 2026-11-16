@@ -208,6 +208,25 @@ test("Kaneki's 2000-14 tracks incoming hits and outgoing attacks, with a repeata
   assert.ok(kaneki.reactiveCritDamageBonus > 0);
 });
 
+test("both Kaneki forms gain their own level-based SPD after the required incoming hits", () => {
+  for (const [skillId, expectedGains] of [
+    ["kaneki-1000-7", [1, 2, 3, 5]],
+    ["kaneki-2000-14", [2, 4, 5, 8]],
+  ]) for (const [index, expectedGain] of expectedGains.entries()) {
+    const skill = effect(skillId, index + 1);
+    const state = initializeBattle([
+      testUnit("kaneki", "ally", { spd: 10, skills: [skill] }),
+      testUnit("foe", "enemy", { atk: 100 }),
+    ]);
+    const [kaneki, foe] = state.characters;
+    let hit;
+    for (let count = 0; count < skill.hitsPerTrigger; count += 1)
+      hit = executeAttack(state, foe, kaneki, () => .99, { skill: null });
+    assert.equal(hit.damageSkillTriggered?.speedGain, expectedGain, `${skillId} Lv${index + 1}`);
+    assert.equal(kaneki.spd, 10 + expectedGain, `${skillId} Lv${index + 1}`);
+  }
+});
+
 test("Naruto's chakra clone protects a critically injured teammate, while Tang shares damage with the player partner", () => {
   const state = initializeBattle([
     testUnit("naruto", "ally", { hp: 2000, maxHp: 2000, currentHp: 2000,

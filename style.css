@@ -320,6 +320,7 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .skill-book-opening { position: absolute; z-index: 32; left: 50%; bottom: 12%; width: clamp(140px, 26vw, 230px); transform: translateX(-50%); display: grid; justify-items: center; pointer-events: none; animation: skill-book-open 1s ease-out both; }
 .skill-book-opening img { width: 100%; height: auto; object-fit: contain; }
 .skill-book-opening span { margin-top: -14px; padding: 3px 7px; border: 2px solid #d6a94e; border-radius: 4px; background: #142032e8; color: #fff2cb; font-size: 11px; font-weight: 800; white-space: nowrap; text-shadow: 1px 1px #101521; }
+.apocalypse-sword { position: absolute; z-index: 12; right: -12%; bottom: 12%; width: 62%; height: auto; transform: rotate(-24deg); transform-origin: 75% 80%; image-rendering: pixelated; pointer-events: none; }
 @media (max-width: 580px) { .skill-book-opening { width: min(35vw, 160px); min-width: 108px; } .skill-book-opening span { font-size: 10px; } }
 @keyframes skill-book-open { 0% { opacity: 0; scale: .8; } 15%, 82% { opacity: 1; scale: 1; } 100% { opacity: 0; scale: 1.05; } }
 @keyframes iron-bell-reflect { 0%, 100% { filter: none; } 25%, 70% { filter: drop-shadow(0 0 10px #f6d269) brightness(1.5); } }

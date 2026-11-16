@@ -290,7 +290,7 @@ test("iron bell reflects half the actual damage only against a lower-defense sou
   assert.equal(reflection.actualDamage, reflection.calculatedDamage);
   const blocked = simulateBattle([fighter("enemy", "enemy", 350), fighter("hero", "ally", 300, true)], () => .99);
   assert.equal(blocked.events.some((event) => event.skillId === "iron-bell"), false);
-  const equal = simulateBattle([fighter("enemy", "enemy", 300), fighter("hero", "ally", 300, true)], () => .99);
+  const equal = simulateBattle([fighter("enemy", "enemy", 330), fighter("hero", "ally", 300, true)], () => .99);
   assert.equal(equal.events.some((event) => event.skillId === "iron-bell"), false);
   assert.equal(result.events.filter((event) => event.skillId === "iron-bell").length,
     result.events.filter((event) => event.type === "attack" && event.attackerId === "enemy" && event.actualDamage > 0).length);

@@ -20,10 +20,10 @@ test("new stage-three elites use their documented panels, shared encounter and f
   const gold = ELITE_ENEMY_DATA.find((entry) => entry.id === "gold-king");
   const silver = ELITE_ENEMY_DATA.find((entry) => entry.id === "silver-king");
   const aging = ELITE_ENEMY_DATA.find((entry) => entry.id === "aging-devil");
-  assert.deepEqual([gold.hp, gold.atk, gold.def, gold.spd, gold.row], [2300, 250, 180, 100, "back"]);
-  assert.deepEqual([silver.hp, silver.atk, silver.def, silver.spd, silver.row], [1900, 280, 150, 100, "back"]);
+  assert.deepEqual([gold.hp, gold.atk, gold.def, gold.spd, gold.row], [2600, 250, 180, 100, "back"]);
+  assert.deepEqual([silver.hp, silver.atk, silver.def, silver.spd, silver.row], [2200, 280, 150, 100, "back"]);
   assert.equal(gold.eliteEncounterId, silver.eliteEncounterId);
-  assert.deepEqual([aging.hp, aging.atk, aging.def, aging.spd, aging.row], [5000, 400, 160, 120, "back"]);
+  assert.deepEqual([aging.hp, aging.atk, aging.def, aging.spd, aging.row], [5000, 300, 160, 120, "back"]);
   for (const entry of [gold, silver, aging]) assert.equal(getCharacterVisual(entry).scale, 1.4);
   assert.ok(existsSync(new URL(aging.animations.agingPassive.frames.cast, import.meta.url)));
   assert.ok(existsSync(new URL(aging.passiveEffectAsset, import.meta.url)));
@@ -123,25 +123,37 @@ test("stun doubles both immediate and end-of-round burn damage", () => {
   assert.equal(result.events.find((event) => event.type === "trial-dot" && event.name === "灼烧")?.stunnedBurn, true);
 });
 
-test("Silver King bottles the living ally with the highest actual damage at round four", () => {
+test("Silver King bottles the living ally with the highest actual damage at round five", () => {
   const silver = { ...ELITE_ENEMY_DATA.find((entry) => entry.id === "silver-king"),
-    hp: 5000, maxHp: 5000, currentHp: 5000, def: 0, atk: 1, spd: 1, rosterOrder: 2 };
+    hp: 9000, maxHp: 9000, currentHp: 9000, def: 0, atk: 1, spd: 1, rosterOrder: 2 };
   const result = simulateBattle([
-    unit("hero", "ally", { atk: 10, spd: 100, rosterOrder: 0 }),
+    unit("hero", "ally", { atk: 250, spd: 100, rosterOrder: 0 }),
     unit("partner", "ally", { atk: 1000, spd: 100, rosterOrder: 1 }), silver,
   ], () => .99, { playerId: "hero" });
   const bottles = result.events.filter((event) => event.type === "silver-bottle");
   assert.equal(bottles.length, 1);
-  assert.equal(bottles[0].round, 4);
+  assert.equal(bottles[0].round, 5);
+  assert.equal(result.events.filter((event) => event.type === "silver-bottle" && event.round < 5).length, 0);
   assert.equal(bottles[0].targetId, "partner");
   assert.equal(result.finalCharacters.find((entry) => entry.id === "partner").absorbedByBottle, true);
 });
 
+test("Silver King defeated before round five never uses his bottle", () => {
+  const silver = { ...ELITE_ENEMY_DATA.find((entry) => entry.id === "silver-king"),
+    hp: 400, maxHp: 400, currentHp: 400, def: 0, atk: 1, spd: 1 };
+  const result = simulateBattle([unit("hero", "ally", { atk: 100 }), silver], () => .99,
+    { playerId: "hero" });
+  assert.equal(result.outcome, "victory");
+  assert.equal(result.rounds, 4);
+  assert.equal(result.events.filter((event) => event.type === "silver-bottle").length, 0);
+  assert.notEqual(result.finalCharacters.find((entry) => entry.id === "hero").absorbedByBottle, true);
+});
+
 test("Silver King can choose a summon independently without deleting its summoner", () => {
   const silver = { ...ELITE_ENEMY_DATA.find((entry) => entry.id === "silver-king"),
-    hp: 5000, maxHp: 5000, currentHp: 5000, def: 0, atk: 1, spd: 1, rosterOrder: 2 };
+    hp: 9000, maxHp: 9000, currentHp: 9000, def: 0, atk: 1, spd: 1, rosterOrder: 2 };
   const result = simulateBattle([
-    unit("tang", "ally", { atk: 10, rosterOrder: 0 }),
+    unit("tang", "ally", { atk: 250, rosterOrder: 0 }),
     unit("wukong", "ally", { atk: 1000, summonerId: "tang", rosterOrder: 1 }), silver,
   ], () => .99, { playerId: "tang" });
   assert.equal(result.events.find((event) => event.type === "silver-bottle")?.targetId, "wukong");
@@ -150,7 +162,7 @@ test("Silver King can choose a summon independently without deleting its summone
 
 test("bottling the main hero leaves the companion active and allows a rewarded victory", () => {
   const silver = { ...ELITE_ENEMY_DATA.find((entry) => entry.id === "silver-king"),
-    hp: 3600, maxHp: 3600, currentHp: 3600, def: 0, atk: 1, spd: 1, rosterOrder: 2 };
+    hp: 7000, maxHp: 7000, currentHp: 7000, def: 0, atk: 1, spd: 1, rosterOrder: 2 };
   const result = simulateBattle([
     unit("naruto", "ally", { atk: 700, rosterOrder: 0 }),
     unit("eren", "ally", { atk: 200, rosterOrder: 1 }), silver,
@@ -159,9 +171,9 @@ test("bottling the main hero leaves the companion active and allows a rewarded v
   assert.equal(result.outcome, "victory");
   assert.equal(result.finalCharacters.find((entry) => entry.id === "naruto").alive, false);
   assert.equal(result.finalCharacters.find((entry) => entry.id === "eren").alive, true);
-  assert.ok(result.events.some((event) => event.attackerId === "eren" && event.round > 4));
-  assert.ok(result.events.some((event) => event.attackerId === "silver-king" && event.targetId === "eren" && event.round >= 4));
-  assert.equal(result.events.filter((event) => event.attackerId === "naruto" && event.round >= 4).length, 0);
+  assert.ok(result.events.some((event) => event.attackerId === "eren" && event.round > 5));
+  assert.ok(result.events.some((event) => event.attackerId === "silver-king" && event.targetId === "eren" && event.round >= 5));
+  assert.equal(result.events.filter((event) => event.attackerId === "naruto" && event.round >= 5).length, 0);
   const campaign = createStageThreeTestCampaign({ heroId: "naruto", partnerId: "eren",
     opponent: "gold-silver-kings" });
   campaign.devBattleOnly = false;
@@ -227,10 +239,10 @@ test("aging pauses before round three and persists only the selected permanent d
   assert.equal(first.outcome, null);
   const second = simulateBattle(null, () => .99, { resumeState: first.resumeState,
     previousEvents: first.events, agingChoice: "permanent" });
-  assert.equal(second.pendingChoice.round, 10);
-  assert.equal(run.def, 82); // rounds 4 through 9, six times -3 DEF
+  assert.equal(second.pendingChoice.round, 15);
+  assert.equal(run.def, 67); // rounds 4 through 14, eleven times -3 DEF
   assert.equal(second.events.filter((event) => event.type === "aging-choice-result").length, 1);
-  assert.equal(second.events.filter((event) => event.type === "aging-penalty" && event.phaseRound === 3).length, 6);
+  assert.equal(second.events.filter((event) => event.type === "aging-penalty" && event.phaseRound === 3).length, 11);
 });
 
 test("aging stages pause once each and a treasure sacrifice revokes its benefit", () => {
@@ -245,41 +257,41 @@ test("aging stages pause once each and a treasure sacrifice revokes its benefit"
   assert.equal(first.pendingChoice.treasureAvailable, true);
   const second = simulateBattle(null, () => .99, { resumeState: first.resumeState,
     previousEvents: first.events, agingChoice: "treasure" });
-  assert.equal(second.pendingChoice.round, 10);
+  assert.equal(second.pendingChoice.round, 15);
   assert.equal(run.permanentEffects.length, 0);
   assert.equal(second.resumeState.characters.find((entry) => entry.id === "naruto").damageReductionBonus, 0);
   assert.equal(second.events.filter((event) => event.type === "aging-choice-result").length, 1);
   assert.equal(second.events.filter((event) => event.type === "aging-penalty").length, 0);
   const third = simulateBattle(null, () => .99, { resumeState: second.resumeState,
     previousEvents: second.events, agingChoice: "battle" });
-  assert.equal(third.pendingChoice.round, 20);
+  assert.equal(third.pendingChoice.round, 30);
   assert.equal(third.pendingChoice.treasureAvailable, false);
   assert.equal(resolveAgingChoice(third.resumeState, "treasure", () => 0), null);
   const finished = simulateBattle(null, () => .99, { resumeState: third.resumeState,
     previousEvents: third.events, agingChoice: "battle" });
   assert.ok(finished.outcome);
   assert.deepEqual(finished.events.filter((event) => event.type === "aging-choice-result")
-    .map((event) => event.round), [3, 10, 20]);
+    .map((event) => event.round), [3, 15, 30]);
 });
 
 test("aging battle-only penalties never change saved attributes, while later max HP penalties do", () => {
   const run = createRunCharacterState(STARTING_CHARACTERS.find((entry) => entry.id === "naruto"), "shadow-clone-rush");
   Object.assign(run, { maxHp: 10000, currentHp: 10000, atk: 100, def: 100, spd: 100 });
   const hero = unit("naruto", "ally", { atk: 100, def: 100 });
-  const aging = unit("aging-devil", "enemy", { hp: 100000, maxHp: 100000, currentHp: 100000,
+  const aging = unit("aging-devil", "enemy", { hp: 1800, maxHp: 1800, currentHp: 1800,
     atk: 1, spd: 1, def: 0 });
   const first = simulateBattle([hero, aging], () => .99,
     { playerId: "naruto", runCharacterState: run, runCharacterStates: { naruto: run } });
   const second = simulateBattle(null, () => .99, { resumeState: first.resumeState,
     previousEvents: first.events, agingChoice: "battle" });
-  assert.equal(second.pendingChoice.round, 10);
+  assert.equal(second.pendingChoice.round, 15);
   assert.equal(run.maxHp, 10000);
   assert.equal(run.currentHp, 10000);
   assert.equal(run.def, 100);
   assert.ok(second.resumeState.characters.find((entry) => entry.id === "naruto").currentHp < 10000);
   const third = simulateBattle(null, () => .99, { resumeState: second.resumeState,
     previousEvents: second.events, agingChoice: "permanent" });
-  assert.equal(third.pendingChoice.round, 20);
+  assert.equal(third.outcome, "victory");
   assert.ok(run.maxHp < 10000);
   assert.ok(run.currentHp <= run.maxHp);
 });
@@ -290,8 +302,8 @@ test("rare treasure sacrifice removes its recorded HP gain", () => {
   run.permanentEffects.push({ id: "gun_devil_fragment", maxHp: 200, sourceId: "elite:test" });
   const state = initializeBattle([unit("naruto", "ally", { hp: 1200, maxHp: 1200, currentHp: 1200 }),
     unit("aging-devil", "enemy")], { runCharacterState: run, runCharacterStates: { naruto: run } });
-  state.round = 10;
-  state.pendingAgingChoice = { round: 10, grade: "rare" };
+  state.round = 15;
+  state.pendingAgingChoice = { round: 15, grade: "rare" };
   const result = resolveAgingChoice(state, "treasure", () => 0);
   assert.equal(result.removedTreasure.id, "gun_devil_fragment");
   assert.equal(run.maxHp, 1000);
@@ -311,8 +323,8 @@ test("Hogyoku sacrifice revokes each recorded growth once", () => {
   const state = initializeBattle([unit("naruto", "ally", { atk: 110, hp: 1000, maxHp: 1000, currentHp: 1000 }),
     unit("eren", "ally", { atk: 210, hp: 1000, maxHp: 1000, currentHp: 1000 }),
     unit("aging-devil", "enemy")], { runCharacterState: run, runCharacterStates: { naruto: run, eren: partner } });
-  state.round = 20;
-  state.pendingAgingChoice = { round: 20, grade: "legendary" };
+  state.round = 30;
+  state.pendingAgingChoice = { round: 30, grade: "legendary" };
   const result = resolveAgingChoice(state, "treasure", () => 0);
   assert.equal(result.removedTreasure.id, "hogyoku_fragment");
   assert.equal(run.atk, 100);
@@ -335,7 +347,7 @@ test("a saved aging pause resumes without replaying previous rounds", () => {
   saved.resumeState.runCharacterStates = { naruto: run };
   const second = simulateBattle(null, () => .99, { resumeState: saved.resumeState,
     previousEvents: saved.events, agingChoice: "permanent" });
-  assert.equal(second.pendingChoice.round, 10);
+  assert.equal(second.pendingChoice.round, 15);
   assert.equal(second.events.filter((event) => event.type === "aging-suppression").length, 1);
   assert.equal(second.events.filter((event) => event.type === "aging-choice-result").length, 1);
 });

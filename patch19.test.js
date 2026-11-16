@@ -14,9 +14,9 @@ const unit = (id, team, extras = {}) => ({ id, team, name: id, row: "front", pos
   hp: 1000, maxHp: 1000, currentHp: 1000, atk: 100, def: 0, spd: 100, critChance: 0,
   skills: [], ...extras });
 
-test("four skill books have battle artwork, battle-start presentation, and their own shop prices", () => {
+test("six passive skill books have battle artwork, battle-start presentation, and their own shop prices", () => {
   const books = SHOP_RULES.books.filter((book) => book.skillType === "passive");
-  assert.deepEqual(books.map((book) => book.price), [40, 30, 40, 40]);
+  assert.deepEqual(books.map((book) => book.price), [40, 30, 40, 40, 30, 40]);
   for (const book of books) assert.ok(existsSync(book.effectImage), book.name);
   const ally = unit("hero", "ally", { extraPassiveSkillIds: books.map((book) => book.skillId) });
   const result = simulateBattle([ally, unit("foe", "enemy", { currentHp: 1, maxHp: 1, hp: 1 })], () => .99);
@@ -57,7 +57,7 @@ test("armament makes ordinary damage independent of target defense", () => {
   assert.equal(b.armamentTrueDamage, true);
 });
 
-test("undying prevents one fatal hit and blocks action healing for three rounds", () => {
+test("undying prevents one fatal hit while leaving non-lifesteal action healing intact", () => {
   const healSkill = { ...SKILL_DATA["eren-free-will"], ...SKILL_DATA["eren-free-will"].levels[1], level: 1 };
   const state = initializeBattle([unit("eren", "ally", { currentHp: 40, maxHp: 1000,
     extraPassiveSkillIds: ["undying-subspecies"], skills: [healSkill] }),
@@ -70,7 +70,7 @@ test("undying prevents one fatal hit and blocks action healing for three rounds"
   for (const round of [1, 2, 3]) {
     state.round = round;
     const cast = executeAttack(state, eren, foe, () => .99, { skill: healSkill });
-    if (round === 3) assert.equal(cast.healedAmount, 0);
+    if (round === 3) assert.ok(cast.healedAmount > 0);
   }
   state.round = 4;
   for (let index = 0; index < 3; index += 1) executeAttack(state, eren, foe, () => .99, { skill: healSkill });

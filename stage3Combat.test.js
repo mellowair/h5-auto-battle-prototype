@@ -242,7 +242,7 @@ test("Shin and Noi still revive when both fall in the same round", () => {
   assert.equal(isBattleOver(state), "victory");
 });
 
-test("Arima counts separate landed hits, pierces after three, and Quinque blocks only normal attacks", () => {
+test("Arima counts separate landed hits and Quinque can fully block a hit", () => {
   const state = initializeBattle([hero(), { ...hero("partner"), row: "back" }, EVENT_ENEMY_DATA.arima]);
   state.round = 1;
   const arima = state.characters.find((unit) => unit.id === "arima");
@@ -266,8 +266,9 @@ test("Arima counts separate landed hits, pierces after three, and Quinque blocks
   const guarded = initializeBattle([{ ...hero(), quinqueGuard: true }, { ...elite("shin"), skills: [], skill: null }]);
   const rolls = [.99, .99, 0];
   const hit = executeAttack(guarded, guarded.characters[1], guarded.characters[0], () => rolls.shift() ?? .99);
-  assert.equal(hit.attackGuard, true);
-  assert.ok(hit.damage > 0);
+  assert.equal(hit.quinqueGuardTriggered, true);
+  assert.equal(hit.actualDamage, 0);
+  assert.equal(guarded.characters[0].quinqueGuardUses, 1);
   const awakening = initializeBattle([{ ...hero(), atk: 200 }, EVENT_ENEMY_DATA.arima]);
   awakening.round = 1;
   const awakenedArima = awakening.characters[1];

@@ -1,9 +1,9 @@
 // The trial is a small, serializable route. Its three buttons keep a stable
 // display order; the player chooses which pending task to challenge next.
 export const TRIAL_TASKS = Object.freeze({
-  will: { name: "永恒的枷锁", eventName: "永恒的枷锁", kind: "无尽" },
-  strength: { name: "击败赫拉克勒斯", kind: "力量" },
-  wisdom: { name: "击败奥丁", kind: "智慧" },
+  will: { name: "无尽试炼", eventName: "永恒的枷锁", kind: "无尽" },
+  strength: { name: "力量试炼", kind: "力量" },
+  wisdom: { name: "智慧试炼", kind: "智慧" },
 });
 
 export const TRIAL_RULES = Object.freeze({

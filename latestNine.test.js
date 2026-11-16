@@ -89,16 +89,17 @@ test("death note sequel is gated and light reduces current-stage elite HP while 
   assert.equal(campaign.runCharacterState.essenceBlockedBattles, 2);
 });
 
-test("death note's reading choice deducts exactly 44% max HP before awarding one rare treasure", () => {
+test("death note's reading choice deducts exactly 25% max HP before awarding one legendary treasure", () => {
   const campaign = campaignFixture();
   setEvent(campaign, "death_note");
   resolveCampaignEvent(campaign, "death_temptation");
   setEvent(campaign, "death_note_2");
   const before = campaign.runCharacterState.maxHp;
   const result = resolveCampaignEvent(campaign, "death_read");
-  assert.equal(result.result.maxHpLoss, before - Math.floor(before * .56));
+  assert.equal(result.result.maxHpLoss, before - Math.floor(before * .75));
   assert.equal(campaign.runCharacterState.permanentEffects.length, 1);
-  assert.equal(campaign.runCharacterState.permanentEffects[0].id, "sukuna_finger");
+  assert.equal(TREASURE_DATA[campaign.runCharacterState.permanentEffects[0].id].grade, "legendary");
+  assert.equal(campaign.shopDiscount?.type, "premium_vip_card");
   assert.ok(campaign.runCharacterState.currentHp <= campaign.runCharacterState.maxHp);
 });
 
