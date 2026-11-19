@@ -45,5 +45,6 @@ test("Eren skill action locks movement/action frames in order and keeps combat e
   assert.match(css, /data-character="eren"\]\.is-skill-posing \.sprite-action-frame \{ transform: scale\(1\.12\)/);
   assert.match(css, /\.fighter\.is-punching:not\(\.is-skill-posing\) \.sprite-action/);
   assert.match(readFileSync(new URL("./style.css", import.meta.url), "utf8"), /\.fighter\.is-melee-at-target \{ translate: var\(--melee-x, 44px\) 0; \}/);
-  assert.match(app, /playEvent\(event, \(\) => playNext\(token\)\)/);
+  assert.match(app, /playEvent\(event, \(\) => \{/);
+  assert.match(app, /playNext\(token\);/);
 });

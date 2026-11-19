@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#8ed9f1">
     <title>闪烁</title>
-    <script type="importmap">{"imports":{"./app.js":"./app.js?v=20261115-arima-choice1","./battle.js":"./battle.js?v=20261115-elites-shop","./campaign.js":"./campaign.js?v=20261115-arima-choice1","./characters.js":"./characters.js?v=20261115-elites-shop","./hiddenBoss.js":"./hiddenBoss.js?v=20261115-elites-shop","./progression.js":"./progression.js?v=20261115-arima-choice1","./shop.js":"./shop.js?v=20261115-elites-shop","./shopConfig.js":"./shopConfig.js?v=20261115-elites-shop","./skills.js":"./skills.js?v=20261115-elites-shop","./trial.js":"./trial.js?v=20261115-elites-shop","./visualConfig.js":"./visualConfig.js?v=20261115-elites-shop"}}</script>
-    <link rel="stylesheet" href="style.css?v=20261115-swamp-freeze1">
+    <script type="importmap">{"imports":{"./app.js":"./app.js?v=20261120-darkness-visual","./battle.js":"./battle.js?v=20261120-darkness-visual","./campaign.js":"./campaign.js?v=20261115-arima-choice1","./characters.js":"./characters.js?v=20261115-elites-shop","./hiddenBoss.js":"./hiddenBoss.js?v=20261115-elites-shop","./progression.js":"./progression.js?v=20261115-arima-choice1","./shop.js":"./shop.js?v=20261115-elites-shop","./shopConfig.js":"./shopConfig.js?v=20261115-elites-shop","./skills.js":"./skills.js?v=20261120-rear-assets","./stageFour.js":"./stageFour.js?v=20261120-darkness-visual","./trial.js":"./trial.js?v=20261115-elites-shop","./visualConfig.js":"./visualConfig.js?v=20261120-darkness-visual"}}</script>
+    <link rel="stylesheet" href="style.css?v=20261120-darkness-visual">
   </head>
   <body>
     <main class="game-shell">
@@ -36,6 +36,7 @@
         <p class="eyebrow">ACT 01 · CHOOSE YOUR HERO</p>
         <h1>神明大人，选择你的大英雄吧！</h1>
         <div id="starter-candidates" class="starter-candidates"></div>
+        <small class="hero-evolution-hint">此刻选择的英雄将决定后续进化剧情</small>
         <button id="confirm-character-btn" class="control-btn primary intro-start" type="button" disabled>确认选择</button>
       </section>
 
@@ -142,7 +143,7 @@
           <ol id="battle-log" class="battle-log" aria-live="polite" aria-relevant="additions"></ol>
         </div>
         <div class="controls" aria-label="战斗操作">
-          <button id="speed-btn" class="control-btn"><span class="button-icon">»</span><span>加速 <b id="speed-label">关</b></span></button>
+          <button id="speed-btn" class="control-btn"><span class="button-icon">»</span><span>加速 <b id="speed-label">×1</b></span></button>
           <span id="battle-stage-label" class="battle-stage-label">第 1 / 5 场</span>
         </div>
         <footer class="footer-note"><span>⚔</span> 自动战斗 · 速度决定先手</footer>
@@ -161,12 +162,13 @@
           <div id="route-signs" class="route-signs" aria-label="选择下一地点"></div>
           <div class="route-ground" aria-hidden="true"></div>
         </div>
-        <div class="route-footer"><div class="route-health-group"><span>队伍生命</span><b id="route-health">1200 / 1200</b><button id="route-partner-link" class="route-partner-link" type="button" hidden>查看伙伴</button></div><div class="route-footer-actions"><button id="route-map-open" class="control-btn map-open-btn" type="button">查看地图</button><button id="route-restart-btn" class="control-btn map-open-btn" type="button">重新开局</button></div></div>
+        <div class="route-footer"><div class="route-health-group"><span>队伍生命</span><b id="route-health">1200 / 1200</b><button id="route-partner-link" class="route-partner-link" type="button" hidden>查看伙伴</button></div><div class="route-footer-actions"><button id="route-leaderboards-open" class="control-btn map-open-btn" type="button">排行榜</button><button id="route-map-open" class="control-btn map-open-btn" type="button">查看地图</button><button id="route-restart-btn" class="control-btn map-open-btn" type="button">重新开局</button></div></div>
       </section>
 
       <section id="shop-screen" class="flow-screen shop-screen" aria-label="商店" hidden>
         <header class="flow-header"><div><p class="eyebrow">ROUTE SHOP</p><h1>旅途商店</h1></div><button id="shop-map-open" class="control-btn map-open-btn" type="button">查看地图</button></header>
         <p class="shop-balance">◆ 当前精华 ×<b id="shop-essence">0</b></p>
+        <button id="shop-ad-essence" class="control-btn shop-ad-essence" type="button" hidden>观看广告领取 10 精华（本局一次）</button>
         <div id="shop-slots" class="shop-slots" aria-label="五件商店商品"></div>
         <p id="shop-feedback" class="shop-feedback" role="status" aria-live="polite"></p>
         <button id="shop-leave" class="control-btn primary shop-leave" type="button">离开商店</button>
@@ -194,6 +196,7 @@
         <h1 id="ending-title">第一大关结束</h1>
         <p id="ending-copy" class="flow-copy"></p>
         <p id="ending-count" class="ending-count"></p>
+        <button id="ending-leaderboards-open" class="control-btn" type="button">查看排行榜</button>
         <button id="restart-run-btn" class="control-btn primary intro-start" type="button"><span class="button-icon">↻</span><span>重新开始游戏</span></button>
       </section>
       <aside id="boss-distance" class="boss-distance" aria-label="Boss距离" hidden>
@@ -231,6 +234,16 @@
     </div>
   </div>
 </dialog>
+<dialog id="leaderboards-dialog" class="leaderboards-dialog" aria-labelledby="leaderboards-title">
+  <div class="leaderboards-panel">
+    <button id="leaderboards-close" class="detail-close" type="button" aria-label="关闭排行榜">×</button>
+    <h2 id="leaderboards-title">排行榜</h2>
+    <button class="control-btn" type="button" data-leaderboard="items">道具数（宝物＋技能书）</button>
+    <button class="control-btn" type="button" data-leaderboard="hiddenBoss">击败隐藏 Boss 回合</button>
+    <button class="control-btn" type="button" data-leaderboard="finalBoss">击败最终首领回合数</button>
+    <p id="leaderboards-feedback" role="status" aria-live="polite"></p>
+  </div>
+</dialog>
 <dialog id="shop-detail-dialog" class="shop-detail-dialog" aria-labelledby="shop-detail-title">
   <div class="shop-detail-inner"><button id="shop-detail-close" class="detail-close" type="button" aria-label="关闭商品详情">×</button>
     <img id="shop-detail-image" class="shop-detail-image" alt=""><span id="shop-detail-art-missing" class="shop-art-missing" hidden>素材待补</span><h2 id="shop-detail-title"></h2>
@@ -247,6 +260,6 @@
         <div id="character-detail" class="character-detail"></div>
       </div>
     </dialog>
-    <script type="module" src="app.js?v=20261115-arima-choice1"></script>
+    <script type="module" src="app.js?v=20261120-darkness-visual"></script>
   </body>
 </html>

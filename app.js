@@ -1,19 +1,24 @@
-import { ANIMATION_TIMING, CHARACTER_DATA, COMBAT_RULES, STAGE_TWO_NORMAL_PASSIVES, STAGE_THREE_NORMAL_PASSIVES, STARTING_CHARACTERS } from "./characters.js";
+import { ANIMATION_TIMING, CHARACTER_DATA, COMBAT_RULES, PLAYABLE_CHARACTERS, STAGE_TWO_NORMAL_PASSIVES, STAGE_THREE_NORMAL_PASSIVES, STARTING_CHARACTERS } from "./characters.js";
 import { beginHiddenBossChallenge, deferHiddenBossChallenge, queueHiddenBossIntro, resumeHiddenBossAtCampfire,
   beginArimaCampfireChallenge, canChallengeArimaAtCampfire } from "./campaign.js";
+import { beginStageFour, finishPartyReplacement, resolveSlotMachineChoice } from "./campaign.js";
+import { MAX_PARTY_MEMBERS, migrateLegacyParty } from "./partyRecruitment.js";
 import { HIDDEN_BOSS_RULES, GUN_DEVIL, hiddenBossShotLayout, SPINAL_SWORD_BY_PARTNER, YORU } from "./hiddenBoss.js";
-import { advanceEventEpilogue, advanceStageTransition, beginJourney, beginStageTwo, beginStageThree, buyShopItem, chooseEvolutionUpgrade, chooseRoute, chooseTrialNode, chooseStartingSkill, claimApocalypseReward, claimCampaignEliteDrop, claimCampaignReward, claimCampaignSpecialReward, claimCampaignQuinque, claimCampaignTreasure, claimDragonRadarOffer, claimFateReward, claimStageTwoEliteSkill, claimStageTwoEliteSkip, claimStageTwoGiantRecipient, claimStageTwoStatReward, completeLocation, completeSettlement, createCampaign, eliteDropId, enterTrialMap, finishBattle, finishTrialResult, getActiveCampfireOptions, getApocalypseUpgradeOffer, getCampaignRewardOffer, getCampaignTreasureOffer, getDragonRadarOffer, getFateReward, getRouteMap, getRouteOptions, getShopRouteOptions, getStageTransitionChoices, getStageTwoCampfireOptions, leaveShop, prepareBattle, previewShopItem, resolveCampaignEvent, resolveStageTwoCampfire, resolveTrialOffer, resolveTrialWill, selectStartingCharacter, startCampaign, startCampaignEventBattle, STAGE_TWO_STAT_UPGRADES, upgradeApocalypseAtCampfire } from "./campaign.js";
+import { beginGuyCampfireChallenge, canChallengeGuyAtCampfire, claimEightGatesReward, finishGuyIntro, getMakimaRewardOffer, claimMakimaSkillReward, claimMakimaTreasureReward, claimMakimaStatReward, claimMakimaPassiveReward, advanceEventEpilogue, advanceStageTransition, beginJourney, beginStageTwo, beginStageThree, buyShopItem, chooseEvolutionUpgrade, chooseRoute, chooseTrialNode, chooseStartingSkill, claimApocalypseReward, claimCampaignEliteDrop, claimCampaignReward, claimCampaignSpecialReward, claimCampaignQuinque, claimCampaignTreasure, claimDragonRadarOffer, claimFateReward, claimStageTwoEliteSkill, claimStageTwoEliteSkip, claimStageTwoGiantRecipient, claimStageTwoStatReward, completeLocation, completeSettlement, createCampaign, eliteDropId, enterTrialMap, finishBattle, finishTrialResult, getActiveCampfireOptions, getApocalypseUpgradeOffer, getCampaignRewardOffer, getCampaignTreasureOffer, getDragonRadarOffer, getFateReward, getRouteMap, getRouteOptions, getShopRouteOptions, getStageTransitionChoices, getStageTwoCampfireOptions, leaveShop, prepareBattle, previewShopItem, resolveCampaignEvent, resolveStageTwoCampfire, resolveTrialOffer, resolveTrialWill, selectStartingCharacter, startCampaign, startCampaignEventBattle, STAGE_TWO_STAT_UPGRADES, upgradeApocalypseAtCampfire } from "./campaign.js";
 import { getCritChance, getDodgeChance, getSkillDodgeChance, initializeBattle, simulateBattle } from "./battle.js";
 import { canDeclineNewSkill, getSeaBeyondOfferDetails, getSkillAtLevel, getSkillTrainingChoices, getTemporaryCombatModifiers, getTemporaryEffectDisplayRows, getTreasureCombatModifiers, getUnlearnedActiveSkills, previewGrowingDrop } from "./progression.js";
 import { ATTRIBUTE_UPGRADES, ELITE_BONUS_REWARDS, GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT, SKILL_DATA, TREASURE_DATA } from "./skills.js";
 import { orderRouteOptionsByPosition, shortestRemainingRouteLength, ROUTE_MAP_FINAL_STEP } from "./routeMap.js";
 import { getAnimationFrameFootShift, getAnimationFrameVisualScale, getAnimationVisualOffset, getBorosBeamGeometry, getCharacterVisual, getGravityLiftPixels, shouldHideFallenUnit } from "./visualConfig.js";
-import { battlePlaybackMultiplier, isAutoSpeedActive } from "./battlePlaybackSpeed.js";
+import { battlePlaybackMultiplier, nextPlaybackSpeed } from "./battlePlaybackSpeed.js";
 import { createMusicController, musicTracks } from "./music.js";
 import { createEntranceCompletion, ENEMY_ENTRANCE_DURATION_MS, getEnemyEntrance } from "./enemyEntrance.js";
 import { TANG_SUMMON_WEIGHTS } from "./tangSummons.js";
 import { TRIAL_TASKS } from "./trial.js";
 import { refreshShopPrices } from "./shop.js";
+import { rewardedAd } from "./tapAds.js";
+import { createLeaderboardClient, leaderboardScores, recordBossLeaderboardScore } from "./leaderboards.js";
+import { claimAdEssence } from "./campaign.js";
 import { SHOP_RULES } from "./shopConfig.js";
 import { evolvedBattlePresentation } from "./evolvedVisuals.js";
 import { evolutionDisplayName } from "./evolution.js";
@@ -27,8 +32,11 @@ const speedButton = $("#speed-btn");
 const restartRunButton = $("#restart-run-btn");
 const characterDialog = $("#character-dialog");
 let campaign = null;
+const leaderboardClient = createLeaderboardClient();
+const leaderboardInFlight = new WeakMap();
+const leaderboardRetryAt = new WeakMap();
 function partyPresentation(id) {
-  const base = STARTING_CHARACTERS.find((character) => character.id === id);
+  const base = PLAYABLE_CHARACTERS.find((character) => character.id === id);
   if (!base) return null;
   const evolution = campaign?.partyStates?.[id]?.evolution;
   return evolution?.phase === 2
@@ -55,23 +63,22 @@ let playback = null;
 let timer = null;
 let effectTimer = null;
 let generation = 0;
-let fast = false;
+let playbackSpeed = 1;
 let displayedEvents = 0;
 function playbackRate() {
-  return battlePlaybackMultiplier(displayedEvents, fast, ANIMATION_TIMING.attack.fastPlaybackMultiplier);
+  return battlePlaybackMultiplier(playbackSpeed);
 }
 function playbackDelay(normalMs, manualFastMs = normalMs / ANIMATION_TIMING.attack.fastPlaybackMultiplier) {
-  return Math.max(40, Math.round((fast ? manualFastMs : normalMs) / (isAutoSpeedActive(displayedEvents) ? 2 : 1)));
+  return Math.max(40, Math.round(playbackSpeed === 1 ? normalMs : manualFastMs * 2 / playbackSpeed));
 }
 function cinematicTimeline(timeline, timeFields) {
-  if (!timeline || !isAutoSpeedActive(displayedEvents)) return timeline;
-  return { ...timeline, ...Object.fromEntries(timeFields.map((key) => [key, playbackDelay(timeline[key], timeline[key])])) };
+  if (!timeline || playbackSpeed === 1) return timeline;
+  return { ...timeline, ...Object.fromEntries(timeFields.map((key) => [key, Math.max(40, Math.round(timeline[key] / playbackSpeed))])) };
 }
 function updateSpeedControl() {
-  const automatic = isAutoSpeedActive(displayedEvents);
-  speedButton.classList.toggle("is-active", fast || automatic);
-  $("#speed-label").textContent = automatic ? `×${playbackRate()}` : fast ? "开" : "关";
-  speedButton.title = automatic ? `战斗记录超过 100 条，当前 ${playbackRate()} 倍速` : "切换手动 2 倍速";
+  speedButton.classList.toggle("is-active", playbackSpeed > 1);
+  $("#speed-label").textContent = `×${playbackRate()}`;
+  speedButton.title = `当前 ${playbackRate()} 倍速；点击切换至 ${nextPlaybackSpeed(playbackSpeed)} 倍速`;
 }
 let pendingResult = null;
 let eventResultShown = false;
@@ -250,13 +257,13 @@ function displaySkillEffect(skill, context = {}) {
   if (skill?.id === "eren-2000-years") return "Lv.1 每场免疫首次受击；Lv.2 每场免疫前两次受击，并一次性增加最大 HP 400。";
   if (skill?.id === "journey-west") {
     const [horse, bajie, shaseng, wukong] = TANG_SUMMON_WEIGHTS[skill.level ?? 1];
-    return `必定尝试召唤 · 白龙马 ${horse}% / 八戒 ${bajie}% / 沙僧 ${shaseng}% / 孙悟空 ${wukong}% · 召唤物技能触发率 ${Math.round((skill.summonSkillChance ?? (skill.level ?? 1) * 0.07) * 100)}%`;
+    return `必定尝试召唤 · 白龙马 ${horse}% / 八戒 ${bajie}% / 沙僧 ${shaseng}% / 孙悟空 ${wukong}% · 召唤物技能触发率 ${Math.round((skill.summonSkillChance ?? (skill.level ?? 1) * 0.07) * 100)}% · 击杀成长：Lv3白龙马使唐僧SPD+5、Lv5八戒使最大HP+50、Lv7沙僧使DEF+5、Lv10悟空使SPD/ATK/DEF各+5及最大HP+50`;
   }
   if (skill?.id === "tang-flesh") return "替召唤物承担 10% 伤害（按唐僧 DEF 结算）；有存活召唤物时受到伤害减少 20%；Lv.2 召唤物按实际造成伤害的 30% 治疗唐僧。";
   if (skill?.id === "horse-hoof") return `${chance} · 以 ATK + SPD 造成 1 倍伤害`;
   if (skill?.id === "bajie-rake") return `${chance} · 以 ATK + 当前 HP 的 20% 造成 1 倍伤害`;
   if (skill?.id === "shaseng-staff") return `${chance} · 以 ATK + 当前 DEF 造成 1.5 倍伤害，攻击敌方全体`;
-  if (skill?.id === "wukong-fate") return `${chance} · 成功释放时交替发动：首次蓄力，下回合受到的伤害减少 ${Math.round(skill.damageResistance * 100)}%，唐僧 DEF +${skill.summonerDefenseBonus}（持续 ${skill.summonerDefenseDurationRounds} 回合）；再次瞬移到目标面前，造成 ${skill.trueDamageBase} + 唐僧当前 ATK×${skill.summonerAttackRatio} 的真实伤害`;
+  if (skill?.id === "wukong-fate") return `${chance} · 成功释放时交替发动：首次蓄力，下回合受到的伤害减少 ${Math.round(skill.damageResistance * 100)}%，唐僧 DEF +${skill.summonerDefenseBonus}（持续 ${skill.summonerDefenseDurationRounds} 回合）；再次瞬移到目标面前，对主目标造成 ${skill.trueDamageBase} + 唐僧当前 ATK×${skill.summonerAttackRatio} 的真实伤害，其他敌人各承受 40%`;
   if (skill?.effectType === "buff") return `${chance} · 防御 +${skill.defenseBonus ?? 0}，持续 ${skill.durationTurns ?? 1} 回合`;
   if (skill?.id === "naruto-multi-clone") return `${chance} · 主目标 ${skill.multiplier}× ATK · 其他敌人 75% / 单目标追加 50% · 分身 +${skill.cloneGain}`;
   if (skill?.id === "shadow-clone-rush") return `影分身 ${skill.cloneCount ?? skill.level ?? 1} 个 · 伤害倍率 ${skill.multiplier ?? 1}× · ${chance}`;
@@ -619,6 +626,29 @@ function launchTrialProjectile(attackerEl, targetEl, asset, durationMs) {
   return projectile;
 }
 
+function launchGunAllyProjectile(attackerEl, targetEl, asset, durationMs) {
+  const arena = document.querySelector(".arena");
+  const source = attackerEl?.querySelector(".sprite-visual")?.getBoundingClientRect();
+  const target = targetEl?.querySelector(".sprite-visual")?.getBoundingClientRect();
+  if (!arena || !source || !target || !asset) return null;
+  const bounds = arena.getBoundingClientRect();
+  const bullet = document.createElement("img");
+  bullet.className = "gun-ally-projectile";
+  bullet.src = asset;
+  bullet.alt = "";
+  bullet.setAttribute("aria-hidden", "true");
+  const startX = source.left + source.width * .78 - bounds.left;
+  const endX = target.left + target.width * .5 - bounds.left;
+  bullet.style.left = `${startX}px`;
+  bullet.style.top = `${source.top + source.height * .42 - bounds.top}px`;
+  arena.append(bullet);
+  bullet.animate([
+    { transform: "translateX(0px)", opacity: 1 },
+    { transform: `translateX(${endX - startX}px)`, opacity: 1 },
+  ], { duration: durationMs, easing: "linear", fill: "forwards" }).onfinish = () => bullet.remove();
+  return bullet;
+}
+
 function launchShinHammer(attackerEl, targetEl, asset, durationMs) {
   const arena = document.querySelector(".arena");
   const source = attackerEl?.querySelector(".sprite-visual")?.getBoundingClientRect();
@@ -912,6 +942,10 @@ function startRunCycle(fighter, character, frameDuration, durationScale = 1) {
 
 function startIdleCycle(fighter, character) {
   if (!fighter || !character?.alive || character.currentHp <= 0) return;
+  if (character.id === "darkness-devil" && character.darknessVanish) {
+    showFighterFrame(fighter, character, "vanish", "hold");
+    return;
+  }
   if (character.id === "makima" && character.makimaGrounded) {
     showFighterFrame(fighter, character, "groundIdle", "stand");
     return;
@@ -998,6 +1032,12 @@ function mountFighter(character) {
   if (character.mimicSourceId) fighter.dataset.mimic = character.mimicSourceId;
   else delete fighter.dataset.mimic;
   fighter.hidden = false;
+  fighter.style.visibility = "";
+  fighter.querySelector(".night-guy-eight-gates")?.remove();
+  fighter.classList.remove("hidden-yoru-converting");
+  fighter.style.removeProperty("--yoru-convert-x");
+  fighter.style.removeProperty("--yoru-convert-y");
+  fighter.style.removeProperty("--yoru-convert-ms");
   delete fighter.dataset.deathRound;
   fighter.classList.toggle("is-dead", !character.alive || character.currentHp <= 0);
   fighter.dataset.deathPose = character.deathPose || "default";
@@ -1047,7 +1087,17 @@ function layoutBattleFormation(characters) {
   const arena = document.querySelector(".arena");
   const allies = characters.filter((character) => character.team === "ally" && !character.tangSummonKind);
   arena?.classList.toggle("ally-duo", allies.length === 2);
+  arena?.classList.toggle("ally-squad", allies.length >= 3);
   arena?.classList.toggle("ally-mixed-rows", allies.some((unit) => unit.row === "front") && allies.some((unit) => unit.row === "back"));
+  const hasRearRecruit = allies.some((unit) => ["gojo", "gun-devil-ally"].includes(unit.id));
+  const visualRank = (unit) => unit.id === "gojo" ? 0 : unit.id === "gun-devil-ally" ? 1 : unit.row === "back" ? 2 : 3;
+  const visualAllies = hasRearRecruit ? [...allies].sort((a, b) => visualRank(a) - visualRank(b)) : allies;
+  visualAllies.forEach((character, index) => {
+    const fighter = document.querySelector(`[data-character="${character.id}"]`);
+    if (fighter) fighter.style.left = allies.length >= 3
+      ? `${2 + index * (allies.length >= 4 ? 14 : 18)}%`
+      : hasRearRecruit && allies.length === 2 ? `${2 + index * 27}%` : "";
+  });
   const makimaBattle = characters.some((character) => character.id === "makima" && character.team === "enemy");
   const shinNoiBattle = characters.some((character) => character.id === "shin" && character.team === "enemy") &&
     characters.some((character) => character.id === "noi" && character.team === "enemy");
@@ -1104,6 +1154,8 @@ function updateHealth(character) {
   row.classList.toggle("is-dead", !character.alive);
   const fighter = document.querySelector(`[data-character="${character.id}"]`);
   fighter?.classList.toggle("is-dead", !character.alive);
+  if (fighter && character.id === "might-guy" && !character.alive)
+    fighter.querySelector(".night-guy-eight-gates")?.remove();
   if (fighter && (character.summonerId || character.stageThreeMinion)) {
     if (!character.alive) fighter.dataset.deathRound ??= String(battleStatusState.currentRound);
     else { delete fighter.dataset.deathRound; fighter.hidden = false; }
@@ -1186,17 +1238,21 @@ function renderAllyStatusIcons() {
       const cloneCount = Math.max(0, unit.chakraClones ?? 0);
       statuses.push({ id: "naruto-chakra-clones", name: `查克拉影分身 ×${cloneCount}`,
         image: unit.asset, tone: "buff",
-        description: `九尾鸣人本场剩余 ${cloneCount} 个查克拉影分身；队友低于 50% HP 时，每次受伤消耗 1 个分身，使该次伤害降低 30%。` });
+        description: `九尾鸣人本场剩余 ${cloneCount} 个查克拉影分身；友方单次受伤超过 400 时有 40% 概率消耗 1 个分身，使该次伤害降低 50%；分身超过 10 个时鸣人减伤 15%。` });
     }
     if (unit.extraPassiveSkillIds?.includes("iron-bell")) {
       statuses.push({ id: `iron-bell-${unit.id}`, name: `${unit.name} · 金钟罩铁布衫`,
         image: "assets/shop/skill-book.png", tone: "buff",
         description: SKILL_DATA["iron-bell"].description });
     }
-    for (const id of ["armament-haki", "heavenly-restriction-book", "undying-subspecies", "brick-force", "three-teachers", "daily-progress", "apocalypse-knight"])
+    for (const id of ["armament-haki", "heavenly-restriction-book", "undying-subspecies", "brick-force", "three-teachers", "daily-progress", "apocalypse-knight", "eight-gates", "mirror-flower", "byakugan"])
       if (unit.extraPassiveSkillIds?.includes(id)) statuses.push({ id: `${id}-${unit.id}`,
-        name: `${unit.name} · ${SKILL_DATA[id].name}${id === "apocalypse-knight" ? ` Lv.${unit.apocalypseKnightLevel ?? 1}` : ""}`, image: "assets/shop/skill-book.png", tone: "buff",
-        description: SKILL_DATA[id].description });
+        name: `${unit.name} · ${SKILL_DATA[id].name}${id === "apocalypse-knight" ? ` Lv.${unit.apocalypseKnightLevel ?? 1}` : id === "three-teachers" ? `：ATK +${unit.teacherAttackGained ?? 0}` : ""}`, image: "assets/shop/skill-book.png", tone: "buff",
+        description: id === "three-teachers" ? `${SKILL_DATA[id].description} 本场累计 ATK +${unit.teacherAttackGained ?? 0}。` : SKILL_DATA[id].description });
+    if (unit.id === "might-guy") statuses.push({ id: "might-guy-state", name: unit.nightGuyActive ? "夜凯模式" : "苍蓝野兽",
+      image: unit.asset, tone: "buff", description: unit.nightGuyActive
+        ? `已开启八门遁甲：ATK +500、DEF +100；每次攻击自损 5% 最大 HP 并附加灼烧。当前 SPD ${unit.spd}，超过敌方最高 SPD 的三倍后每回合行动三次。`
+        : `每回合 SPD +100，最高 800；达到 800 后攻击无视目标 50% DEF。` });
     if (unit.heavenlyDamageReduction) statuses.push({ id: `heavenly-fortitude-${unit.id}`,
       name: `${unit.name} · 四拳减伤`, image: "assets/shop/heavenly-restriction-effect.png", tone: "buff",
       description: "累计出拳四次后，本场受到伤害减少 10%。" });
@@ -1205,12 +1261,21 @@ function renderAllyStatusIcons() {
       statuses.push({ id: `undying-heal-block-${unit.id}`, name: `${unit.name} · 吸血减半`,
         image: "assets/status-cannot-act.png", tone: "debuff",
         description: `不死亚种生效后，直到第 ${unit.undyingActionHealUntilRound} 回合结束前吸血降低 50%。` });
+    if ((unit.battleAttackBonus ?? 0) > 0)
+      statuses.push({ id: `battle-atk-${unit.id}`, name: `${unit.name} · 本场 ATK +${unit.battleAttackBonus}`,
+        image: unit.asset, tone: "buff", description: `当前战斗累计获得 ATK +${unit.battleAttackBonus}。` });
+    if ((unit.defenseBuff ?? 0) > 0)
+      statuses.push({ id: `battle-def-${unit.id}`, name: `${unit.name} · 本场 DEF +${unit.defenseBuff}`,
+        image: unit.asset, tone: "buff", description: `当前生效的防御加成为 DEF +${unit.defenseBuff}。` });
+    if ((unit.wukongDefenseBuff ?? 0) > 0 && (unit.wukongDefenseBuffUntilRound ?? -1) >= battleStatusState.currentRound)
+      statuses.push({ id: `wukong-def-${unit.id}`, name: `${unit.name} · 悟空守护 DEF +${unit.wukongDefenseBuff}`,
+        image: unit.asset, tone: "buff", description: `当前生效的悟空守护提供 DEF +${unit.wukongDefenseBuff}。` });
     if (unit.id === "eren" && unit.evolutionPhase === 2 &&
         (unit.warhammerVulnerableUntilRound ?? 0) >= battleStatusState.currentRound &&
         unit.warhammerVulnerableUntilRound > 0) {
       statuses.push({ id: `warhammer-vulnerable-${unit.id}`, name: `${unit.name} · 战锤易伤`,
         image: unit.asset, tone: "debuff",
-        description: `释放战锤之力后到第 ${unit.warhammerVulnerableUntilRound} 回合结束，受到的实际伤害增加 20%。` });
+        description: `释放战锤之力后到第 ${unit.warhammerVulnerableUntilRound} 回合结束，受到的实际伤害增加 10%。` });
     }
     if (unit.team === "ally") {
       if (unit.id === "tang" && unit.passiveSkillId === "tang-compassion") {
@@ -1219,8 +1284,8 @@ function renderAllyStatusIcons() {
           image: unit.asset, tone: "buff", description: "唐僧 HP 高于 80%，所有友方受到伤害降低 10%。" });
         if (ratio < .7) statuses.push({ id: "tang-compassion-heal", name: "慈悲为怀 · 愈合",
           image: unit.asset, tone: "buff", description: "唐僧 HP 低于 70%，友方实际造成伤害的 20% 恢复唐僧。" });
-        if (ratio < .3) statuses.push({ id: "tang-compassion-share", name: "慈悲为怀 · 分摊",
-          image: unit.asset, tone: "buff", description: "唐僧 HP 低于 30%，其他存活友方平均分摊唐僧所受伤害的 30%。" });
+        if (ratio < .2) statuses.push({ id: "tang-compassion-share", name: "慈悲为怀 · 分摊",
+          image: unit.asset, tone: "buff", description: "唐僧 HP 低于 20%，其他存活友方平均分摊唐僧所受伤害的 20%。" });
       }
       const medicineBonuses = (campaign?.shopMedicines ?? [])
         .filter((effect) => effect.recipientId === unit.id && effect.battlesLeft > 0)
@@ -1265,21 +1330,40 @@ function renderAllyStatusIcons() {
     if (unit.bereavementActive && unit.bereavementDefenseBonus > 0)
       statuses.push({ id: `bereavement-${unit.id}`, name: `${unit.name} · 同伴倒地`, image: unit.asset, tone: "buff",
         description: `${unit.name} 因${unit.bereavementSourceId === "shin" ? "心" : "能井"}倒地，当前 ATK 翻倍、DEF +${unit.bereavementDefenseBonus}；同伴复活后移除。` });
-    if (unit.burnStacks > 0) statuses.push({ id: `burn-${unit.id}`, name: `灼烧 ×${unit.burnStacks}`, image: "assets/status-burn.svg", tone: "danger",
-      description: `${unit.name}：${unit.burnStacks} 层烧伤，本场战斗持续；每层在完整战斗回合结束时结算伤害，眩晕时灼烧伤害翻倍。` });
-    if (unit.bleedStacks > 0) statuses.push({ id: `bleed-${unit.id}`, name: `流血 ×${unit.bleedStacks}`, image: "assets/status-bleed.svg", tone: "danger",
-      description: `${unit.name}：${unit.bleedStacks} 层流血，每层在完整战斗回合结束时结算持续伤害。` });
+    if (unit.burnStacks > 0) statuses.push({ id: `burn-${unit.id}`,
+      name: `${unit.nightGuyBurnStacks > 0 ? "夜凯·" : ""}灼烧 ×${unit.burnStacks}`, image: "assets/status-burn.svg", tone: "debuff",
+      description: `${unit.name}：${unit.burnStacks} 层灼烧${unit.nightGuyBurnStacks > 0 ? `，其中夜凯施加 ${unit.nightGuyBurnStacks} 层` : ""}；每层在完整战斗回合结束时按最大 HP 结算真实伤害，眩晕时伤害翻倍。` });
+    if (unit.bleedStacks > 0) statuses.push({ id: `bleed-${unit.id}`,
+      name: `${unit.gunDevilBleedStacks > 0 ? "枪之恶魔·" : ""}流血 ×${unit.bleedStacks}`, image: "assets/status-bleed.svg", tone: "debuff",
+      description: `${unit.name}：${unit.bleedStacks} 层流血${unit.gunDevilBleedStacks > 0 ? `，其中枪之恶魔普通攻击施加 ${unit.gunDevilBleedStacks} 层` : ""}；每层在完整战斗回合结束时按最大 HP 结算真实伤害。` });
     if (unit.poisonStacks > 0) statuses.push({ id: `poison-${unit.id}`, name: `中毒 ×${unit.poisonStacks}`,
       image: "assets/status-poison.svg", tone: "danger",
       description: `${unit.name}：中毒 ${unit.poisonStacks} 层，每层 ATK、DEF -2%，每回合结束受到最大 HP 1% 的真实伤害。` });
     if (unit.suffocating) statuses.push({ id: `suffocation-${unit.id}`, name: "窒息",
       image: "assets/status-suffocation.svg", tone: "danger",
       description: `${unit.name}：ATK +30%、DEF -60%；受到的实际伤害等额扣减本场最大 HP。` });
+    if (unit.stageFourHealReduced) statuses.push({ id: `stage4-heal-reduced-${unit.id}`,
+      name: `${unit.name} · 治疗降低`, image: "assets/status-cannot-act.png", tone: "debuff",
+      description: "炸弹恶魔造成的治疗降低 50%，包括吸血，持续本场战斗，不叠加。" });
+    if ((unit.gojoVulnerableUntilRound ?? 0) >= battleStatusState.currentRound && unit.gojoVulnerableUntilRound > 0)
+      statuses.push({ id: `gojo-vulnerable-${unit.id}`, name: `${unit.name} · 易伤`,
+        image: "assets/status-bleed.svg", tone: "debuff", description: "受到伤害增加 40%，持续 1 回合。" });
+    if (unit.darknessPhaseActive) statuses.push({ id: "darkness-phase", name: "黑暗再临",
+      image: unit.asset, tone: "buff", description: "暗之恶魔 ATK 增加 150%；我方不能使用主动技能。" });
+    if (unit.darknessVanish) statuses.push({ id: "darkness-vanish", name: "暗魔·虚化",
+      image: "assets/stage4-darkness/vanish.png", tone: "debuff",
+      description: "暗之恶魔保持虚化姿势；普通攻击与技能闪避率均增加 40 个百分点，直到下一次攻击。" });
+    if (unit.id === "hakari" && unit.hakariDiceRoll) statuses.push({ id: "hakari-gamble", name: `坐杀搏徒 · ${unit.hakariDiceRoll} 点${unit.hakariDiceRoll === 6 ? " · 无敌" : ""}`,
+      image: "assets/events/slot-dice.svg", tone: "buff",
+      description: `本档持续 4 回合；ATK +${unit.hakariDiceAttackBonus ?? 0}，伤害减免 ${Math.round((unit.hakariDiceReduction ?? 0) * 100)}%，${unit.hakariDiceRoll >= 3 ? "暴击率 100%，" : ""}${unit.hakariTrueDamage ? "攻击造成真实伤害，" : ""}每回合恢复最大 HP 的 ${unit.hakariDiceRoll === 6 ? 30 : 10}%。` });
+    if (unit.gojoDomainUntilRound >= battleStatusState.currentRound && unit.gojoDomainUntilRound > 0)
+      statuses.push({ id: "gojo-domain", name: "无量空处", image: unit.asset, tone: "buff",
+        description: `领域持续至第 ${unit.gojoDomainUntilRound} 回合结束；每回合结束处决 HP 严格低于 10% 的敌人。` });
   }
   const makima = viewState?.characters?.find((unit) => unit.id === "makima" && unit.alive);
-  if (makima && viewState.characters.some((unit) => unit.stageThreeMinion && unit.alive && unit.currentHp > 0))
+  if (makima && (viewState.makima?.deadMinions?.length ?? 0) < 4)
     enemyStatuses.push({ id: "makima-minion-guard", name: "恶魔眷属", image: makima.asset, tone: "buff",
-      description: "存在存活的恶魔眷属时，受到的伤害减少50%。" });
+      description: "四名恶魔眷属全部阵亡前，玛奇玛免疫所有伤害。" });
   if (viewState?.characters?.some((unit) => unit.id === "aging-devil" && unit.alive)) {
     for (const unit of viewState.characters.filter((entry) => entry.team === "ally" && campaign?.partyIds?.includes(entry.id))) {
       allyStatuses.push({ id: `aging-skill-${unit.id}`,
@@ -1350,7 +1434,7 @@ function renderAllyStatusIcons() {
           .reduce((total, effect) => total + (effect.maxHp ?? 0), 0), 0);
     const gains = Object.entries(gain).filter(([, value]) => value).map(([key, value]) => `${key.toUpperCase()} ${value > 0 ? "+" : ""}${value}`).join("、");
     const history = entries.map(({ effect, ownerId }, index) => `${partyPresentation(ownerId)?.name ?? ownerId}第 ${effect.acquisitionCount ?? index + 1} 次：第 ${effect.stageId ?? "未知"} 关，来源 ${effect.sourceLabel ?? effect.sourceId ?? "未知"}，${Object.entries(effect).filter(([key, value]) => ["atk", "def", "maxHp", "spd"].includes(key) && value).map(([key, value]) => `${key.toUpperCase()} ${value > 0 ? "+" : ""}${value}`).join("、") || effect.description || "特殊效果"}${effect.hogyokuHistory?.length ? `；精英触发 ${effect.hogyokuHistory.length} 次` : ""}${effect.weightVictorySpdGain ? `；胜利累计 SPD +${effect.weightVictorySpdGain}` : ""}${effect.id === "dragon_radar" ? `；精华进度 ${effect.essenceProgress ?? 0}/20，累计奖励 ${effect.essenceRewardsGranted ?? 0} 件` : ""}`).join("；");
-    treasureStatuses.push({ id: `treasure-${item.id}`, name: `${TREASURE_DATA[item.id]?.name ?? item.name} ×${entries.length}`, image: TREASURE_DATA[item.id]?.image ?? (item.id === GIANT_SPINAL_FLUID.id ? GIANT_SPINAL_FLUID.image : item.image), tone: "buff", description: `${({common:"普通",rare:"稀有",legendary:"传说"})[(TREASURE_DATA[item.id]?.grade ?? ([GIANT_SPINAL_FLUID.id, GUN_DEVIL_FRAGMENT.id].includes(item.id) ? "rare" : null))] ?? "宝物"}宝物。${gains ? `累计 ${gains}。` : "特殊效果保留原说明。"}${history}` });
+    treasureStatuses.push({ id: `treasure-${item.id}`, name: `${TREASURE_DATA[item.id]?.name ?? item.name} ×${entries.length}`, image: TREASURE_DATA[item.id]?.image ?? (item.id === GIANT_SPINAL_FLUID.id ? GIANT_SPINAL_FLUID.image : item.image), tone: "buff", description: `${({common:"普通",rare:"稀有",legendary:"传说",superlegendary:"超传说"})[(TREASURE_DATA[item.id]?.grade ?? ([GIANT_SPINAL_FLUID.id, GUN_DEVIL_FRAGMENT.id].includes(item.id) ? "rare" : null))] ?? "宝物"}宝物。${gains ? `累计 ${gains}。` : "特殊效果保留原说明。"}${history}` });
   }
   if (battleStatusState.jinchuriki) {
     const passive = battleStatusState.jinchuriki;
@@ -1378,13 +1462,13 @@ function renderAllyStatusIcons() {
     const shield = battleStatusState.armoredShield;
     enemyStatuses.push({ id: "armored-shield", name: "莱纳我坐了", image: "assets/stage2-enemies/armored-titan-placeholder.svg", tone: "buff",
       description: battleStatusState.currentRound < shield.startRound
-        ? `第 ${shield.startRound} 回合开始，铠之巨人受到的普通伤害减少 25%。`
-        : `铠之巨人受到的普通伤害减少 25%，持续至第 ${shield.untilRound} 回合结束。` });
+        ? `第 ${shield.startRound} 回合开始，铠之巨人受到的普通伤害减少 ${campaign?.stageId === 4 ? 40 : 25}%。`
+        : `铠之巨人受到的普通伤害减少 ${campaign?.stageId === 4 ? 40 : 25}%，持续至第 ${shield.untilRound} 回合结束。` });
   }
   const toji = viewState?.characters?.find((unit) => unit.id === "toji" && unit.alive);
   if (toji?.tojiFatigued) enemyStatuses.push({ id: "toji-fatigue", name: "出拳太快有点累了",
     image: "assets/status-cannot-act.png", tone: "debuff",
-    description: "出拳达到 3 次后，行动一次、休息一次。" });
+    description: `出拳达到 ${toji.tojiFatigueAtHit ?? 3} 次后，行动一次、休息一次。` });
   for (const bomb of battleStatusState.bombs ?? []) {
     allyStatuses.push({ id: bomb.id, name: "杀手皇后炸弹", image: "assets/stage2-enemies/kira/idle.png", tone: "danger",
       description: `${bomb.targetName}身上已附着炸弹；剩余 ${Math.max(0, bomb.dueRound - battleStatusState.currentRound)} 个完整回合（第 ${bomb.dueRound} 回合引爆）。` });
@@ -1606,7 +1690,6 @@ function addLog(text, kind = "") {
   log.scrollTop = log.scrollHeight;
   displayedEvents += 1;
   $("#log-count").textContent = playbackPaused ? `已暂停 · ${displayedEvents} 条记录` : `${displayedEvents} 条记录`;
-  if (displayedEvents === 101) updateSpeedControl();
 }
 
 function setStatus(text, state = "") {
@@ -1719,7 +1802,7 @@ function clearEffects() {
   clearBorosVisuals();
   lastBorosVisualCastId = null;
   lastGilgameshVisualCastId = null;
-  document.querySelectorAll(".colossal-battle-smoke, .gilgamesh-visual, .trial-projectile, .shin-hammer-projectile, .eren-warhammer-strike, .evolution-entrance, .clone-protect-effect, .summon-portal, .arima-weakpoint, .cannot-act-effect, .skill-book-opening, .apocalypse-sword, .gravity-circle, .gravity-dish, .hidden-yoru-entrance, .hidden-spinal-sword, .hidden-boss-projectile, .hidden-boss-ground-effect, .hidden-yoru-summoned-gun, .hidden-yoru-tank, .aging-choice-overlay, .aging-projectile, .aging-absorbed, .aging-passive-effect").forEach((node) => node.remove());
+  document.querySelectorAll(".colossal-battle-smoke, .gilgamesh-visual, .trial-projectile, .shin-hammer-projectile, .eren-warhammer-strike, .evolution-entrance, .clone-protect-effect, .summon-portal, .arima-weakpoint, .cannot-act-effect, .skill-book-opening, .gojo-domain-cinematic, .gojo-execution-overlay, .gojo-skill-effect, .darkness-entrance, .darkness-sever-overlay, .apocalypse-sword, .gravity-circle, .gravity-dish, .hidden-yoru-entrance, .hidden-spinal-sword, .hidden-boss-projectile, .hidden-boss-ground-effect, .hidden-yoru-summoned-gun, .hidden-yoru-tank, .aging-choice-overlay, .aging-projectile, .aging-absorbed, .aging-passive-effect").forEach((node) => node.remove());
   document.querySelectorAll(".fighter.is-yoru-countering").forEach((node) => node.classList.remove("is-yoru-countering"));
   clearAllSpriteFrameCycles();
   timer = null;
@@ -1737,6 +1820,8 @@ function clearEffects() {
     fighter.style.removeProperty("--summon-rise-duration");
     fighter.classList.remove("is-attacking", "is-melee-rushing", "is-clone-melee-approaching", "is-kaneki-glutton-approaching", "is-clone-melee-returning", "is-melee-at-target", "is-melee-returning", "is-melee-running", "is-quanxi-hidden", "is-quanxi-behind", "is-makima-landing", "is-toji-approaching", "is-toji-at-target", "is-toji-returning", "is-skill-posing", "is-punching", "is-hit", "is-hit-stun", "is-hit-recoil", "is-casting", "is-dodging", "is-critical", "is-impact", "is-magic-attacking", "is-ranged-attacking", "is-elite-escape", "is-domain-active", "is-kaneki-normal-approach", "is-kaneki-normal-at-target", "is-kaneki-predator-launch", "is-kaneki-predator-strike", "is-kaneki-predator-hold", "is-kaneki-predator-return", "is-kaneki-reactive", "is-steam-casting", "gravity-lift", "gravity-hover", "gravity-drop", "is-gravity-dish");
     fighter.style.removeProperty("--quanxi-behind-x");
+    fighter.classList.remove("is-night-striking", "is-night-vanishing");
+    fighter.style.removeProperty("--night-x");
     fighter.style.removeProperty("--kaneki-arc-mid-x");
     fighter.style.removeProperty("--makima-landing-duration");
     fighter.querySelector(".impact-burst")?.classList.remove("play");
@@ -1790,14 +1875,14 @@ function clearEffects() {
   renderAllyStatusIcons();
 }
 
-function hiddenBossAfter(ms, callback) {
+function hiddenBossAfter(ms, callback, fixedDuration = false) {
   const token = generation;
   timer = window.setTimeout(() => {
     timer = null;
     if (token !== generation) return;
     if (playbackPaused) pausedContinuation = callback;
     else callback();
-  }, playbackDelay(ms));
+  }, fixedDuration ? ms : playbackDelay(ms));
 }
 
 function playHiddenBossPhase(event, finish) {
@@ -1808,12 +1893,18 @@ function playHiddenBossPhase(event, finish) {
   hiddenBossAfter(HIDDEN_BOSS_RULES.gunDeathHoldMs, () => {
     const yoru = { ...event.yoru };
     viewState.characters.push(yoru);
+    const convertingPartner = viewState.characters.find((unit) => unit.id === event.partnerId);
+    const animatePartner = Boolean(event.swordAsset && convertingPartner?.alive && convertingPartner.currentHp > 0);
     for (const id of event.dismissedIds ?? []) {
       const unit = viewState.characters.find((item) => item.id === id);
-      if (unit) { unit.alive = false; unit.currentHp = 0; unit.spinalSwordConverted = id === event.partnerId; }
+      if (unit && !(animatePartner && id === event.partnerId)) {
+        unit.alive = false;
+        unit.currentHp = 0;
+        unit.spinalSwordConverted = id === event.partnerId;
+      }
     }
     buildHealthRows(viewState.characters.filter((unit) => unit.id !== "gun-devil" &&
-      !(event.dismissedIds ?? []).includes(unit.id)));
+      (!(event.dismissedIds ?? []).includes(unit.id) || (animatePartner && unit.id === event.partnerId))));
     gun.hidden = false;
     const fighter = document.querySelector('[data-character="yoru"]');
     if (!fighter) return finish();
@@ -1836,27 +1927,50 @@ function playHiddenBossPhase(event, finish) {
       arena.append(entrance);
       const swordRevealMs = 560;
       hiddenBossAfter(HIDDEN_BOSS_RULES.yoruEntranceHoldMs - swordRevealMs, () => {
-        showFighterFrame(fighter, yoru, "pointUp", "point");
-        if (event.swordAsset) {
-          const sword = document.createElement("img");
-          sword.className = "hidden-spinal-sword";
-          sword.src = event.swordAsset;
-          sword.alt = "脊髓剑";
-          sword.style.left = "69%";
-          sword.style.top = "10%";
-          arena.append(sword);
-        }
-        renderAllyStatusIcons();
-        addLog(`<b>脊髓剑</b>：${event.partnerId ? partyPresentation(event.partnerId)?.name ?? event.partnerId : "无伙伴"}退出本场战斗；夜吸收最大 HP +${event.absorbed.maxHp}、ATK +${event.absorbed.atk}、DEF +${event.absorbed.def}、SPD +${event.absorbed.spd}。`, "log-enemy");
-        entrance.style.setProperty("--hidden-entrance-reveal-ms", `${playbackDelay(swordRevealMs)}ms`);
+        entrance.style.setProperty("--hidden-entrance-reveal-ms", `${swordRevealMs}ms`);
         entrance.classList.add("is-revealing");
         hiddenBossAfter(swordRevealMs, () => {
           entrance.remove();
-          clearSpriteFrame(fighter);
-          startIdleCycle(fighter, yoru);
-          finish();
-        });
-      });
+          showFighterFrame(fighter, yoru, "pointUp", "point");
+          const summonSword = () => {
+            if (convertingPartner) {
+              convertingPartner.alive = false;
+              convertingPartner.currentHp = 0;
+              convertingPartner.spinalSwordConverted = true;
+              const partnerSprite = document.querySelector(`[data-character="${event.partnerId}"]`);
+              if (partnerSprite) { partnerSprite.hidden = true; partnerSprite.style.visibility = "hidden"; }
+              document.querySelector(`[data-health="${event.partnerId}"]`)?.remove();
+            }
+            if (event.swordAsset) {
+              const sword = document.createElement("img");
+              sword.className = "hidden-spinal-sword";
+              sword.src = event.swordAsset;
+              sword.alt = "脊髓剑";
+              sword.style.left = "69%";
+              sword.style.top = "10%";
+              arena.append(sword);
+            }
+            renderAllyStatusIcons();
+            addLog(`<b>脊髓剑</b>：${event.partnerId ? partyPresentation(event.partnerId)?.name ?? event.partnerId : "无伙伴"}退出本场战斗；夜吸收最大 HP +${event.absorbed.maxHp}、ATK +${event.absorbed.atk}、DEF +${event.absorbed.def}、SPD +${event.absorbed.spd}。`, "log-enemy");
+            hiddenBossAfter(280, () => {
+              clearSpriteFrame(fighter);
+              startIdleCycle(fighter, yoru);
+              finish();
+            });
+          };
+          const partnerFighter = animatePartner && document.querySelector(`[data-character="${event.partnerId}"]`);
+          if (!partnerFighter) return summonSword();
+          const arenaRect = arena.getBoundingClientRect();
+          const partnerRect = partnerFighter.getBoundingClientRect();
+          const targetX = arenaRect.left + arenaRect.width * .69;
+          const targetY = arenaRect.top + arenaRect.height * .25;
+          partnerFighter.style.setProperty("--yoru-convert-x", `${targetX - partnerRect.left - partnerRect.width / 2}px`);
+          partnerFighter.style.setProperty("--yoru-convert-y", `${targetY - partnerRect.top - partnerRect.height / 2}px`);
+          partnerFighter.style.setProperty("--yoru-convert-ms", `${playbackDelay(850)}ms`);
+          partnerFighter.classList.add("hidden-yoru-converting");
+          hiddenBossAfter(850, summonSword);
+        }, true);
+      }, true);
     });
   });
 }
@@ -2145,6 +2259,22 @@ function showCompassionHeals(event) {
   if (event.evolutionHeals?.length) renderAllyStatusIcons();
 }
 
+function showGojoExecutionCloseup(finish) {
+  const arena = document.querySelector(".arena");
+  if (!arena) return false;
+  const overlay = document.createElement("div");
+  overlay.className = "gojo-execution-overlay";
+  overlay.setAttribute("aria-hidden", "true");
+  const closeup = document.createElement("img");
+  closeup.className = "gojo-execution-closeup";
+  closeup.src = "assets/gojo/execution-closeup.png";
+  closeup.alt = "";
+  overlay.append(closeup);
+  arena.append(overlay);
+  timer = window.setTimeout(() => { overlay.remove(); timer = null; finish(); }, 850);
+  return true;
+}
+
 function playEvent(event, finish) {
   if (Number.isFinite(event.round) && event.round !== battleStatusState.currentRound) {
     battleStatusState.currentRound = event.round;
@@ -2163,6 +2293,211 @@ function playEvent(event, finish) {
   }
   if (event.type === "gold-gourd") return playGoldGourd(event, finish);
   if (event.type === "silver-bottle") return playSilverBottle(event, finish);
+  if (["hakari-roll", "hakari-heal"].includes(event.type)) {
+    const actor = viewState.characters.find((unit) => unit.id === "hakari");
+    if (actor) {
+      if (event.type === "hakari-roll") {
+        actor.hakariDiceRoll = event.roll;
+        actor.hakariDiceReduction = event.damageReduction;
+        actor.hakariDiceAttackBonus = event.attackBonus;
+        actor.hakariTrueDamage = event.roll >= 5;
+        actor.atk = event.atk;
+        actor.bleedStacks = 0; actor.burnStacks = 0; actor.poisonStacks = 0;
+        actor.gunDevilBleedStacks = 0; actor.nightGuyBurnStacks = 0;
+        $("#battle-screen").classList.toggle("hakari-jackpot", event.jackpot);
+        addLog(`<b>秤金次</b>掷出 ${event.roll} 点：${event.jackpot ? "大奖！！！无敌状态（75% 减伤）" : "坐杀搏徒更新"}。`, "log-enemy");
+      } else { actor.currentHp = event.hpAfter; updateHealth(actor);
+        if (event.amount) addLog(`<b>秤金次</b>回复 ${event.amount} HP。`, "log-enemy"); }
+      renderAllyStatusIcons();
+    }
+    return finish();
+  }
+  if (["darkness-phase", "darkness-vanish", "darkness-vanish-end", "gojo-domain", "gojo-domain-end",
+    "gojo-domain-execute", "stage4-buff-clear", "stage4-swamp-heal"].includes(event.type)) {
+    const actor = viewState.characters.find((unit) => unit.id === event.attackerId);
+    const target = viewState.characters.find((unit) => unit.id === event.targetId);
+    let applyGojoVisual = null;
+    if (event.type === "darkness-phase" && actor) { actor.darknessPhaseActive = event.active; actor.atk = event.atk; }
+    if (event.type === "darkness-vanish" && actor) {
+      actor.darknessVanish = true; actor.currentHp = event.hpAfter; updateHealth(actor);
+      startIdleCycle(document.querySelector('[data-character="darkness-devil"]'), actor);
+    }
+    if (event.type === "darkness-vanish-end" && actor) {
+      actor.darknessVanish = false;
+      startIdleCycle(document.querySelector('[data-character="darkness-devil"]'), actor);
+    }
+    if (event.type === "gojo-domain" && actor) {
+      actor.gojoDomainUntilRound = event.untilRound;
+      actor.currentHp = Math.min(actor.maxHp, actor.currentHp + event.restored);
+      applyGojoVisual = () => {
+        actor.asset = actor.animations.domainIdle.frames.idle;
+        actor.animations.idle = actor.animations.domainIdle;
+        actor.attackAnimation = "domainNormalAttack";
+        actor.skillAnimationMap = { ...actor.skillAnimationMap, "gojo-hollow": "domainSkill" };
+        const fighter = document.querySelector('[data-character="gojo"]');
+        if (fighter) {
+          stopSpriteFrameCycle(fighter); clearSpriteFrame(fighter);
+          fighter.querySelector(".sprite").src = actor.asset;
+          startIdleCycle(fighter, actor);
+        }
+      };
+      updateHealth(actor);
+      for (const id of event.stunnedIds) {
+        const unit = viewState.characters.find((entry) => entry.id === id);
+        if (unit) unit.stunNextAction = true;
+      }
+    }
+    if (event.type === "gojo-domain-end" && actor) {
+      actor.gojoDomainUntilRound = 0;
+      actor.asset = "assets/gojo/idle.png";
+      actor.animations.idle = { type: "frames", frames: { idle: actor.asset } };
+      actor.attackAnimation = "normalAttack";
+      actor.skillAnimationMap = { ...actor.skillAnimationMap, "gojo-hollow": "skill1" };
+      const fighter = document.querySelector('[data-character="gojo"]');
+      if (fighter) {
+        stopSpriteFrameCycle(fighter); clearSpriteFrame(fighter);
+        fighter.querySelector(".sprite").src = actor.asset;
+        startIdleCycle(fighter, actor);
+      }
+    }
+    if (event.type === "gojo-domain-execute" && target)
+      applyGojoVisual = () => { target.currentHp = 0; target.alive = false; updateHealth(target); };
+    if (event.type === "stage4-swamp-heal" && actor) { actor.currentHp = event.hpAfter; updateHealth(actor); }
+    if (event.type === "stage4-buff-clear" && target) {
+      target.shieldHp = 0; target.defenseBuff = 0; target.wukongDefenseBuff = 0;
+      updateHealth(target);
+    }
+    const messages = {
+      "darkness-phase": event.active ? "暗之恶魔进入黑暗再临：ATK +150%，我方主动技能暂时失效。" : "黑暗再临结束，主动技能恢复。",
+      "darkness-vanish": `暗之恶魔虚化，闪避率 +40 个百分点${event.healed ? `，恢复 ${event.healed} HP` : ""}。`,
+      "darkness-vanish-end": "暗之恶魔攻击，虚化消失。",
+      "gojo-domain": `五条悟展开无量空处，恢复 ${event.restored} HP；其余单位眩晕一次。`,
+      "gojo-domain-end": "无量空处结束。",
+      "gojo-domain-execute": `无量空处处决了 ${target?.name ?? "敌人"}。`,
+      "stage4-buff-clear": `永恒恶魔清除了 ${target?.name ?? "目标"} 的增益状态。`,
+      "stage4-swamp-heal": `沼气巨人从中毒伤害中恢复 ${event.amount} HP。`,
+    };
+    addLog(messages[event.type], event.type.startsWith("gojo") ? "log-ally" : "log-enemy");
+    renderAllyStatusIcons();
+    if (event.type === "darkness-phase") {
+      const screen = $("#battle-screen");
+      const setLighting = () => screen.classList.toggle("darkness-phase-active", event.active);
+      if (event.active && !battleStatusState.darknessEntranceSeen) {
+        battleStatusState.darknessEntranceSeen = true;
+        const entrance = document.createElement("img");
+        entrance.className = "darkness-entrance";
+        entrance.src = "assets/stage4-darkness/entrance.png";
+        entrance.alt = "";
+        entrance.setAttribute("aria-hidden", "true");
+        entrance.style.setProperty("--darkness-entrance-ms", "1300ms");
+        document.body.append(entrance);
+        timer = window.setTimeout(() => {
+          entrance.remove(); timer = null; setLighting(); finish();
+        }, 1300);
+        return;
+      }
+      setLighting();
+      return finish();
+    }
+    if (event.type === "gojo-domain-execute") {
+      if (showGojoExecutionCloseup(() => { applyGojoVisual?.(); renderAllyStatusIcons(); finish(); })) return;
+    }
+    if (event.type === "gojo-domain") {
+      const arena = document.querySelector(".arena");
+      if (arena) {
+        const visual = document.createElement("img");
+        visual.className = "gojo-domain-cinematic";
+        visual.src = "assets/gojo/domain-entrance.png";
+        visual.setAttribute("aria-hidden", "true");
+        arena.append(visual);
+        timer = window.setTimeout(() => {
+          visual.remove(); timer = null; applyGojoVisual?.(); renderAllyStatusIcons(); finish();
+        }, 1350);
+        return;
+      }
+    }
+    applyGojoVisual?.();
+    return finish();
+  }
+  if (event.type === "might-guy-speed" || event.type === "eight-gates-speed") {
+    const unit = viewState.characters.find((entry) => entry.id === event.attackerId);
+    if (unit) unit.spd = event.spd;
+    if (squadSide === unit?.team) renderSquad();
+    addLog(`<b>${unit?.name ?? "角色"}</b> 的速度提升至 ${event.spd}。`, "log-skill");
+    if (event.type === "might-guy-speed" && unit) {
+      const fighter = document.querySelector(`[data-character="${unit.id}"]`);
+      if (fighter && showFighterFrame(fighter, unit, "speedBoost", "cast")) {
+        timer = window.setTimeout(() => {
+          clearSpriteFrame(fighter);
+          if (unit.alive) startIdleCycle(fighter, unit);
+          timer = null; finish();
+        }, playbackDelay(500));
+        return;
+      }
+    }
+    return finish();
+  }
+  if (event.type === "eight-gates-check") {
+    const unit = viewState.characters.find((entry) => entry.id === event.attackerId);
+    if (unit) unit.eightGatesExtraAction = event.extraAction;
+    addLog(`<b>${unit?.name ?? "角色"}</b> 的八门遁甲判定${event.extraAction ? "成功：此后每回合额外行动一次" : "未通过"}。`, "log-skill");
+    renderAllyStatusIcons();
+    return finish();
+  }
+  if (event.type === "night-guy-transform") {
+    const unit = viewState.characters.find((entry) => entry.id === event.attackerId);
+    if (unit) { unit.currentHp = event.currentHp; unit.maxHp = event.maxHp; unit.atk = event.atk;
+      unit.def = event.def; unit.spd = event.spd; unit.nightGuyActive = true;
+      unit.asset = unit.animations.nightIdle.frames.idle;
+      unit.animations.idle = unit.animations.nightIdle;
+      updateHealth(unit); }
+    renderAllyStatusIcons();
+    addLog(`<b>${unit?.name ?? "迈特凯"}</b> 开启八门遁甲，进入夜凯模式！`, "log-enemy");
+    const fighter = document.querySelector(`[data-character="${event.attackerId}"]`);
+    if (fighter && unit) {
+      stopSpriteFrameCycle(fighter);
+      clearSpriteFrame(fighter);
+      const sprite = fighter.querySelector(".sprite");
+      if (sprite) sprite.src = unit.asset;
+      const wrap = fighter.querySelector(".sprite-wrap");
+      if (wrap && !wrap.querySelector(".night-guy-eight-gates")) {
+        const effect = document.createElement("img");
+        effect.className = "night-guy-eight-gates";
+        effect.src = SKILL_DATA["eight-gates"].battleEffectAsset;
+        effect.alt = "";
+        effect.setAttribute("aria-hidden", "true");
+        wrap.prepend(effect);
+      }
+      showFighterFrame(fighter, unit, "nightPassive", "cast");
+    }
+    const arena = document.querySelector(".arena");
+    if (!arena) return finish();
+    const entrance = document.createElement("img");
+    entrance.className = "night-guy-entrance";
+    entrance.src = "assets/stage2-enemies/might-guy/night-entrance.png";
+    entrance.alt = "夜凯登场";
+    arena.append(entrance);
+    timer = window.setTimeout(() => {
+      entrance.remove();
+      timer = window.setTimeout(() => {
+        timer = null;
+        if (fighter && unit?.alive) { clearSpriteFrame(fighter); startIdleCycle(fighter, unit); }
+        finish();
+      }, 650);
+    }, 1300);
+    return;
+  }
+  if (event.type === "night-guy-cost") {
+    const unit = viewState.characters.find((entry) => entry.id === event.attackerId);
+    if (unit) { unit.currentHp = event.currentHp; unit.alive = !event.died; updateHealth(unit); }
+    if (event.died) {
+      const fighter = document.querySelector(`[data-character="${event.attackerId}"]`);
+      fighter?.classList.remove("is-night-striking", "is-night-vanishing");
+      fighter?.style.removeProperty("--night-x");
+    }
+    addLog(`夜凯攻击消耗自身 ${event.amount} HP。`, "log-enemy");
+    return finish();
+  }
   if (event.type === "aging-suppression") {
     addLog("<b>衰老恶魔</b> 压制全场技能：本战主动与被动技能均按 Lv.1 生效，存档技能等级保持不变。", "log-enemy");
     renderAllyStatusIcons();
@@ -3093,7 +3428,9 @@ function playEvent(event, finish) {
     const win = event.outcome === "victory";
     const player = pendingResult.finalCharacters.find((character) => character.team === "ally");
     const speedBeforeSettlement = campaign.runCharacterState?.spd ?? 0;
+    const completedBattle = campaign.currentBattle;
     const transition = finishBattle(campaign, pendingResult.outcome, player.currentHp, pendingResult.events, pendingResult.finalCharacters);
+    recordBossLeaderboardScore(campaign, completedBattle, pendingResult);
     if (!transition) return finish();
     if (campaign.lastEssenceReward?.amount) addLog(`精华 +${campaign.lastEssenceReward.amount} · 当前 ×${campaign.essence}`, "log-win");
     for (const reward of campaign.lastRadarRewards ?? [])
@@ -3127,9 +3464,11 @@ function playEvent(event, finish) {
       : transition?.trialOutcome === "retry" ? "试炼小关失败，继续挑战"
         : transition?.trialOutcome === "incomplete" ? "试炼未完成" : "战斗失败", "finished");
     setBattleControls(false);
-    $("#battle-stamp").textContent = win ? "胜利！" : ["retry", "incomplete"].includes(transition?.trialOutcome) ? "小关失败" : "战斗失败";
+    $("#battle-stamp").textContent = win ? "胜利！" : transition?.next === "slot_machine_failed" ? "赌局失败" : ["retry", "incomplete"].includes(transition?.trialOutcome) ? "小关失败" : "战斗失败";
     $("#battle-stamp").classList.add("show", win ? "stamp-win" : "stamp-lose");
-    addLog(win ? `第 ${campaign.battleNumber} 场 · <b>胜利</b>` : transition?.trialOutcome === "failed"
+    addLog(win ? `第 ${campaign.battleNumber} 场 · <b>胜利</b>${transition?.next === "slot_machine_win" ? "，额外获得 100 精华" : ""}` : transition?.next === "slot_machine_failed"
+      ? `第 ${campaign.battleNumber} 场 · <b>秤金次对战失败，精华清零，队伍恢复战前 HP，本局继续</b>` : transition?.next === "challenge_failed"
+      ? `第 ${campaign.battleNumber} 场 · <b>${transition.challenge}挑战失败，队伍恢复战前 HP，本局继续</b>` : transition?.trialOutcome === "failed"
       ? `第 ${campaign.battleNumber} 场 · <b>试炼失败，本局结束</b>`
       : transition?.trialOutcome === "retry"
         ? `第 ${campaign.battleNumber} 场 · <b>小关失败，队伍恢复 50% 最大 HP，继续选择剩余试炼</b>`
@@ -3146,7 +3485,7 @@ function playEvent(event, finish) {
     }
     let transitionApplied = false;
     const applyBattleTransition = () => {
-      if (transitionApplied || !transition || !["settlement", "reward", "trial_next_battle", "trial_route", "trial_result", "defeat"].includes(transition.status)) return;
+      if (transitionApplied || !transition || !["settlement", "reward", "trial_next_battle", "trial_route", "trial_result", "defeat", "route"].includes(transition.status)) return;
       transitionApplied = true;
       playback = null;
       pendingResult = null;
@@ -3154,6 +3493,7 @@ function playEvent(event, finish) {
       setBattleControls(false);
       const continueTransition = () => {
       if (transition.status === "defeat") renderEnding();
+      else if (transition.status === "route") renderRoute();
       else if (transition.status === "trial_next_battle") beginBattle();
       else if (transition.status === "trial_route") renderTrialMap();
       else if (transition.status === "trial_result") renderTrialResult();
@@ -3161,11 +3501,15 @@ function playEvent(event, finish) {
       else {
         completeSettlement(campaign);
         if (campaign.status === "stage_transition") renderStageTransition();
-        else if (campaign.status === "hidden_boss_intro") renderHiddenBossIntro();
+        else if (campaign.status === "party_replacement") renderPartyReplacement();
+        else if (campaign.status === "guy_intro") renderGuyIntro();
+      else if (campaign.status === "hidden_boss_intro") renderHiddenBossIntro();
         else if (campaign.status === "route") renderRoute();
         else renderEnding();
       }
       };
+      if (campaign.pendingMakimaReward) return renderMakimaReward(continueTransition);
+      if (campaign.pendingEightGatesReward) return renderEightGatesReward(continueTransition);
       if (campaign.pendingApocalypseReward) return renderApocalypseReward(continueTransition);
       if (getFateReward(campaign)) return renderFateReward(continueTransition);
       if (getDragonRadarOffer(campaign)) return renderDragonRadarOffer(continueTransition);
@@ -3344,9 +3688,10 @@ function playEvent(event, finish) {
   if (event.type !== "attack") return finish();
   for (const buff of event.teacherBuffs ?? []) {
     const holder = viewState.characters.find((unit) => unit.id === buff.targetId);
-    if (holder) holder.atk = buff.effectiveAtk;
+    if (holder) { holder.atk = buff.effectiveAtk; holder.teacherAttackGained = buff.totalAttackGain; }
     addLog(`<b>${holder?.name ?? buff.targetId}</b> 的「必有我师」生效：ATK +${buff.attackGain}（当前 ${buff.effectiveAtk}）。`, "log-skill");
   }
+  if (event.teacherBuffs?.length) renderAllyStatusIcons();
   if (event.type === "attack" && (event.splash || event.chakraBurst)) {
     const counterFighter = event.yoruCounterTriggered ? document.querySelector('[data-character="yoru"]') : null;
     const counterUnit = counterFighter && viewState.characters.find((unit) => unit.id === YORU.id);
@@ -3421,10 +3766,12 @@ function playEvent(event, finish) {
   const isBorosPunch = attacker.id === "boros" && attacker.borosPhase === 1 && !event.skilled;
   const isKiraPunch = attacker.id === "kira" && !event.skilled;
   const presentationId = attacker.mimicSourceId ?? attacker.id;
+  const isDarknessSever = attacker.id === "darkness-devil" && event.skillId === "darkness-sever";
+  const firstDarknessSever = isDarknessSever && (event.segmentIndex ?? 1) === 1;
   const isErenWarhammer = presentationId === "eren" && attacker.evolutionPhase === 2 && event.skillId === "eren-warhammer";
   const isShinHammer = attacker.id === "shin" && event.skillId === "shin-strike";
   const isDefaultFrontApproach = attacker.team === "enemy" && attacker.row === "front" && !event.skilled && !isBorosPunch && !isKiraPunch;
-  const isMelee = !isErenWarhammer && !isShinHammer && ((event.attackType === "melee" && !(attacker.team === "enemy" && attacker.row === "back")) || isDefaultFrontApproach);
+  const isMelee = !isDarknessSever && !isErenWarhammer && !isShinHammer && ((event.attackType === "melee" && !(attacker.team === "enemy" && attacker.row === "back")) || isDefaultFrontApproach);
   const actionTiming = isMelee ? timings.melee : event.attackType === "magic" ? timings.magic : timings.ranged;
   const skillAnimationName = event.skilled ? attacker.skillAnimationMap?.[event.skillId] : null;
   const skillAnimationFrames = skillAnimationName ? animationFrameNames(attacker, skillAnimationName) : [];
@@ -3444,6 +3791,9 @@ function playEvent(event, finish) {
   const isKanekiPredator = isMelee && presentationId === "kaneki" && event.skillId === "kaneki-predator" && skillAnimationFrames.length === 3;
   const isKanekiNormal = isMelee && presentationId === "kaneki" && attacker.evolutionPhase !== 2 && !event.skilled;
   const isQuanxiStrike = isMelee && attacker.id === "quanxi";
+  const isNightStrike = isMelee && attacker.id === "might-guy" && attacker.nightGuyActive;
+  const nightStrikeIndex = Math.min(3, Math.max(1, event.nightGuyStrikeIndex ?? 1));
+  const nightStrikeLast = event.nightGuyStrikeCount !== 3 || nightStrikeIndex === 3 || event.targetDied;
   const authoredDash = isMelee && ({
     "naruto-multi-clone": { cast: "first", second: "second", move: "rush", hit: "rush" },
     "naruto-giant-rasengan": { cast: "charge", move: "approach", hit: "impact" },
@@ -3501,10 +3851,10 @@ function playEvent(event, finish) {
   const borosVisualDuration = skillAnimationName === "meteor"
     ? borosTimeline?.takeoffMs + borosTimeline?.dashMs + borosTimeline?.slamMs + borosTimeline?.returnMs
     : borosTimeline?.totalMs;
-  const duration = event.wukongTeleportAttack ? scaled(650) : gilTimeline ? firstGilVisual ? gilTimeline.totalMs : 0 : isBorosPunch ? scaled(1500) : isKiraPunch ? scaled(700) : borosTimeline ? firstBorosVisual
+  const duration = isDarknessSever ? scaled(firstDarknessSever ? 900 : 100) : isNightStrike ? scaled(nightStrikeIndex === 1 ? 640 : 430) : event.wukongTeleportAttack ? scaled(650) : gilTimeline ? firstGilVisual ? gilTimeline.totalMs : 0 : isBorosPunch ? scaled(1500) : isKiraPunch ? scaled(700) : borosTimeline ? firstBorosVisual
     ? skillAnimationName === "cannon" ? borosVisualDuration : scaled(borosVisualDuration)
     : 0 : scaled(actionDuration);
-  const impactDelay = isQuanxiStrike ? scaled(450) : authoredDash ? scaled(dashCastMs + dashMoveMs + 70) : isErenWarhammer ? scaled(680) : isShinHammer ? scaled(1020) : isOdinProjectile ? scaled(780) : event.wukongTeleportAttack ? scaled(340) : gilTimeline ? firstGilVisual ? gilTimeline.impactMs : 0 : isBorosPunch ? scaled(650) : isKiraPunch ? scaled(360) : isTojiCombo ? scaled((tojiFirst ? tojiRushMs : 0) + tojiWindupMs) : borosTimeline ? firstBorosVisual
+  const impactDelay = isDarknessSever ? firstDarknessSever ? scaled(820) : 0 : isNightStrike ? scaled(nightStrikeIndex === 1 ? 400 : 180) : isQuanxiStrike ? scaled(450) : authoredDash ? scaled(dashCastMs + dashMoveMs + 70) : isErenWarhammer ? scaled(680) : isShinHammer ? scaled(1020) : isOdinProjectile ? scaled(780) : event.wukongTeleportAttack ? scaled(340) : gilTimeline ? firstGilVisual ? gilTimeline.impactMs : 0 : isBorosPunch ? scaled(650) : isKiraPunch ? scaled(360) : isTojiCombo ? scaled((tojiFirst ? tojiRushMs : 0) + tojiWindupMs) : borosTimeline ? firstBorosVisual
     ? skillAnimationName === "cannon" ? borosTimeline.impactMs : scaled(borosTimeline.impactMs)
     : 0 : scaled(isCloneTechnique
     ? cloneSealMs + cloneApproachMs
@@ -3514,14 +3864,17 @@ function playEvent(event, finish) {
       : isBombDemonSkill ? skillActionMs
       : isDeidaraBirdSkill ? skillActionMs * 0.5 + 800
       : isMelee ? actionTiming.rushMs : Math.round(actionTiming.actionMs * 0.48));
-  const eventGap = borosTimeline || isTojiCombo ? 0 : scaled(timings.eventGapMs);
+  const eventGap = isDarknessSever || borosTimeline || isTojiCombo ? 0 : scaled(timings.eventGapMs);
   sourceEl.style.setProperty("--attack-duration", `${duration}ms`);
   sourceEl.style.setProperty("--impact-duration", `${scaled(isMelee ? meleePunchMs : actionTiming.actionMs * 0.5)}ms`);
   let kiraStand = null;
   let trialProjectile = null;
   let shinHammer = null;
   let warhammerStrike = null;
-  if (isQuanxiStrike) {
+  if (isNightStrike) {
+    stopSpriteFrameCycle(sourceEl);
+    if (nightStrikeIndex === 1) showFighterFrame(sourceEl, attacker, "nightReady", "ready");
+  } else if (isQuanxiStrike) {
     showFighterFrame(sourceEl, attacker, "meleeAttack", "flash");
   } else if (authoredDash) {
     showFighterFrame(sourceEl, attacker, skillAnimationName, authoredDash.cast);
@@ -3546,7 +3899,24 @@ function playEvent(event, finish) {
     const lungeDistance = Math.max(0, Math.abs(delta) - stopGap);
     const lunge = Math.sign(delta) * lungeDistance;
     if (!isTojiCombo || tojiFirst) sourceEl.style.setProperty("--melee-x", `${lunge}px`);
-    if (isQuanxiStrike) {
+    if (isNightStrike) {
+      const currentShift = Number.parseFloat(sourceEl.style.getPropertyValue("--night-x")) || 0;
+      const behindTarget = nightStrikeIndex === 3;
+      const side = behindTarget ? -1 : 1;
+      const desiredShift = currentShift + delta + side * (sourceBox.width + targetBox.width) * .42;
+      const vanishAt = nightStrikeIndex === 1 ? scaled(250) : 0;
+      if (vanishAt) animationStageTimer = window.setTimeout(() => {
+        sourceEl.classList.add("is-night-vanishing");
+        animationStageTimer = null;
+      }, vanishAt);
+      else sourceEl.classList.add("is-night-vanishing");
+      scheduleBorosVisual(() => {
+        sourceEl.style.setProperty("--night-x", `${desiredShift}px`);
+        sourceEl.classList.add("is-night-striking");
+        showFighterFrame(sourceEl, attacker, "nightStrike", `strike_${nightStrikeIndex}`);
+        sourceEl.classList.remove("is-night-vanishing");
+      }, vanishAt + scaled(85));
+    } else if (isQuanxiStrike) {
       const behind = delta + Math.sign(delta) * targetBox.width * .55;
       sourceEl.style.setProperty("--quanxi-behind-x", `${behind}px`);
       scheduleBorosVisual(() => sourceEl.classList.add("is-quanxi-hidden"), scaled(220));
@@ -3685,7 +4055,25 @@ function playEvent(event, finish) {
       : event.skilled ? attacker.skillAnimationMap?.[event.skillId] : attacker.attackAnimation;
     const animationName = configuredAnimation ?? attacker.attackAnimation;
     const rangedFrames = animationFrameNames(attacker, animationName);
-    if (isErenWarhammer) {
+    if (isDarknessSever) {
+      if (firstDarknessSever) {
+        stopSpriteFrameCycle(sourceEl);
+        showFighterFrame(sourceEl, attacker, "severCharge", "charge");
+        scheduleBorosVisual(() => {
+          const screen = $("#battle-screen");
+          const overlay = document.createElement("div");
+          overlay.className = "darkness-sever-overlay";
+          overlay.style.setProperty("--sever-ms", `${scaled(500)}ms`);
+          overlay.setAttribute("aria-hidden", "true");
+          const slash = document.createElement("img");
+          slash.src = "assets/stage4-darkness/slash.png";
+          slash.alt = "";
+          overlay.append(slash);
+          document.body.append(overlay);
+          scheduleBorosVisual(() => overlay.remove(), scaled(500));
+        }, scaled(600));
+      }
+    } else if (isErenWarhammer) {
       showFighterFrame(sourceEl, attacker, "warhammer", "charge");
       animationStageTimer = window.setTimeout(() => {
         animationStageTimer = null;
@@ -3760,6 +4148,37 @@ function playEvent(event, finish) {
   }
 
   let birdProjectile = null;
+  let gojoSkillEffect = null;
+  if (attacker.id === "gun-devil-ally" && event.skillId === "gun-devil-charged-shot")
+    scheduleBorosVisual(() => {
+      trialProjectile = launchGunAllyProjectile(sourceEl, targetEl, attacker.projectileAsset, scaled(340));
+    }, scaled(390));
+  if (event.skillId === "gojo-hollow") scheduleBorosVisual(() => {
+    const arena = document.querySelector(".arena");
+    const origin = sourceEl.querySelector(".sprite-visual")?.getBoundingClientRect() ?? sourceEl.getBoundingClientRect();
+    const targetBox = targetEl.getBoundingClientRect();
+    if (!arena || !sourceEl.isConnected || !targetEl.isConnected) return;
+    const bounds = arena.getBoundingClientRect();
+    const rightward = targetBox.left + targetBox.width / 2 >= origin.left + origin.width / 2;
+    const handX = Math.max(0, Math.min(bounds.width, origin.left - bounds.left + origin.width * (rightward ? .78 : .22)));
+    const handY = Math.max(0, Math.min(bounds.height, origin.top - bounds.top + origin.height * .48));
+    gojoSkillEffect = document.createElement("img");
+    const domainActive = attacker.gojoDomainUntilRound >= event.round && attacker.gojoDomainUntilRound > 0;
+    gojoSkillEffect.className = domainActive ? "gojo-skill-effect gojo-domain-impact"
+      : `gojo-skill-effect ${rightward ? "toward-right" : "toward-left"}`;
+    gojoSkillEffect.src = domainActive ? "assets/gojo/domain-skill-effect.png" : "assets/gojo/skill-effect.png";
+    gojoSkillEffect.alt = "";
+    gojoSkillEffect.setAttribute("aria-hidden", "true");
+    if (domainActive) {
+      gojoSkillEffect.style.left = `${targetBox.left - bounds.left + targetBox.width / 2}px`;
+      gojoSkillEffect.style.top = `${targetBox.top - bounds.top + targetBox.height * .55}px`;
+    } else {
+      gojoSkillEffect.style.left = `${rightward ? handX : 0}px`;
+      gojoSkillEffect.style.top = `${handY}px`;
+      gojoSkillEffect.style.width = `${rightward ? bounds.width - handX + 20 : handX + 20}px`;
+    }
+    arena.append(gojoSkillEffect);
+  }, scaled(100));
   let cloneProtectionEffect = null;
   const cloneProtectionMs = event.trialDamage?.cloneSpent ? Math.max(850, scaled(1200)) : 0;
   if (isDeidaraBirdSkill) {
@@ -3801,6 +4220,10 @@ function playEvent(event, finish) {
     target.alive = event.targetHp > 0;
     target.burnStacks = event.burnStacks ?? target.burnStacks ?? 0;
     target.bleedStacks = event.bleedStacks ?? target.bleedStacks ?? 0;
+    target.gunDevilBleedStacks = event.gunDevilBleedStacks ?? target.gunDevilBleedStacks ?? 0;
+    target.nightGuyBurnStacks = event.nightGuyBurnStacks ?? target.nightGuyBurnStacks ?? 0;
+    if (event.stageFourHealReduced) target.stageFourHealReduced = true;
+    if (event.gojoVulnerableUntilRound) target.gojoVulnerableUntilRound = event.gojoVulnerableUntilRound;
     if (event.trialDamage?.undyingTriggered) {
       target.undyingUsed = true;
       target.undyingActionHealUntilRound = event.trialDamage.undyingActionHealUntilRound;
@@ -3808,7 +4231,8 @@ function playEvent(event, finish) {
     }
     if (event.stunApplied && !event.targetDied) target.stunNextAction = true;
     if (event.silenceUntilRound && !event.targetDied) target.silencedThroughRound = event.silenceUntilRound;
-    if (event.burnStacks > 0 || event.bleedStacks > 0 || event.targetDied || event.stunApplied || event.silenceUntilRound) renderAllyStatusIcons();
+    if (event.burnStacks > 0 || event.bleedStacks > 0 || event.targetDied || event.stunApplied || event.silenceUntilRound ||
+        event.stageFourHealReduced || event.gojoVulnerableUntilRound) renderAllyStatusIcons();
     if (event.phaseChange) {
       target.borosPhase = event.phaseChange.phase;
       if (target.phaseAssets?.[target.borosPhase]) {
@@ -3842,7 +4266,9 @@ function playEvent(event, finish) {
       target.spd = event.damageSkillTriggered.effectiveSpd ?? target.spd;
     }
     if (isMelee) {
-      if (isTojiCombo) {
+      if (isNightStrike) {
+        // Each event is one hit of the same-round flash combo; keep its authored pose.
+      } else if (isTojiCombo) {
         stopSpriteFrameCycle(sourceEl);
         sourceEl.classList.add("is-toji-at-target", "is-punching");
         showFighterFrame(sourceEl, attacker, "meleeAttack", "punch_2");
@@ -3853,6 +4279,7 @@ function playEvent(event, finish) {
       } else {
         sourceEl.classList.remove("is-melee-running");
         stopSpriteFrameCycle(sourceEl);
+        if (attacker.id === "hakari") showFighterFrame(sourceEl, attacker, "meleeAttack", "punch");
       }
       if (isTojiCombo) {
         if (tojiLast) animationStageTimer = window.setTimeout(() => {
@@ -3886,7 +4313,7 @@ function playEvent(event, finish) {
         const punchFrames = attacker.animations?.meleeAttack?.impactFrames ?? animationFrameNames(attacker, "meleeAttack", "punch_");
         if (punchFrames.length) startFrameCycle(sourceEl, attacker, "meleeAttack", punchFrames, actionTiming.punchMs / punchFrames.length, false, playbackMultiplier);
       }
-      if (!isQuanxiStrike && !authoredDash && !isTojiCombo && !isErenSkill && !isKanekiPredator && !isKanekiNormal) animationStageTimer = window.setTimeout(() => {
+      if (!isNightStrike && !isQuanxiStrike && !authoredDash && !isTojiCombo && !isErenSkill && !isKanekiPredator && !isKanekiNormal) animationStageTimer = window.setTimeout(() => {
         sourceEl.classList.remove("is-punching");
         if (isCloneTechnique) {
           sourceEl.classList.remove("is-clone-melee-approaching");
@@ -3908,16 +4335,17 @@ function playEvent(event, finish) {
     damage.classList.add("pop");
     if (event.yoruCounterTriggered) showFighterFrame(targetEl, target, "tank", "second");
     else if (event.dodged) {
-      targetEl.classList.add("is-dodging");
+      if (target.id !== "gojo" && !(target.id === "darkness-devil" && (target.darknessPhaseActive || target.darknessVanish))) targetEl.classList.add("is-dodging");
       const dodgeFrames = animationFrameNames(target, "dodge");
-      if (dodgeFrames.length) startFrameCycle(targetEl, target, "dodge", dodgeFrames, scaled(300 / dodgeFrames.length), false);
+      if (dodgeFrames.length && !(target.id === "darkness-devil" && (target.darknessPhaseActive || target.darknessVanish))) startFrameCycle(targetEl, target, "dodge", dodgeFrames, scaled(300 / dodgeFrames.length), false);
     }
     else {
       const stunned = Math.random() < 0.5;
-      targetEl.classList.add("is-hit", "is-impact", stunned ? "is-hit-stun" : "is-hit-recoil");
+      const darknessHitSuppressed = target.id === "darkness-devil" && (target.darknessPhaseActive || target.darknessVanish);
+      if (target.id !== "gojo" && !darknessHitSuppressed) targetEl.classList.add("is-hit", "is-impact", stunned ? "is-hit-stun" : "is-hit-recoil");
       if (event.trialDamage?.odinReductionVisual && target.id === "odin") showFighterFrame(targetEl, target, "passive2", "trigger");
       const hitFrames = target.animations?.hit?.frames;
-      if (hitFrames && !event.damageSkillTriggered) {
+      if (hitFrames && !event.damageSkillTriggered && !darknessHitSuppressed) {
         const sequence = [stunned ? "dizzy" : "hurt", "recover"].filter((name) => typeof hitFrames[name] === "string");
         if (sequence.length) startFrameCycle(targetEl, target, "hit", sequence, scaled(180), false);
       }
@@ -3998,7 +4426,7 @@ function playEvent(event, finish) {
     if (Number.isFinite(event.targetShield)) { target.shieldHp = event.targetShield; updateHealth(target); }
     if (event.quinqueGuardTriggered) {
       target.quinqueGuardUses = event.quinqueGuardUses;
-      addLog(`<b>${target.name}</b> 的库因克格挡免疫了本次伤害（本场 ${event.quinqueGuardUses}/3 次）。`, "log-skill");
+      addLog(`<b>${target.name}</b> 的库因克格挡减免本次伤害的 80%（本场 ${event.quinqueGuardUses}/${target.quinqueCrit ? 5 : 3} 次）。`, "log-skill");
     }
     if (event.shieldsGranted?.length) addLog(event.shieldsGranted[0].cap != null
       ? `<b>${attacker.name}</b> 将存活队友护盾刷新至最多 ${event.shieldsGranted[0].cap} 点。`
@@ -4144,6 +4572,7 @@ function playEvent(event, finish) {
     if (birdProjectileTimer) window.clearTimeout(birdProjectileTimer);
     birdProjectileTimer = null;
     birdProjectile?.remove();
+    gojoSkillEffect?.remove();
     birdProjectile = null;
     trialProjectile?.remove();
     trialProjectile = null;
@@ -4165,6 +4594,10 @@ function playEvent(event, finish) {
     }
     sourceEl.classList.remove("is-boros-punch-approaching", "is-boros-punch-at-target", "is-boros-punch-returning");
     if (event.wukongTeleportAttack) { sourceEl.style.removeProperty("translate"); sourceEl.classList.remove("is-wukong-teleport"); }
+    if (isNightStrike && nightStrikeLast) {
+      sourceEl.classList.remove("is-night-striking", "is-night-vanishing");
+      sourceEl.style.removeProperty("--night-x");
+    }
     sourceEl.style.removeProperty("--boros-punch-x");
     sourceEl.style.removeProperty("--boros-punch-approach-duration");
     sourceEl.style.removeProperty("--boros-punch-return-duration");
@@ -4202,8 +4635,10 @@ function playEvent(event, finish) {
       startIdleCycle(targetEl, target);
     }
     if (event.attackType === "melee") sourceEl.classList.remove("is-casting");
-    clearSpriteFrame(sourceEl);
-    if ((!isTojiCombo || tojiLast) && attacker.alive) startIdleCycle(sourceEl, attacker);
+    if (!isNightStrike || nightStrikeLast) {
+      clearSpriteFrame(sourceEl);
+      if ((!isTojiCombo || tojiLast) && attacker.alive) startIdleCycle(sourceEl, attacker);
+    }
     animationStageTimer = null;
     finish();
   }, delay);
@@ -4218,7 +4653,11 @@ function playNext(token) {
     return;
   }
   const event = playback.events[playback.index++];
-  playEvent(event, () => playNext(token));
+  playEvent(event, () => {
+    if (token === generation && event.attackerId === "gojo" && event.targetDied &&
+        event.type !== "gojo-domain-execute" && showGojoExecutionCloseup(() => playNext(token))) return;
+    playNext(token);
+  });
 }
 
 function playAgingChoiceCast(token, choiceId) {
@@ -4422,11 +4861,15 @@ function beginBattle() {
   $("#battle-screen").classList.toggle("hidden-boss-battle", Boolean(campaign.currentBattle?.hiddenBoss));
   $("#battle-screen").classList.toggle("stage-two", campaign.stageId >= 2);
   $("#battle-screen").classList.toggle("stage-three", campaign.stageId === 3);
+  $("#battle-screen").classList.toggle("stage-four", campaign.stageId === 4);
   $("#battle-screen").classList.toggle("trial-battle", Boolean(campaign.trialBattle));
+  $("#battle-screen").classList.remove("darkness-phase-active");
+  $("#battle-screen").classList.remove("hakari-jackpot");
   $("#battle-screen .brand-copy .eyebrow").textContent = `PIXEL ROGUELIKE · ACT 0${campaign.stageId}`;
   const prepared = restoredBattle?.prepared ?? prepareBattle(campaign);
   if (!prepared) return false;
   $("#battle-screen").classList.toggle("aging-battle", prepared.battle.enemies?.includes("aging-devil"));
+  $("#battle-screen").classList.toggle("darkness-battle", prepared.battle.enemies?.includes("darkness-devil"));
   const initialMakimaSummons = restoredBattle?.result ? [] : prepared.roster.filter((unit) => unit.stageThreeMinion && unit.team === "enemy");
   if (restoredBattle) campaign.combatLaunched = true;
   lastPreparedBattle = prepared;
@@ -4435,7 +4878,8 @@ function beginBattle() {
   clearEffects();
   battleStartPhase = "initializing";
   viewState = initializeBattle(prepared.roster);
-  battleStatusState = { jinchuriki: null, c0: null, borosPhase: null, bombs: [], armoredShield: null, tojiExhausted: false, currentRound: 0 };
+  battleStatusState = { jinchuriki: null, c0: null, borosPhase: null, bombs: [], armoredShield: null,
+    tojiExhausted: false, darknessEntranceSeen: false, currentRound: 0 };
   selectedStatusId = null;
   renderSquad();
   buildHealthRows(viewState.characters);
@@ -4485,6 +4929,7 @@ function beginBattle() {
   $("#boss-warning").hidden = prepared.battle.type !== "boss";
   if (prepared.battle.type === "boss") $("#boss-warning-text").textContent = prepared.battle.hiddenBoss
     ? "⚠️ 枪之恶魔与战争恶魔·夜将连续作战。"
+    : campaign.stageId === 4 ? "⚠️ 暗之恶魔会周期性封锁主动技能。"
     : campaign.stageId === 3
     ? "⚠️ 玛奇玛正在召集眷属。"
     : campaign.stageId === 2 ? "⚠️ 龙级灾难：波罗斯！注意他的三阶段形态变化！"
@@ -4601,6 +5046,10 @@ function beginBattle() {
       : actor.id === "shin" ? [actor.animations?.meleeAttack?.frames?.punch,
         actor.animations?.hammerThrow?.frames?.charge, actor.animations?.hammerThrow?.frames?.throw, actor.projectileAsset]
       : actor.id === "noi" ? [actor.animations?.meleeAttack?.frames?.punch, actor.animations?.heal?.frames?.cast]
+      : actor.id === "hakari" ? Object.values(actor.animations ?? {}).flatMap((animation) =>
+        Object.values(animation.frames ?? {}))
+      : actor.id === "might-guy" ? [actor.animations?.nightPassive?.frames?.cast,
+        SKILL_DATA["eight-gates"].battleEffectAsset]
       : actor.id === "falling-devil" ? [actor.animations?.magicAttack?.frames?.attack,
         actor.animations?.gravity?.frames?.charge, actor.animations?.gravity?.frames?.release,
         actor.animations?.execution?.frames?.cast, actor.gravityCircleAsset, actor.dishAsset]
@@ -4722,6 +5171,27 @@ function renderEvolutionReward() {
     }, "ACT 03 · EVOLUTION");
 }
 
+function renderGuyIntro() {
+  if (campaign?.status !== "guy_intro") return;
+  renderDecisionScreen("凯的约定", "苍蓝野兽对你有了兴趣，与你约定真正的青春之舞...",
+    [decisionChoice("continue", "继续探索", "后续可在篝火选择挑战凯。")], "继续", () => {
+      if (!finishGuyIntro(campaign)) return false;
+      renderRoute(); return true;
+    }, "ACT 02 · HIDDEN CHALLENGE", null, { darkScene: true });
+}
+
+function renderEightGatesReward(onComplete = null) {
+  if (!campaign?.pendingEightGatesReward) return false;
+  renderDecisionScreen("八门遁甲", "选择一名队员学习这本传说技能书。",
+    campaign.partyIds.map((id) => decisionChoice(id, partyPresentation(id)?.name ?? id,
+      SKILL_DATA["eight-gates"].description, false, SKILL_DATA["eight-gates"].battleEffectAsset)),
+    "确认学习", (id) => {
+      if (!claimEightGatesReward(campaign, id)) return false;
+      updateProgressionDisplays(); if (onComplete) onComplete(); return true;
+    }, "ACT · LEGENDARY BOOK");
+  return true;
+}
+
 function renderHiddenBossIntro() {
   if (getFateReward(campaign)) return renderFateReward(() => renderHiddenBossIntro());
   if (getDragonRadarOffer(campaign)) return renderDragonRadarOffer(() => renderHiddenBossIntro());
@@ -4752,6 +5222,7 @@ function renderRoute() {
   $("#route-restart-btn").hidden = ![1, 2].includes(campaign.stageId);
   $("#route-screen").classList.toggle("stage-two", campaign.stageId >= 2);
   $("#route-screen").classList.toggle("stage-three", campaign.stageId === 3);
+  $("#route-screen").classList.toggle("stage-four", campaign.stageId === 4);
   $("#route-screen").setAttribute("aria-label", `第${campaign.stageId}大关路线选择`);
   $("#battle-screen").classList.toggle("stage-two", campaign.stageId >= 2);
   $("#route-screen .eyebrow").textContent = `ACT 0${campaign.stageId} · EXPEDITION`;
@@ -4792,6 +5263,25 @@ function renderRoute() {
     partnerButton.textContent = `查看伙伴：${partner?.name ?? partnerId}`;
     partnerButton.onclick = () => openCharacterDetail(partnerId);
   }
+  $("#route-party").querySelectorAll(".route-recruit").forEach((button) => button.remove());
+  for (const id of campaign.partyIds.filter((memberId) => memberId !== campaign.playerId && memberId !== partnerId)) {
+    const member = partyPresentation(id);
+    if (!member) continue;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "route-player route-recruit";
+    button.dataset.characterDetail = id;
+    button.setAttribute("aria-label", `查看${member.name}的属性和技能`);
+    const portrait = document.createElement("img");
+    portrait.src = Object.values(member.animations?.idle?.frames ?? {})[0] ?? member.asset;
+    portrait.alt = "";
+    const label = document.createElement("span");
+    label.textContent = member.name;
+    button.append(portrait, label);
+    button.onclick = () => openCharacterDetail(id);
+    $("#route-party").append(button);
+  }
+  $("#route-party").classList.toggle("party-expanded", campaign.partyIds.length >= 3);
   $(".route-player").dataset.characterDetail = hero.id;
   $(".route-player").setAttribute("aria-label", `查看${hero.name}的属性和技能`);
   updateBossProgress();
@@ -4824,6 +5314,7 @@ function renderRoute() {
 
 let selectedShopSlot = null;
 let selectedShopRecipientId = null;
+let selectedShopReplaceId = null;
 let shopChoosingRecipient = false;
 function shopCategoryLabel(id) {
   return ({ common: "普通宝物", growing: "稀有宝物", rare: "稀有宝物", legendary: "传说宝物", medicine: "临时药物", book: "技能书" })[id] ?? id;
@@ -4833,6 +5324,9 @@ function renderShop() {
   if (queueHiddenBossIntro(campaign)) return renderHiddenBossIntro();
   refreshShopPrices(campaign);
   $("#shop-essence").textContent = String(campaign.essence ?? 0);
+  const adButton = $("#shop-ad-essence");
+  adButton.hidden = Boolean(campaign.adEssenceClaimed) || !rewardedAd.init();
+  if (!campaign.adEssenceClaimed) adButton.disabled = false;
   $("#essence-count").textContent = String(campaign.essence ?? 0);
   const slots = $("#shop-slots");
   slots.replaceChildren();
@@ -4867,6 +5361,7 @@ function openShopDetail(index) {
   selectedShopSlot = index;
   selectedShopRecipientId = null;
   shopChoosingRecipient = false;
+  selectedShopReplaceId = null;
   $("#shop-detail-title").textContent = slot.name;
   $("#shop-detail-image").hidden = !slot.image;
   $("#shop-detail-art-missing").hidden = Boolean(slot.image);
@@ -4879,14 +5374,15 @@ function openShopDetail(index) {
     detailImage.src = slot.image;
     detailImage.alt = slot.name;
   }
-  $("#shop-detail-category").textContent = shopCategoryLabel(slot.categoryId);
+  $("#shop-detail-category").textContent = slot.itemId === "prison_realm" ? "超传说道具" : shopCategoryLabel(slot.categoryId);
   $("#shop-detail-description").textContent = slot.description;
   $("#shop-detail-price").textContent = `◆ ${slot.price} 精华`;
   const recipients = $("#shop-detail-recipients");
   recipients.replaceChildren(); recipients.hidden = true;
   const buy = $("#shop-detail-buy");
-  buy.disabled = !slot.available || slot.purchased || campaign.essence < slot.price;
-  buy.textContent = slot.purchased ? "已购买" : !slot.available ? "待配置" : campaign.essence < slot.price ? "精华不足" : "购买";
+  const partyFull = slot.itemId === "prison_realm" && campaign.partyIds.includes("gojo");
+  buy.disabled = !slot.available || slot.purchased || campaign.essence < slot.price || partyFull;
+  buy.textContent = slot.purchased ? "已购买" : !slot.available ? "待配置" : partyFull ? "五条悟已入队" : campaign.essence < slot.price ? "精华不足" : "购买";
   $("#shop-detail-dialog").showModal();
 }
 function chooseShopRecipient() {
@@ -4903,6 +5399,7 @@ function chooseShopRecipient() {
     choice.textContent = partyPresentation(id)?.name ?? id;
     choice.addEventListener("click", () => {
       selectedShopRecipientId = id;
+      selectedShopReplaceId = null;
       recipients.querySelectorAll(".shop-recipient-choice").forEach((button) => button.classList.toggle("is-selected", button === choice));
       const preview = previewShopItem(campaign, slot, id);
       $("#shop-detail-description").textContent = preview?.fullDescription ?? slot.description;
@@ -4910,7 +5407,7 @@ function chooseShopRecipient() {
         preview?.upgradeUnavailable ? "该角色没有可升级的 Lv.1 被动" :
         slot.categoryId === "medicine" ? `◆ ${slot.price} 精华` : `◆ ${slot.price} 精华 · 此角色已有 ${preview?.ownedCount ?? 0} 件`;
       $("#shop-detail-buy").disabled = Boolean(preview?.recipientIneligible || preview?.alreadyOwned || preview?.upgradeUnavailable);
-      $("#shop-detail-buy").textContent = preview?.recipientIneligible ? "无法学习" : preview?.alreadyOwned ? "已拥有" : preview?.upgradeUnavailable ? "无法升级" : "确认购买";
+      $("#shop-detail-buy").textContent = preview?.recipientIneligible ? "无法学习" : preview?.alreadyOwned ? "已拥有" : preview?.upgradeUnavailable ? "无法升级" : slot.itemId === "prison_realm" && campaign.partyIds.length >= MAX_PARTY_MEMBERS ? "选择替换伙伴" : "确认购买";
     });
     recipients.append(choice);
   }
@@ -4920,7 +5417,29 @@ function chooseShopRecipient() {
 }
 function purchaseShopSlot(index) {
   if (!selectedShopRecipientId) return false;
-  const result = buyShopItem(campaign, index, selectedShopRecipientId);
+  const slot = campaign.activeShop.slots[index];
+  if (slot.itemId === "prison_realm" && campaign.partyIds.length >= MAX_PARTY_MEMBERS && !selectedShopReplaceId) {
+    const recipients = $("#shop-detail-recipients");
+    recipients.querySelectorAll(".shop-replace-choice, .shop-replace-heading").forEach((entry) => entry.remove());
+    const prompt = document.createElement("strong");
+    prompt.className = "shop-replace-heading";
+    prompt.textContent = "选择离队伙伴（其属性、技能与宝物保留在本局存档）";
+    recipients.append(prompt);
+    for (const id of campaign.partyIds.filter((id) => id !== campaign.playerId && id !== selectedShopRecipientId)) {
+      const choice = document.createElement("button");
+      choice.type = "button"; choice.className = "shop-recipient-choice shop-replace-choice";
+      choice.textContent = partyPresentation(id)?.name ?? id;
+      choice.addEventListener("click", () => {
+        selectedShopReplaceId = id;
+        recipients.querySelectorAll(".shop-replace-choice").forEach((button) => button.classList.toggle("is-selected", button === choice));
+        $("#shop-detail-buy").textContent = "确认购买并替换";
+      });
+      recipients.append(choice);
+    }
+    $("#shop-detail-buy").textContent = "请先选择离队伙伴";
+    return false;
+  }
+  const result = buyShopItem(campaign, index, selectedShopRecipientId, selectedShopReplaceId);
   const alreadyOwned = !result && previewShopItem(campaign, campaign.activeShop.slots[index], selectedShopRecipientId)?.alreadyOwned;
   $("#shop-feedback").textContent = result ? `购买成功：${campaign.activeShop.slots[index].name}交给${partyPresentation(selectedShopRecipientId)?.name ?? selectedShopRecipientId}，精华 -${campaign.activeShop.purchases.at(-1)?.price}。` : alreadyOwned ? "该角色已拥有此药剂。" : "购买未完成，请查看余额或角色是否已学会该技能。";
   if (!result) $("#shop-detail-description").textContent = alreadyOwned ? "该角色已拥有此药剂，请选择其他角色。" : "购买未完成：请确认精华足够，且该角色尚未学会这本技能书。";
@@ -5012,11 +5531,12 @@ function openRouteMap() {
   const dialog = $("#route-map-dialog");
   dialog.classList.toggle("stage-two", campaign.stageId >= 2);
   dialog.classList.toggle("stage-three", campaign.stageId === 3);
+  dialog.classList.toggle("stage-four", campaign.stageId === 4);
   if (!dialog.open) dialog.showModal();
 }
 
 function routeTypeLabel(type) {
-  return ({ battle: "普通战斗", elite: "精英战", question: "未知事件", campfire: "篝火", shop: "商店", demon: campaign?.stageId === 3 ? "玛奇玛 Boss 战" : campaign?.stageId === 2 ? "波罗斯 Boss 战" : "迪达拉 Boss 战" })[type] ?? "前方地点";
+  return ({ battle: "普通战斗", elite: "精英战", question: "未知事件", campfire: "篝火", shop: "商店", demon: campaign?.stageId === 4 ? "暗之恶魔 Boss 战" : campaign?.stageId === 3 ? "玛奇玛 Boss 战" : campaign?.stageId === 2 ? "波罗斯 Boss 战" : "迪达拉 Boss 战" })[type] ?? "前方地点";
 }
 
 function renderRouteMap() {
@@ -5050,7 +5570,7 @@ function renderRouteMap() {
     }
   }
   const hero = partyPresentation(campaign.playerId);
-  const labels = { start: "起点", battle: "普通战斗", elite: "精英战", question: "未知事件", campfire: "篝火", shop: "商店", demon: campaign.stageId === 3 ? "玛奇玛 Boss" : campaign.stageId === 2 ? "波罗斯 Boss" : "迪达拉 Boss" };
+  const labels = { start: "起点", battle: "普通战斗", elite: "精英战", question: "未知事件", campfire: "篝火", shop: "商店", demon: campaign.stageId === 4 ? "暗之恶魔 Boss" : campaign.stageId === 3 ? "玛奇玛 Boss" : campaign.stageId === 2 ? "波罗斯 Boss" : "迪达拉 Boss" };
   for (const node of routeMap.nodes) {
     const position = nodePosition(node);
     const selectable = (campaign.status === "route" ? getRouteOptions(campaign) : getShopRouteOptions(campaign)).some((option) => option.id === node.id);
@@ -5116,9 +5636,9 @@ function renderEnding() {
   $("#ending-screen").classList.toggle("is-victory", won);
   $("#ending-screen").classList.toggle("is-defeat", !won);
   $("#ending-mark").textContent = won ? "★" : "…";
-  $("#ending-title").textContent = won ? (campaign.hiddenBoss?.resolved ? "隐藏首领挑战完成！" : campaign.stageId === 3 ? "第三大关通关！" : campaign.stageId === 2 ? "第二大关通关！" : "第一大关通关！") : "本局挑战结束";
+  $("#ending-title").textContent = won ? (campaign.stageId === 4 ? "第四大关通关！" : campaign.hiddenBoss?.resolved ? "隐藏首领挑战完成！" : campaign.stageId === 3 ? "第三大关通关！" : campaign.stageId === 2 ? "第二大关通关！" : "第一大关通关！") : "本局挑战结束";
   $("#ending-copy").textContent = won
-    ? (campaign.hiddenBoss?.resolved ? "你击败了枪之恶魔与战争恶魔·夜，获得 20 点精华。" : campaign.stageId === 3 ? "你击败了玛奇玛，完成了第三大关。" : campaign.stageId === 2 ? "你击败了波罗斯，完成了第二大关。" : "你战胜了遗迹首领，完成了第一大关。")
+    ? (campaign.stageId === 4 ? "你击败了暗之恶魔，完成了第四大关。" : campaign.hiddenBoss?.resolved ? "你击败了枪之恶魔与战争恶魔·夜，获得 20 点精华。" : campaign.stageId === 3 ? "你击败了玛奇玛，完成了第三大关。" : campaign.stageId === 2 ? "你击败了波罗斯，完成了第二大关。" : "你战胜了遗迹首领，完成了第一大关。")
     : (partyPresentation(campaign.playerId)?.name ?? "角色") + "倒下了，旅程止步于第 " + campaign.step + " 步。";
   $("#ending-count").textContent = "路线已走 " + campaign.history.length + " 步 · 完成战斗 " + campaign.completedBattles + " · 最终生命 " + campaign.playerHp + " / " + campaign.playerMaxHp;
   if (localStageTwoTest && campaign.devBattleOnly) {
@@ -5242,6 +5762,7 @@ function playStageThreeInterlude(flow) {
         window.setTimeout(() => {
           if (!stillCurrent()) return;
           setScreen("stage-interlude-screen");
+          $("#stage-interlude-screen").className = "flow-screen stage-interlude-screen stage-three";
           const lines = ["诸神正注视着你…", "被选择的英雄，普罗米修斯将赐你未来"];
           const showLine = (index) => {
             if (!stillCurrent()) return;
@@ -5269,6 +5790,27 @@ function playStageThreeInterlude(flow) {
   }, 850);
 }
 
+let stageFourInterludeRunning = false;
+function playStageFourInterlude(flow) {
+  if (stageFourInterludeRunning) return;
+  stageFourInterludeRunning = true;
+  const screen = $("#stage-interlude-screen");
+  screen.className = "flow-screen stage-interlude-screen stage-four";
+  setScreen("stage-interlude-screen");
+  const lines = ["你斩落了天启的骑士，此后神和仙与魔不再束之高阁。", "登天见仙，先入地狱。", "小队成员上限为3人（召唤物不计入）。"];
+  const stillCurrent = () => campaign?.status === "stage_transition" && campaign.stageTransition === flow && flow.phase === "stage3_interlude";
+  const show = (index) => {
+    if (!stillCurrent()) { stageFourInterludeRunning = false; return; }
+    $("#stage-interlude-line").textContent = lines[index];
+    window.setTimeout(() => {
+      if (!stillCurrent()) { stageFourInterludeRunning = false; return; }
+      if (index + 1 < lines.length) show(index + 1);
+      else { stageFourInterludeRunning = false; if (beginStageFour(campaign)) { renderSquad(); renderRoute(); } }
+    }, 2100);
+  };
+  show(0);
+}
+
 function renderStageTransition() {
   if (getFateReward(campaign)) return renderFateReward(() => renderStageTransition());
   if (getDragonRadarOffer(campaign)) return renderDragonRadarOffer(() => renderStageTransition());
@@ -5277,6 +5819,7 @@ function renderStageTransition() {
   const flow = campaign.stageTransition;
   const phase = getStageTransitionChoices(campaign);
   if (phase.phase === "stage2_interlude") return playStageThreeInterlude(flow);
+  if (phase.phase === "stage3_interlude") return playStageFourInterlude(flow);
   if (phase.phase === "stage2_skill") {
     const character = partyPresentation(phase.characterId);
     const state = campaign.partyStates[phase.characterId];
@@ -5320,6 +5863,7 @@ function renderStageTransition() {
   }
   if (phase.phase === "recruit") return playRecruitScene(flow);
   if (phase.phase === "interlude") {
+    $("#stage-interlude-screen").className = "flow-screen stage-interlude-screen stage-two";
     setScreen("stage-interlude-screen");
     const line = "落叶捎来讯息，前方是未知之地";
     let index = 0;
@@ -5386,6 +5930,28 @@ function renderStageTransition() {
   }
 }
 
+function renderPartyReplacement() {
+  if (campaign?.status !== "party_replacement" || !campaign.pendingRecruitment) return;
+  const incoming = partyPresentation(campaign.pendingRecruitment.characterId) ??
+    PLAYABLE_CHARACTERS.find((unit) => unit.id === campaign.pendingRecruitment.characterId);
+  const partners = campaign.partyIds.filter((id) => id !== campaign.playerId);
+  renderDecisionScreen("选择离队伙伴", `${incoming?.name ?? "新队员"}即将入队。请选择一名伙伴离队；该伙伴的属性、技能和宝物会保留在本局存档。`,
+    partners.map((id) => decisionChoice(id, partyPresentation(id)?.name ?? id, "离队并保留完整状态")),
+    "确认替换", (id) => {
+      if (!finishPartyReplacement(campaign, id)) return false;
+      saveCampaign();
+      renderSquad();
+      if (campaign.status === "route") renderRoute();
+      else if (campaign.status === "combat") beginBattle();
+      else if (campaign.status === "shop") renderShop();
+      else if (campaign.status === "event") renderCampaignEvent();
+      else if (campaign.status === "stage_transition") renderStageTransition();
+      else if (campaign.status === "reward") renderBattleReward();
+      else renderEnding();
+      return true;
+    }, "ACT 04 · SQUAD");
+}
+
 function renderSquad() {
   if (!campaign) return;
   const panel = document.querySelector(".squad-panel");
@@ -5403,7 +5969,7 @@ function renderSquad() {
   panel.querySelector(".squad-treasures").hidden = squadSide === "enemy";
   panel.querySelector("#squad-treasure-detail").hidden = squadSide === "enemy" || !selectedStatusId?.startsWith("treasure-");
   panel.querySelector(".reserve-heading span").textContent = squadSide === "enemy" ? `${enemies.length} 名敌人`
-    : summons.length ? `${campaign.partyIds.length} 名队员 · ${summons.length} 名召唤物` : `${campaign.partyIds.length} / 4`;
+    : summons.length ? `${campaign.partyIds.length} 名队员 · ${summons.length} 名召唤物` : `${campaign.partyIds.length} / ${MAX_PARTY_MEMBERS}`;
   const slots = panel.querySelector(".squad-slots");
   slots.replaceChildren();
   slots.classList.toggle("is-enemy-view", squadSide === "enemy");
@@ -5449,7 +6015,7 @@ function renderSquad() {
     button.addEventListener("click", () => openCharacterDetail(summon.id));
     slots.append(button);
   }
-  for (let index = campaign.partyIds.length + summons.length; index < 4; index++) {
+  for (let index = campaign.partyIds.length; index < MAX_PARTY_MEMBERS; index++) {
     const empty = document.createElement("div");
     empty.className = "squad-slot empty-slot";
     empty.innerHTML = "<b>＋</b><span>预留</span>";
@@ -5494,6 +6060,59 @@ function renderDragonRadarOffer(onComplete = null) {
     else renderRoute();
     return true;
   }, "ACT · DRAGON RADAR");
+  return true;
+}
+
+function renderMakimaReward(onComplete = null) {
+  const offer = getMakimaRewardOffer(campaign);
+  if (!offer) return false;
+  const proceed = () => {
+    updateProgressionDisplays();
+    if (campaign.pendingMakimaReward) renderMakimaReward(onComplete);
+    else if (onComplete) onComplete();
+  };
+  if (offer.phase === "skill") {
+    renderDecisionScreen("玛奇玛战利品 · 技能升级", "为小队选择一次技能升级。",
+      offer.choices.map(({ recipientId, skillId }) => {
+        const skill = getSkillAtLevel(campaign.partyStates[recipientId], skillId);
+        return decisionChoice(`${recipientId}|${skillId}`,
+          `${partyPresentation(recipientId)?.name ?? recipientId} · ${SKILL_DATA[skillId].name}`,
+          skill ? `Lv.${skill.level} → Lv.${skill.level + 1}` : "学习 Lv.1");
+      }), "确认升级", (choice) => {
+        const [recipientId, skillId] = choice.split("|");
+        if (!claimMakimaSkillReward(campaign, recipientId, skillId)) return false;
+        proceed(); return true;
+      }, "ACT 03 · BOSS REWARD");
+    return true;
+  }
+  if (offer.phase === "treasure") {
+    renderDecisionScreen(`玛奇玛战利品 · 稀有宝物 ${offer.number}/2`, "选择一件稀有宝物，并指定领取角色。",
+      campaign.partyIds.flatMap((recipientId) => offer.choices.map((id) => {
+        const treasure = [GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT, TREASURE_DATA[id]].find((item) => item?.id === id);
+        return decisionChoice(`${recipientId}|${id}`, `${partyPresentation(recipientId)?.name ?? recipientId} · ${treasure.name}`,
+          treasure.description, false, treasure.image);
+      })), "确认领取", (choice) => {
+        const [recipientId, treasureId] = choice.split("|");
+        if (!claimMakimaTreasureReward(campaign, recipientId, treasureId)) return false;
+        proceed(); return true;
+      }, "ACT 03 · BOSS REWARD", null, { portraitCards: true });
+    return true;
+  }
+  if (offer.phase === "stat") {
+    renderDecisionScreen("玛奇玛战利品 · 属性加点",
+      `${partyPresentation(offer.recipientId)?.name ?? offer.recipientId} · 第 ${offer.number}/${offer.total} 次`,
+      offer.choices.map((upgrade) => decisionChoice(upgrade.id, upgrade.name,
+        upgrade.description ?? `+${upgrade.value}`)), "确认加点", (statId) => {
+        if (!claimMakimaStatReward(campaign, offer.recipientId, statId)) return false;
+        proceed(); return true;
+      }, "ACT 03 · BOSS REWARD");
+    return true;
+  }
+  renderDecisionScreen("玛奇玛战利品 · 伙伴被动", `精华奖励已结算：+${campaign.lastEssenceReward?.amount ?? 0}；最后升级副角色被动技能（若可升级）。`,
+    [decisionChoice("finish", "完成结算", "按现有等级上限处理。")], "继续", () => {
+      if (!claimMakimaPassiveReward(campaign)) return false;
+      proceed(); return true;
+    }, "ACT 03 · BOSS REWARD");
   return true;
 }
 
@@ -5620,7 +6239,7 @@ function renderBattleReward() {
   if (campaign.rewardPhase === "elite_drop") {
     const dropId = eliteDropId(campaign);
     const item = dropId === GIANT_SPINAL_FLUID.id ? GIANT_SPINAL_FLUID
-      : dropId === GUN_DEVIL_FRAGMENT.id ? GUN_DEVIL_FRAGMENT : TREASURE_DATA.sukuna_finger;
+      : dropId === GUN_DEVIL_FRAGMENT.id ? GUN_DEVIL_FRAGMENT : TREASURE_DATA[dropId];
     const choices = campaign.partyIds.map((id) => {
       const member = partyPresentation(id);
       const reward = previewGrowingDrop(campaign.partyStates[id], item.id, campaign.stageId);
@@ -5635,7 +6254,10 @@ function renderBattleReward() {
         $("#decision-copy").textContent = `${item.description} 领取未完成，请再次点击确认领取；若仍无法继续，请截取此处提示。`;
         return false;
       }
-      updateProgressionDisplays(); renderRoute(); return true;
+      updateProgressionDisplays();
+      if (campaign.status === "guy_intro") renderGuyIntro();
+      else if (campaign.status === "reward") renderBattleReward();
+      else renderRoute(); return true;
     }, "ACT 03 · ELITE REWARD", item.image, { portraitCards: true });
     return;
   }
@@ -5655,15 +6277,14 @@ function renderBattleReward() {
   }
   if (campaign.stageId >= 2 && campaign.stageTwoReward) {
     if (campaign.rewardPhase === "stat") {
-      const isPartnerTurn = offer.assignments.length > 0;
-      const recipientId = isPartnerTurn ? campaign.partyIds.find((id) => id !== campaign.playerId) : campaign.playerId;
+      const recipientId = (offer.recipientIds ?? campaign.partyIds)[offer.assignments.length];
       const recipient = partyPresentation(recipientId);
       const choices = offer.choices.map((statId) => {
         const upgrade = STAGE_TWO_STAT_UPGRADES.find((item) => item.id === statId);
         return decisionChoice(statId, upgrade.name, upgrade.description ?? `${upgrade.value > 0 ? "+" : ""}${upgrade.value}`,
-          offer.assignments.some((item) => item.statId === statId));
+          campaign.stageId < 4 && offer.assignments.some((item) => item.statId === statId));
       });
-      renderDecisionScreen("第二关战后属性强化", isPartnerTurn ? `请选择伙伴${recipient?.name ?? ""}的奖励。` : `请先为主角${recipient?.name ?? ""}选择奖励。`, choices,
+      renderDecisionScreen(`第${campaign.stageId}关战后属性强化`, `请为${recipient?.name ?? "队员"}选择奖励（${offer.assignments.length + 1}/${offer.recipientIds?.length ?? 2}）。`, choices,
         "确认分配", (id) => {
           const result = claimStageTwoStatReward(campaign, recipientId, id);
           if (!result) return false;
@@ -5906,6 +6527,7 @@ function renderCampfire() {
     const canUpgrade = members.some(({ options }) => options[1].enabled);
     const deferredBoss = campaign.hiddenBoss?.unlocked && !campaign.hiddenBoss.resolved && !campaign.hiddenBoss.attempted;
     const arimaChallenge = canChallengeArimaAtCampfire(campaign);
+    const guyChallenge = canChallengeGuyAtCampfire(campaign);
     const apocalypseUpgrade = getApocalypseUpgradeOffer(campaign);
     const extraTraining = members.some(({ characterId }) => campaign.partyStates[characterId].extraPassiveSkillIds?.includes("daily-progress"));
     renderDecisionScreen(`第${campaign.stageId}关篝火`, `休息治疗全队，或每名队员分别训练技能。${extraTraining ? "持有「天天向上」者可额外训练一次。" : ""}`, [
@@ -5914,8 +6536,16 @@ function renderCampfire() {
       ...(apocalypseUpgrade ? [decisionChoice("upgrade_apocalypse", "天启骑士 Lv2",
         `献祭 4 个枪魔碎片，移除其属性收益（现有 ${apocalypseUpgrade.fragments}/4）。`, apocalypseUpgrade.fragments < 4)] : []),
       ...(arimaChallenge ? [decisionChoice("arima_challenge", "挑战有马贵将", "可留待之后的篝火挑战。")]: []),
-      ...(deferredBoss ? [decisionChoice("hidden_boss", "挑战枪之恶魔与战争恶魔·夜", "可留待之后的篝火挑战。")]: []),
+      ...(campaign.runCharacterState?.eventSeries?.anteiku?.chapter3Failed ? [decisionChoice("arima_failed", "有马贵将 · 已挑战失败", "本局无法再次挑战。", true)] : []),
+      ...(guyChallenge ? [decisionChoice("guy_challenge", "凯的约定", "挑战迈特凯，胜利后获得八门遁甲。")]: []),
+      ...(campaign.guyChallenge?.failed ? [decisionChoice("guy_failed", "凯的约定 · 已挑战失败", "本局无法再次挑战。", true)] : []),
+      ...(deferredBoss ? [decisionChoice("hidden_boss", "挑战枪之恶魔与战争恶魔·夜", "若击败战争恶魔，你将获得她的眷属。")]: []),
+      ...(campaign.hiddenBoss?.failed ? [decisionChoice("hidden_boss_failed", "战争恶魔 · 已挑战失败", "本局无法再次挑战。", true)] : []),
     ], "确认", (id) => {
+      if (id === "guy_challenge") {
+        if (!beginGuyCampfireChallenge(campaign)) return false;
+        beginBattle(); return true;
+      }
       if (id === "arima_challenge") {
         if (!beginArimaCampfireChallenge(campaign)) return false;
         beginBattle();
@@ -5982,7 +6612,7 @@ function renderCampfire() {
     decisionChoice("rest", "休息治疗", rest.blockedBy ? "石鬼面阻止篝火回血。" : `恢复 ${rest.healAmount} HP（当前 ${campaign.runCharacterState.currentHp}/${campaign.runCharacterState.maxHp}）。`),
     decisionChoice("skill_upgrade", "技能升级", upgrade.enabled ? upgrade.skills.map((entry) => entry.currentLevel ? `${entry.name} Lv.${entry.currentLevel} → Lv.${entry.nextLevel}` : `学习 ${entry.name} Lv.1`).join("、") : upgrade.reason, !upgrade.enabled),
     ...(campaign.hiddenBoss?.unlocked && !campaign.hiddenBoss.resolved && !campaign.hiddenBoss.attempted
-      ? [decisionChoice("hidden_boss", "挑战枪之恶魔与战争恶魔·夜", "可留待之后的篝火挑战。")]
+      ? [decisionChoice("hidden_boss", "挑战枪之恶魔与战争恶魔·夜", "若击败战争恶魔，你将获得她的眷属。")]
       : []),
   ], "确认选择", (id) => {
     if (id === "hidden_boss") {
@@ -6020,9 +6650,74 @@ function renderCampfire() {
   }, "ACT 01 · CAMPFIRE");
 }
 
+function renderSlotMachineEvent() {
+  const record = campaign?.pendingEvent;
+  if (record?.eventId !== "slot_machine") return;
+  const { phase, bet, rolls } = record.data;
+  const last = rolls.at(-1);
+  const rollText = last ? `你掷出 ${last.player} 点，秤掷出 ${last.house} 点。${last.outcome === "tie" ? "平局，重新掷骰。" : last.outcome === "win" ? "你赢了！" : "你输了。"}` : "点击骰子掷出你的点数。";
+  if (phase === "entry") {
+    renderDecisionScreen(record.name, record.description, [
+      decisionChoice("slot_all_in", "all in精华！", `押上当前全部 ${campaign.essence} 精华。`, campaign.essence <= 0),
+      decisionChoice("slot_leave", "逢赌必输，不赌为妙", "直接离开。"),
+    ], "确认", (id) => {
+      if (!resolveSlotMachineChoice(campaign, id)) return false;
+      updateProgressionDisplays(); saveCampaign();
+      if (id === "slot_leave") return finishEventAndAdvance();
+      renderSlotMachineEvent(); return true;
+    }, "ACT 03 · SLOT MACHINE", record.image);
+    return;
+  }
+  if (phase === "dice") {
+    renderDecisionScreen("老虎机 · 掷骰", `${rollText}\n本轮押注 ${bet} 精华；平局不重复扣款。`, [
+      decisionChoice("slot_roll", "🎲 点击骰子", "秤的骰子只会出现 4、5、6 点。", false, "assets/events/slot-dice.svg"),
+    ], "掷骰", (id) => {
+      if (id !== "slot_roll") return false;
+      const die = document.querySelector('[data-choice-id="slot_roll"] .decision-choice-image');
+      if (die?.classList.contains("slot-die-rolling")) return true;
+      die?.classList.add("slot-die-rolling");
+      window.setTimeout(() => {
+        if (campaign?.pendingEvent !== record || campaign.status !== "event") return;
+        const result = resolveSlotMachineChoice(campaign, "slot_roll");
+        if (!result) return;
+        updateProgressionDisplays(); saveCampaign(); renderSlotMachineEvent();
+      }, 1300);
+      return true;
+    }, "ACT 03 · SLOT MACHINE", record.image, { autoConfirmChoiceIds: ["slot_roll"] });
+    return;
+  }
+  if (phase === "win" && bet >= 100) {
+    renderDecisionScreen("老虎机 · 你赢了", `${rollText}\n精华已变为 ${campaign.essence}。秤说：“*****，我要修理一下你了”`, [
+      decisionChoice("slot_wait", "即将迎战秤金次", "", true),
+    ], "迎战", () => true, "ACT 03 · SLOT MACHINE", record.image);
+    window.setTimeout(() => {
+      if (campaign?.pendingEvent !== record || campaign.status !== "event" || record.data.phase !== "win") return;
+      if (resolveSlotMachineChoice(campaign, "slot_fight")) { saveCampaign(); beginBattle(); }
+    }, 3200);
+    return;
+  }
+  if (["win", "loss"].includes(phase)) {
+    renderDecisionScreen(phase === "win" ? "老虎机 · 你赢了" : "老虎机 · 你输了",
+      `${rollText}\n当前精华 ${campaign.essence}。`, phase === "win" ? [
+        decisionChoice("slot_fight", "继续all in", "秤说：“*****，我要修理一下你了”；直接进入战斗。"),
+        decisionChoice("slot_collect", "见好就收", "保留已翻倍精华并离开。"),
+      ] : [
+        decisionChoice("slot_fight", "出千的家伙，不可饶恕", "迎战秤金次。"),
+        decisionChoice("slot_accept", "哑巴吃黄连", "精华清零，直接离开。"),
+      ], "确认", (id) => {
+        const result = resolveSlotMachineChoice(campaign, id);
+        if (!result) return false;
+        updateProgressionDisplays(); saveCampaign();
+        if (result.phase === "battle") { beginBattle(); return true; }
+        return finishEventAndAdvance();
+      }, "ACT 03 · SLOT MACHINE", record.image);
+  }
+}
+
 function renderAdventureEvent() {
   const record = campaign?.pendingEvent;
   if (!record) return;
+  if (record.eventId === "slot_machine") return renderSlotMachineEvent();
   if (record.type === "gamble" && record.data.phase === "coin") { playGambleCoin(record.result); return; }
   if (record.type === "gamble" && record.data.phase === "result") { renderGambleRoundResult(record.result); return; }
   if (record.eventId === "trial_land") {
@@ -6215,6 +6910,7 @@ function updateProgressionDisplays() {
   if (!campaign?.runCharacterState) return;
   campaign.playerHp = campaign.runCharacterState.currentHp;
   campaign.playerMaxHp = campaign.runCharacterState.maxHp;
+  $("#essence-count").textContent = String(campaign.essence ?? 0);
   $("#route-health").textContent = `${campaign.playerHp} / ${campaign.playerMaxHp}`;
   renderSquad();
   renderAllyStatusIcons();
@@ -6330,6 +7026,8 @@ function confirmStartingCharacter() {
 function showCharacterSelectionForNewRun() {
   entryAnimationToken += 1;
   campaign = createCampaign();
+  $("#shop-ad-essence").disabled = false;
+  $("#shop-feedback").textContent = "";
   selectedCandidateId = null;
   startCampaign(campaign);
   renderCandidateSelection();
@@ -6388,6 +7086,14 @@ function initializeGame() {
       campaign.random = Math.random;
       campaign.partyStates ??= {};
       campaign.partyStates[campaign.playerId] = campaign.runCharacterState;
+      if (campaign.partyStates["gun-devil-ally"]?.passiveSkillId === "gun-devil-bullet-hole")
+        campaign.partyStates["gun-devil-ally"].passiveSkillId = "gun-devil-ally-bleed";
+      migrateLegacyParty(campaign);
+      if (campaign.stageId === 3 && campaign.status === "victory" &&
+          campaign.hiddenBoss.makimaCleared && !campaign.stageFourEntered) {
+        campaign.stageTransition = { phase: "stage3_interlude", lineIndex: 0 };
+        campaign.status = "stage_transition";
+      }
       for (const id of campaign.partyIds ?? []) {
         const evolution = campaign.partyStates[id]?.evolution;
         if (evolution?.phase === 2) evolution.name = evolutionDisplayName(id, evolution);
@@ -6412,7 +7118,9 @@ function initializeGame() {
         restoredBattle = saved.battle?.prepared ? saved.battle : null;
         beginBattle();
       } else if (campaign.status === "stage_transition") renderStageTransition();
+      else if (campaign.status === "party_replacement") renderPartyReplacement();
       else if (campaign.status === "route") renderRoute();
+      else if (campaign.status === "guy_intro") renderGuyIntro();
       else if (campaign.status === "hidden_boss_intro") renderHiddenBossIntro();
       else if (campaign.status === "shop") renderShop();
       else if (campaign.status === "trial_intro") renderTrialIntro();
@@ -6427,10 +7135,14 @@ function initializeGame() {
         const resumeSettlement = () => {
           completeSettlement(campaign);
           if (campaign.status === "stage_transition") renderStageTransition();
+          else if (campaign.status === "party_replacement") renderPartyReplacement();
           else if (campaign.status === "route") renderRoute();
-          else if (campaign.status === "hidden_boss_intro") renderHiddenBossIntro();
+          else if (campaign.status === "guy_intro") renderGuyIntro();
+      else if (campaign.status === "hidden_boss_intro") renderHiddenBossIntro();
           else renderEnding();
         };
+        if (campaign.pendingMakimaReward) return renderMakimaReward(resumeSettlement);
+        if (campaign.pendingEightGatesReward) return renderEightGatesReward(resumeSettlement);
         if (campaign.pendingApocalypseReward) return renderApocalypseReward(resumeSettlement);
         if (getFateReward(campaign)) return renderFateReward(resumeSettlement);
         if (getDragonRadarOffer(campaign)) return renderDragonRadarOffer(resumeSettlement);
@@ -6455,8 +7167,34 @@ function initializeGame() {
   else playOpeningOnce();
 }
 
+function syncLeaderboardScores() {
+  if (!campaign?.playerId || campaign.devBattleOnly) return;
+  const currentCampaign = campaign;
+  const scores = leaderboardScores(currentCampaign);
+  const submitted = currentCampaign.leaderboardSubmitted ??= {};
+  let inFlight = leaderboardInFlight.get(currentCampaign);
+  if (!inFlight) { inFlight = new Set(); leaderboardInFlight.set(currentCampaign, inFlight); }
+  let retryAt = leaderboardRetryAt.get(currentCampaign);
+  if (!retryAt) { retryAt = {}; leaderboardRetryAt.set(currentCampaign, retryAt); }
+  for (const [key, score] of Object.entries(scores)) {
+    if (submitted[key] === score || inFlight.has(key) || (retryAt[key] ?? 0) > Date.now()) continue;
+    inFlight.add(key);
+    const started = leaderboardClient.submit(key, score, () => {
+      inFlight.delete(key);
+      submitted[key] = score;
+      delete retryAt[key];
+    }, (code, message) => {
+      inFlight.delete(key);
+      retryAt[key] = Date.now() + 30000;
+      console.warn(`[TapTap 排行榜] ${key} 提交失败`, code, message);
+    });
+    if (!started) { inFlight.delete(key); retryAt[key] = Date.now() + 30000; }
+  }
+}
+
 function saveCampaign() {
   if (!campaign?.playerId || campaign.status === "intro") return;
+  syncLeaderboardScores();
   try {
     if (localStorage.getItem(SAVE_OWNER_KEY) !== saveOwnerId) return;
     localStorage.setItem(RUN_SAVE_KEY, JSON.stringify({ version: 1, campaign,
@@ -6485,7 +7223,7 @@ function restartToCharacterSelection() {
   selectedDecisionId = null;
   decisionBusy = false;
   decisionRevision += 1;
-  fast = false;
+  playbackSpeed = 1;
   displayedEvents = 0;
   updateSpeedControl();
   setBattleControls(false);
@@ -6536,6 +7274,36 @@ $("#route-restart-yes").addEventListener("click", () => {
 $("#route-map-open").addEventListener("click", openRouteMap);
 $("#shop-map-open").addEventListener("click", openRouteMap);
 $("#shop-leave").addEventListener("click", () => { if (leaveShop(campaign)) renderRoute(); });
+const leaderboardDialog = $("#leaderboards-dialog");
+document.querySelectorAll("#route-leaderboards-open, #ending-leaderboards-open").forEach((button) =>
+  button.addEventListener("click", () => {
+    $("#leaderboards-feedback").textContent = "";
+    leaderboardDialog.showModal();
+  }));
+$("#leaderboards-close").addEventListener("click", () => leaderboardDialog.close());
+leaderboardDialog.querySelectorAll("[data-leaderboard]").forEach((button) =>
+  button.addEventListener("click", () => {
+    const feedback = $("#leaderboards-feedback");
+    feedback.textContent = "正在打开排行榜…";
+    const started = leaderboardClient.open(button.dataset.leaderboard,
+      () => { feedback.textContent = ""; leaderboardDialog.close(); },
+      (code, message) => { feedback.textContent = `排行榜暂不可用（${code}）：${message}`; });
+    if (!started) feedback.textContent = "请在 TapTap 小游戏中查看排行榜。";
+  }));
+$("#shop-ad-essence").addEventListener("click", () => {
+  if (campaign?.status !== "shop" || campaign.adEssenceClaimed) return;
+  const currentCampaign = campaign;
+  const shopNodeId = campaign.activeShop?.nodeId;
+  const button = $("#shop-ad-essence");
+  button.disabled = true;
+  $("#shop-feedback").textContent = "正在打开广告…";
+  const failed = () => { button.disabled = false; $("#shop-feedback").textContent = "未完成观看，未领取精华。"; };
+  if (!rewardedAd.show(() => {
+    if (campaign !== currentCampaign || campaign?.activeShop?.nodeId !== shopNodeId || !claimAdEssence(campaign)) return failed();
+    renderShop();
+    $("#shop-feedback").textContent = "完整观看，获得 10 精华！";
+  }, failed)) failed();
+});
 $("#shop-detail-close").addEventListener("click", () => $("#shop-detail-dialog").close());
 $("#shop-detail-buy").addEventListener("click", () => {
   if (selectedShopSlot == null) return;
@@ -6552,7 +7320,7 @@ $("#confirm-character-btn").addEventListener("click", confirmStartingCharacter);
 $("#decision-confirm").addEventListener("click", confirmDecision);
 speedButton.addEventListener("click", () => {
   if (!campaign || campaign.status !== "combat" || !playback || playbackPaused) return;
-  fast = !fast;
+  playbackSpeed = nextPlaybackSpeed(playbackSpeed);
   updateSpeedControl();
 });
 

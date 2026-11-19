@@ -3,16 +3,16 @@ export const SHOP_RULES = Object.freeze({
   targetNodes: 2, minimumNodesBetweenShops: 3, slots: 7,
   essence: Object.freeze({ normal: 2, elite: 4, boss: 7 }),
   specialEssence: Object.freeze({ dina: 4, arima: 4, six_ear: 4, gilgamesh: 7 }),
-  medicinePriceByStage: Object.freeze({ 1: 1, 2: 2, 3: 3 }),
+  medicinePriceByStage: Object.freeze({ 1: 1, 2: 2, 3: 3, 4: 4 }),
   categories: Object.freeze([
-    { id: "common", weight: 30, price: 15, ids: ["magic_conch", "odm_gear", "universal_capsule", "rock_lee_weights", "drip_coffee", "vip_card"] },
+    { id: "common", weight: 30, price: 15, ids: ["magic_conch", "odm_gear", "universal_capsule", "rock_lee_weights", "drip_coffee", "vip_card", "ninja_footwear"] },
     { id: "medicine", weight: 30, price: null, ids: [] },
     { id: "rare", weight: 10, price: 20, ids: ["sukuna_finger", "gun_devil_fragment", "giant_spinal_fluid"] },
-    { id: "legendary", weight: 10, price: 40, ids: ["angel_breath", "stone_mask", "nichirin_blade", "dragon_radar", "hogyoku_fragment", "shikon_fragment", "quinque_crit", "quinque_guard", "premium_vip_card"] },
+    { id: "legendary", weight: 10, price: 40, ids: ["angel_breath", "stone_mask", "nichirin_blade", "dragon_radar", "hogyoku_fragment", "shikon_fragment", "quinque_crit", "quinque_guard", "premium_vip_card", "white_spirit_blessing", "oni_hammer", "prison_realm"] },
     { id: "book", weight: 20, price: 40, ids: [] },
   ]),
   // A future medicine has {id,name,image,description,battles:1|2,modifiers,stackable}.
-  medicines: Object.freeze([1, 2, 3].flatMap((stageId) => ["atk", "def"].map((stat) => ({
+  medicines: Object.freeze([1, 2, 3, 4].flatMap((stageId) => ["atk", "def"].map((stat) => ({
     id: `medicine_${stat}_${stageId}`, stageId, name: stat === "atk" ? "攻击药剂" : "防御药剂",
     image: "assets/shop/potion.png",
     description: `下一场战斗 ${stat.toUpperCase()} +${stageId * 10 + 10}；战斗结束后失效。`,
@@ -38,12 +38,11 @@ export const SHOP_RULES = Object.freeze({
     { id: "three_teachers_book", name: "必有我师", image: "assets/shop/skill-book.png", price: 40,
       description: "我方至少 3 名存活单位时，其他队友每次普通攻击使自己本场 ATK +5。",
       skillId: "three-teachers", skillType: "passive", characterIds: null },
-    { id: "daily_progress_book", name: "天天向上", image: "assets/shop/skill-book.png", price: 30,
+    { id: "mirror_flower_book", name: "镜花水月", image: "assets/shop/mirror-flower-effect.png", effectImage: "assets/shop/mirror-flower-effect.png", price: 30, description: "前后排站位交换；每次入场仅交换一次。", skillId: "mirror-flower", skillType: "passive", characterIds: null },
+    { id: "byakugan_book", name: "白眼", image: "assets/shop/skill-book.png", price: 30, description: "普通攻击 10% 概率使目标沉默 1 回合。", skillId: "byakugan", skillType: "passive", characterIds: null },
+    { id: "daily_progress_book", name: "天天向上", image: "assets/shop/skill-book.png", price: 40,
       description: "每次篝火选择技能升级时，持有者额外获得一次技能升级机会。",
       skillId: "daily-progress", skillType: "passive", characterIds: null },
-    { id: "lonelier_than_fireworks_book", name: "比烟花还寂寞", image: "assets/shop/skill-book.png", price: 30,
-      description: "将角色已有的被动技能从 Lv.1 升级到 Lv.2；已有 Lv.2 或无可升级被动时无法使用。",
-      skillType: "passive-upgrade", characterIds: null },
   ]),
   allowDuplicateItemsInShop: false,
 });

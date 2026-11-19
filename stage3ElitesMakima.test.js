@@ -20,14 +20,14 @@ test("new stage-three elites use their documented panels, shared encounter and f
   const gold = ELITE_ENEMY_DATA.find((entry) => entry.id === "gold-king");
   const silver = ELITE_ENEMY_DATA.find((entry) => entry.id === "silver-king");
   const aging = ELITE_ENEMY_DATA.find((entry) => entry.id === "aging-devil");
-  assert.deepEqual([gold.hp, gold.atk, gold.def, gold.spd, gold.row], [2700, 250, 180, 100, "back"]);
-  assert.deepEqual([silver.hp, silver.atk, silver.def, silver.spd, silver.row], [2300, 280, 150, 100, "back"]);
+  assert.deepEqual([gold.hp, gold.atk, gold.def, gold.spd, gold.row], [2700, 250, 210, 100, "back"]);
+  assert.deepEqual([silver.hp, silver.atk, silver.def, silver.spd, silver.row], [2300, 280, 180, 100, "back"]);
   assert.equal(gold.eliteEncounterId, silver.eliteEncounterId);
   assert.deepEqual([aging.hp, aging.atk, aging.def, aging.spd, aging.row], [5000, 300, 160, 120, "back"]);
   for (const entry of [gold, silver, aging]) assert.equal(getCharacterVisual(entry).scale, 1.4);
   assert.ok(existsSync(new URL(aging.animations.agingPassive.frames.cast, import.meta.url)));
   assert.ok(existsSync(new URL(aging.passiveEffectAsset, import.meta.url)));
-  assert.equal(eliteDropId({ currentBattle: { type: "elite", enemies: [gold.id, silver.id] }, stageId: 3 }), null);
+  assert.equal(eliteDropId({ currentBattle: { type: "elite", enemies: [gold.id, silver.id] }, stageId: 3 }), "sukuna_finger");
   assert.equal(eliteDropId({ currentBattle: { type: "elite", enemies: ["kira"] }, stageId: 2 }), null);
   assert.equal(eliteDropId({ currentBattle: { type: "elite", enemies: [aging.id] }, stageId: 3 }), "gun_devil_fragment");
 });
@@ -63,17 +63,20 @@ test("local automatic balance test completes Aging Devil's interactive phases", 
   assert.ok(Number.isFinite(report.averageRemainingHpRatio));
 });
 
-test("Makima takes half damage while at least one minion lives, then full damage", () => {
+test("Makima remains immune through both minion waves and takes full damage after all four die", () => {
   const hero = unit("hero", "ally", { atk: 1000 });
   const makima = unit("makima", "enemy", { hp: 10000, def: 0 });
   const minion = unit("makima-bomb", "enemy", { hp: 100, stageThreeMinion: true });
   const state = initializeBattle([hero, makima, minion]);
   state.round = 1;
   const first = executeAttack(state, state.characters[0], state.characters[1], () => .99);
-  assert.equal(first.actualDamage, 500);
+  assert.equal(first.actualDamage, 0);
   state.characters[2].alive = false;
   const second = executeAttack(state, state.characters[0], state.characters[1], () => .99);
-  assert.equal(second.actualDamage, 1000);
+  assert.equal(second.actualDamage, 0);
+  state.makima.deadMinions = ["makima-bomb", "flamethrower-devil", "katana-devil", "quanxi"];
+  const final = executeAttack(state, state.characters[0], state.characters[1], () => .99);
+  assert.equal(final.actualDamage, 1000);
 });
 
 test("Makima summons her second wave and gains no lifesteal or stun when all four die", () => {
@@ -125,7 +128,7 @@ test("stun doubles both immediate and end-of-round burn damage", () => {
   assert.equal(result.events.find((event) => event.type === "trial-dot" && event.name === "灼烧")?.stunnedBurn, true);
 });
 
-test("Silver King bottles the living ally with the highest actual damage at round five", () => {
+test("Silver King bottles the living ally with the highest actual damage at round four", () => {
   const silver = { ...ELITE_ENEMY_DATA.find((entry) => entry.id === "silver-king"),
     hp: 9000, maxHp: 9000, currentHp: 9000, def: 0, atk: 1, spd: 1, rosterOrder: 2 };
   const result = simulateBattle([
@@ -134,32 +137,33 @@ test("Silver King bottles the living ally with the highest actual damage at roun
   ], () => .99, { playerId: "hero" });
   const bottles = result.events.filter((event) => event.type === "silver-bottle");
   assert.equal(bottles.length, 1);
-  assert.equal(bottles[0].round, 5);
-  assert.equal(result.events.filter((event) => event.type === "silver-bottle" && event.round < 5).length, 0);
+  assert.equal(bottles[0].round, 4);
+  assert.equal(result.events.filter((event) => event.type === "silver-bottle" && event.round < 4).length, 0);
   assert.equal(bottles[0].targetId, "partner");
   assert.equal(result.finalCharacters.find((entry) => entry.id === "partner").absorbedByBottle, true);
 });
 
-test("Silver King defeated before round five never uses his bottle", () => {
+test("Silver King defeated before round four never uses his bottle", () => {
   const silver = { ...ELITE_ENEMY_DATA.find((entry) => entry.id === "silver-king"),
-    hp: 400, maxHp: 400, currentHp: 400, def: 0, atk: 1, spd: 1 };
+    hp: 300, maxHp: 300, currentHp: 300, def: 0, atk: 1, spd: 1 };
   const result = simulateBattle([unit("hero", "ally", { atk: 100 }), silver], () => .99,
     { playerId: "hero" });
   assert.equal(result.outcome, "victory");
-  assert.equal(result.rounds, 4);
+  assert.equal(result.rounds, 3);
   assert.equal(result.events.filter((event) => event.type === "silver-bottle").length, 0);
   assert.notEqual(result.finalCharacters.find((entry) => entry.id === "hero").absorbedByBottle, true);
 });
 
-test("Silver King can choose a summon independently without deleting its summoner", () => {
+test("Silver King chooses a main hero or partner rather than a summon", () => {
   const silver = { ...ELITE_ENEMY_DATA.find((entry) => entry.id === "silver-king"),
     hp: 9000, maxHp: 9000, currentHp: 9000, def: 0, atk: 1, spd: 1, rosterOrder: 2 };
   const result = simulateBattle([
     unit("tang", "ally", { atk: 250, rosterOrder: 0 }),
+    unit("eren", "ally", { atk: 100, rosterOrder: 1 }),
     unit("wukong", "ally", { atk: 1000, summonerId: "tang", rosterOrder: 1 }), silver,
   ], () => .99, { playerId: "tang" });
-  assert.equal(result.events.find((event) => event.type === "silver-bottle")?.targetId, "wukong");
-  assert.equal(result.finalCharacters.find((entry) => entry.id === "tang").alive, true);
+  assert.ok(["tang", "eren"].includes(result.events.find((event) => event.type === "silver-bottle")?.targetId));
+  assert.notEqual(result.events.find((event) => event.type === "silver-bottle")?.targetId, "wukong");
 });
 
 test("bottling the main hero leaves the companion active and allows a rewarded victory", () => {

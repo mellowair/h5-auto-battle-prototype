@@ -534,7 +534,7 @@ test("Anteiku coffee heals 15 percent and grants DEF plus 30 only for the next b
 });
 
 test("event images point to copied local resources and decision UI renders them", () => {
-  assert.equal(Object.keys(ADVENTURE_EVENT_DATA).length, 20);
+  assert.equal(Object.keys(ADVENTURE_EVENT_DATA).length, 21);
   const app=readFileSync(new URL("./app.js",import.meta.url),"utf8"), html=readFileSync(new URL("./index.html",import.meta.url),"utf8"), css=readFileSync(new URL("./style.css",import.meta.url),"utf8");
   assert.match(app,/eventImage\.src = image/); assert.match(html,/id="decision-event-image"/); assert.match(css,/\.decision-event-image\[hidden\]\s*\{\s*display:\s*none/);
   for (const id of ["sea_beyond","death_note","fate_gate","giant_encirclement","kings_treasury","gamble","gamble_2","found_money","devil_bargain"]) {

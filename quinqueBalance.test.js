@@ -26,7 +26,7 @@ test("读万卷书扣除 25% 最大 HP，抽取现有传说宝物池", () => {
   assert.deepEqual([...seen].sort(), [...legendary].sort());
 });
 
-test("库因克格挡以 15% 概率免疫普通攻击和主动技能，每战最多三次", () => {
+test("库因克格挡以 15% 概率减免普通攻击和主动技能的 80%，每战最多三次", () => {
   const state = initializeBattle([unit("hero", "ally"), unit("target", "enemy", { quinqueGuard: true })]);
   const [attacker, target] = state.characters;
   state.round = 1;
@@ -36,7 +36,8 @@ test("库因克格挡以 15% 概率免疫普通攻击和主动技能，每战最
   const third = executeAttack(state, attacker, target, () => .1);
   for (const event of [normal, active, third]) {
     assert.equal(event.quinqueGuardTriggered, true);
-    assert.equal(event.actualDamage, 0);
+    assert.ok(event.actualDamage > 0);
+    assert.equal(event.actualDamage, Math.floor(event.calculatedDamage));
   }
   assert.equal(target.quinqueGuardUses, 3);
   const fourth = executeAttack(state, attacker, target, () => .1);

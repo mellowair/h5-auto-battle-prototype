@@ -147,7 +147,7 @@ test("warhammer vulnerability raises incoming HP damage through the next round a
   const cast = executeAttack(state, eren, foe, () => .99, { skill: effect("eren-warhammer", 4) });
   assert.equal(cast.warhammerVulnerableUntilRound, 3);
   const expectedBase = 200;
-  for (const [round, expected] of [[2, 240], [3, 240], [4, expectedBase]]) {
+  for (const [round, expected] of [[2, 220], [3, 220], [4, expectedBase]]) {
     state.round = round;
     eren.currentHp = eren.maxHp;
     const hit = executeAttack(state, foe, eren, () => .99, { skill: null });
@@ -248,21 +248,22 @@ test("Naruto's chakra clone protects a critically injured teammate, while Tang s
   assert.ok(hit.trialDamage.sharedDamage.amount > 0);
 });
 
-test("chakra clone protection starts below 50% pre-hit HP and consumes one clone per attack", () => {
+test("chakra clone protection triggers probabilistically above 400 damage and consumes one clone", () => {
   const state = initializeBattle([
     testUnit("naruto", "ally", { hp: 2000, maxHp: 2000, currentHp: 2000,
       extraPassiveSkillIds: ["naruto-chakra-clones"] }),
-    testUnit("eren", "ally", { hp: 1000, maxHp: 1000, currentHp: 500 }),
-    testUnit("foe", "enemy", { atk: 80 })]);
+    testUnit("eren", "ally", { hp: 1000, maxHp: 1000, currentHp: 1000 }),
+    testUnit("foe", "enemy", { atk: 400 })]);
   state.round = 1;
+  state.random = () => .1;
   const [naruto, teammate, foe] = state.characters;
   let hit = executeAttack(state, foe, teammate, () => .99, { skill: null });
   assert.equal(hit.trialDamage.cloneSpent, false);
   assert.equal(naruto.chakraClones, 2);
-  teammate.currentHp = 499;
+  foe.atk = 500;
   hit = executeAttack(state, foe, teammate, () => .99, { skill: null });
   assert.equal(hit.trialDamage.cloneSpent, true);
-  assert.equal(hit.damage, 56);
+  assert.equal(hit.damage, 250);
   assert.equal(naruto.chakraClones, 1);
   hit = executeAttack(state, foe, teammate, () => .99, { skill: null });
   assert.equal(hit.trialDamage.cloneSpent, true);

@@ -11,12 +11,12 @@ const unit = (id, team, props = {}) => ({ id, name: id, team, row: "front", hp: 
   currentHp: 1000, maxHp: 1000, atk: 100, def: 0, spd: 10, critChance: 0,
   normalDodgeRate: 0, skillDodgeRate: 0, ...props });
 
-test("Eren's Coordinate adds no HP, Hardening heals every third cast, and Warhammer keeps DEF", () => {
+test("Eren's Coordinate adds 600 max HP once, Hardening heals every third cast, and Warhammer keeps DEF", () => {
   const eren = createRunCharacterState(STARTING_CHARACTERS.find((entry) => entry.id === "eren"));
   const originalMaxHp = eren.maxHp;
   const campaign = { trialCompleted: true, evolutionPending: true, playerId: "eren", partyIds: ["eren"], partyStates: { eren } };
   assert.equal(evolveTrialParty(campaign), true);
-  assert.equal(eren.maxHp, Math.floor(originalMaxHp * 1.1));
+  assert.equal(eren.maxHp, Math.floor(originalMaxHp * 1.1) + 600);
   assert.deepEqual(eren.extraPassiveSkillIds, ["eren-coordinate"]);
   assert.equal(evolveTrialParty(campaign), false);
   const state = initializeBattle([unit("eren", "ally", { currentHp: 500, def: 100 }), unit("foe", "enemy", { maxHp: 10000, currentHp: 10000 })]);
@@ -70,15 +70,16 @@ test("Tang protects summons after own DEF, and a summon protects low-HP evolved 
   evolved.round = 1;
   const [buddha, , protector, enemy] = evolved.characters;
   const lowHit = executeAttack(evolved, enemy, buddha, () => .99, { skill: null });
-  assert.equal(buddha.currentHp, 44);
-  assert.equal(protector.currentHp, 976);
-  assert.deepEqual([lowHit.trialDamage.sharedDamage.kind, lowHit.trialDamage.sharedDamage.amount], ["compassion", 24]);
+  assert.equal(buddha.currentHp, 36);
+  assert.equal(protector.currentHp, 984);
+  assert.deepEqual([lowHit.trialDamage.sharedDamage.kind, lowHit.trialDamage.sharedDamage.amount], ["compassion", 16]);
 });
 
-test("Compassion reduces partner damage and Dharma shields living allies at 70% current ATK", () => {
+test("Compassion protects teammates while Tang has a shield and Dharma caps shields at half current ATK", () => {
   const state = initializeBattle([unit("tang", "ally", { passiveSkillId: "tang-compassion" }),
     unit("partner", "ally"), unit("foe", "enemy", { atk: 100 })]);
   state.round = 1;
+  state.characters[0].shieldHp = 50;
   const hit = executeAttack(state, state.characters[2], state.characters[1], () => .99, { skill: null });
   assert.equal(hit.actualDamage, 90);
 
@@ -90,6 +91,6 @@ test("Compassion reduces partner damage and Dharma shields living allies at 70% 
   assert.ok(dharma);
   const tangAtDharma = dharma.changes.find((entry) => entry.targetId === "tang" && Number.isFinite(entry.shieldHp));
   const partnerAtDharma = dharma.changes.find((entry) => entry.targetId === "partner" && Number.isFinite(entry.shieldHp));
-  assert.equal(tangAtDharma.shieldHp, 77);
-  assert.equal(partnerAtDharma.shieldHp, 77);
+  assert.equal(tangAtDharma.shieldHp, 55);
+  assert.equal(partnerAtDharma.shieldHp, 55);
 });

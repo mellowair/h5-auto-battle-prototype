@@ -52,6 +52,10 @@ export function evolveTrialParty(campaign, evolvingCharacterId = campaign?.playe
   state.passiveSkillId = config.passive;
   state.passiveLevel = 1;
   state.extraPassiveSkillIds = [...new Set([...(state.extraPassiveSkillIds ?? []), ...(config.extraPassive ? [config.extraPassive] : [])])];
+  if (state.extraPassiveSkillIds.includes("eren-coordinate") && !state.coordinateMaxHpApplied) {
+    state.maxHp += 600;
+    state.coordinateMaxHpApplied = true;
+  }
   state.activeSkillPool = [...config.skills];
   state.learnedActiveSkills = [...config.skills];
   state.skillLevels = { ...state.skillLevels,

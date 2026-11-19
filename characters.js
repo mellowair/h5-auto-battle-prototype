@@ -1,3 +1,5 @@
+import { GUN_DEVIL } from "./hiddenBoss.js";
+
 export const NORMAL_ENEMY_APPEARANCES = Object.freeze({
   giant: { id: "giant", name: "巨人", asset: "assets/normal-enemies/giant.png" },
   slime: { id: "slime", name: "史莱姆", asset: "assets/normal-enemies/slime.png" },
@@ -54,6 +56,18 @@ export const STAGE_THREE_NORMAL_ENEMY_TIERS = Object.freeze([
 
 // Encounter-only enemies. Their combat copies are created in campaign.js.
 export const EVENT_ENEMY_DATA = Object.freeze({
+  hakari: {
+    id: "hakari", name: "秤金次", team: "enemy", role: "老虎机挑战者", row: "front", position: "front",
+    hp: 1, atk: 1, def: 1, spd: 1, attackType: "melee", deathPose: "cute-flop",
+    asset: "assets/event-enemies/hakari/idle.png", visualId: "hakari", rosterOrder: 1,
+    extraPassiveSkillIds: ["hakari-gamble"],
+    animations: {
+      idle: { type: "frames", frames: { idle: "assets/event-enemies/hakari/idle.png" } },
+      run: { type: "frames", frames: {
+        first: "assets/event-enemies/hakari/run-1.png", second: "assets/event-enemies/hakari/run-2.png" } },
+      meleeAttack: { type: "frames", frames: { punch: "assets/event-enemies/hakari/attack.png" } },
+    },
+  },
   suzuya: {
     id: "suzuya", name: "铃屋什造", team: "enemy", role: "奇遇敌人", row: "front", position: "front",
     hp: 2400, atk: 250, def: 130, spd: 100, attackType: "melee", deathPose: "cute-flop",
@@ -378,6 +392,32 @@ export const STARTING_CHARACTERS = [
   },
 ];
 
+export const RECRUIT_CHARACTERS = [
+  {
+    ...GUN_DEVIL, id: "gun-devil-ally", name: "枪之恶魔", team: "ally", role: "正式队员",
+    recruitOnly: true, row: "back", position: "back", hp: 3300, atk: 600, def: 140, spd: 220,
+    baseStats: { maxHp: 3300, atk: 600, def: 140, spd: 220, critRate: .05, critMultiplier: 1.5 },
+    activeSkills: ["gun-devil-charged-shot"], passiveSkillId: "gun-devil-ally-bleed",
+  },
+  {
+    id: "gojo", name: "五条悟", team: "ally", role: "正式队员", recruitOnly: true,
+    row: "back", position: "back", hp: 3500, atk: 700, def: 200, spd: 200,
+    baseStats: { maxHp: 3500, atk: 700, def: 200, spd: 200, critRate: .05, critMultiplier: 1.5 },
+    activeSkills: ["gojo-hollow"], passiveSkillId: "gojo-infinity", attackType: "magic",
+    asset: "assets/gojo/idle.png", visualId: "gojo", attackAnimation: "normalAttack",
+    skillAnimationMap: { "gojo-hollow": "skill1" },
+    animations: {
+      idle: { type: "frames", frames: { idle: "assets/gojo/idle.png" } },
+      normalAttack: { type: "frames", frames: { attack: "assets/gojo/normal-attack.png" } },
+      skill1: { type: "frames", frames: { cast: "assets/gojo/skill-1.png" } },
+      domainIdle: { type: "frames", frames: { idle: "assets/gojo/domain-idle.png" } },
+      domainNormalAttack: { type: "frames", frames: { attack: "assets/gojo/domain-normal-attack.png" } },
+      domainSkill: { type: "frames", frames: { cast: "assets/gojo/domain-skill.png" } },
+    },
+  },
+];
+export const PLAYABLE_CHARACTERS = [...STARTING_CHARACTERS, ...RECRUIT_CHARACTERS];
+
 // Elite combat definitions are data-driven; campaign.js chooses one once when an elite node is entered.
 export const ELITE_ENEMY_DATA = [
   {
@@ -430,6 +470,20 @@ export const ELITE_ENEMY_DATA = [
       meleeAttack: { type: "frames", frames: { punch_1: "assets/stage2-enemies/toji/punch_1.png", punch_2: "assets/stage2-enemies/toji/punch_2.png" }, impactFrames: ["punch_1", "punch_2"] },
     },
   },
+  { id: "might-guy", name: "迈特凯", type: "elite", stageId: 2, role: "苍蓝野兽", row: "front", position: "front",
+    hp: 3000, atk: 280, def: 130, spd: 300, attackType: "melee", elitePassiveId: "might-guy-speed",
+    asset: "assets/stage2-enemies/might-guy/idle.png",
+    animations: { idle: { type: "frames", frames: { idle: "assets/stage2-enemies/might-guy/idle.png" } },
+      meleeAttack: { type: "frames", frames: { attack: "assets/stage2-enemies/might-guy/attack.png" } },
+      speedBoost: { type: "frames", frames: { cast: "assets/stage2-enemies/might-guy/speed-boost.png" } },
+      nightIdle: { type: "frames", frames: { idle: "assets/stage2-enemies/might-guy/night-idle.png" } },
+      nightPassive: { type: "frames", frames: { cast: "assets/stage2-enemies/might-guy/night-passive.png" } },
+      nightReady: { type: "frames", frames: { ready: "assets/stage2-enemies/might-guy/night-ready.png" } },
+      nightStrike: { type: "frames", frames: {
+        strike_1: "assets/stage2-enemies/might-guy/night-strike-1.png",
+        strike_2: "assets/stage2-enemies/might-guy/night-strike-2.png",
+        strike_3: "assets/stage2-enemies/might-guy/night-strike-3.png",
+      } } } },
   {
     id: "kira", name: "吉良吉影", type: "elite", stageId: 2, role: "杀手皇后", row: "back", position: "back",
     hp: 2700, atk: 450, def: 120, spd: 100, critChance: 0.05, critMultiplier: 1.5,
@@ -494,7 +548,7 @@ export const ELITE_ENEMY_DATA = [
       death: { type: "frames", frames: { down: "assets/stage3-elites/falling/death.png" } },
     } },
   { id: "gold-king", name: "金角大王", type: "elite", stageId: 3, eliteEncounterId: "gold-silver-kings", team: "enemy",
-    role: "精英", row: "back", position: "back", hp: 2700, atk: 250, def: 180, spd: 100,
+    role: "精英", row: "back", position: "back", hp: 2700, atk: 250, def: 210, spd: 100,
     attackType: "ranged", attackAnimation: "magicAttack", asset: "assets/stage3-elites/gold-silver/gold-idle.png", visualId: "gold-king",
     activeSkills: ["gold-king-gourd"], extraPassiveSkillIds: ["gold-king-burn"],
     projectileAsset: "assets/stage3-elites/gold-silver/gourd.png",
@@ -503,7 +557,7 @@ export const ELITE_ENEMY_DATA = [
       magicAttack: { type: "frames", frames: { attack: "assets/stage3-elites/gold-silver/gold-attack.png" } },
       skill1: { type: "frames", frames: { cast: "assets/stage3-elites/gold-silver/gold-skill.png" } } } },
   { id: "silver-king", name: "银角大王", type: "elite", stageId: 3, eliteEncounterId: "gold-silver-kings", team: "enemy",
-    role: "精英", row: "back", position: "back", hp: 2300, atk: 280, def: 150, spd: 100,
+    role: "精英", row: "back", position: "back", hp: 2300, atk: 280, def: 180, spd: 100,
     attackType: "ranged", attackAnimation: "magicAttack", asset: "assets/stage3-elites/gold-silver/silver-idle.png", visualId: "silver-king",
     extraPassiveSkillIds: ["silver-king-bottle", "silver-king-stun"],
     projectileAsset: "assets/stage3-elites/gold-silver/bottle.png",

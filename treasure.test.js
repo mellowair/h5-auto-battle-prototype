@@ -28,10 +28,10 @@ function offerFor(treasureId, recipient = hero) {
 
 test("treasures have separate common, rare and legendary grades with linked artwork", () => {
   assert.deepEqual(Object.values(TREASURE_DATA).filter((item) => item.grade === "common").map((item) => item.id),
-    ["magic_conch", "odm_gear", "universal_capsule", "rock_lee_weights", "drip_coffee", "vip_card"]);
+    ["magic_conch", "odm_gear", "universal_capsule", "rock_lee_weights", "drip_coffee", "ninja_footwear", "vip_card"]);
   assert.deepEqual(Object.values(TREASURE_DATA).filter((item) => item.grade === "rare").map((item) => item.id), ["sukuna_finger"]);
   assert.deepEqual(Object.values(TREASURE_DATA).filter((item) => item.grade === "legendary").map((item) => item.id),
-    ["angel_breath", "stone_mask", "nichirin_blade", "dragon_radar", "hogyoku_fragment", "shikon_fragment", "quinque_crit", "quinque_guard", "premium_vip_card"]);
+    ["angel_breath", "stone_mask", "nichirin_blade", "dragon_radar", "hogyoku_fragment", "shikon_fragment", "quinque_crit", "quinque_guard", "white_spirit_blessing", "oni_hammer", "premium_vip_card"]);
   assert.ok(Object.values(TREASURE_DATA).every((item) => item.name && item.description && (!item.image || existsSync(item.image))));
   assert.ok(["universal_capsule", "rock_lee_weights", "dragon_radar", "hogyoku_fragment", "shikon_fragment", "drip_coffee", "quinque_guard", "quinque_crit"].every((id) => TREASURE_DATA[id].image && existsSync(TREASURE_DATA[id].image)));
 });

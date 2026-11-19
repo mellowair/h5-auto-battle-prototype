@@ -1,6 +1,7 @@
 import { createSeededRandom } from "./routeMap.js";
 import { GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT, SKILL_DATA, TREASURE_DATA } from "./skills.js";
 import { applyPassiveBookStats, applyRockLeeWeight, grantAdventureSpecialReward, grantEliteSukunaFinger, grantGiantSpinalFluid, grantGunDevilFragment, grantQuinque, learnActiveSkill, previewGrowingDrop, upgradePassiveSkill } from "./progression.js";
+import { MAX_PARTY_MEMBERS, recruitPartyMember } from "./partyRecruitment.js";
 import { SHOP_RULES } from "./shopConfig.js";
 
 export const SHOP_TREASURES = Object.freeze({ ...TREASURE_DATA,
@@ -65,7 +66,7 @@ export function refreshShopPrices(campaign) {
     if (category) {
       slot.basePrice = category.id === "medicine"
         ? SHOP_RULES.medicinePriceByStage[campaign.stageId] : shopPrice(item, category);
-      slot.price = Math.ceil(slot.basePrice * activeDiscount(campaign).multiplier);
+      slot.price = slot.itemId === "prison_realm" ? 180 : Math.ceil(slot.basePrice * activeDiscount(campaign).multiplier);
     }
     if (item?.image) slot.image = item.image;
     if (item) slot.placeholderArt = false;
@@ -80,7 +81,8 @@ export function generateShopInventory(seed, stageId) {
     const available = categories.map((category) => ({ category,
       pool: (category.id === "book" ? SHOP_RULES.books : category.id === "medicine" ? SHOP_RULES.medicines.filter((item) => item.stageId === stageId)
         : category.ids.map((id) => SHOP_TREASURES[id]).filter((item) => item &&
-          (!["common", "rare", "legendary"].includes(category.id) || item.grade === category.id)))
+          (!["common", "rare", "legendary"].includes(category.id) || item.grade === category.id ||
+            category.id === "legendary" && item.grade === "superlegendary")))
         .filter((item) => !selectedIds.has(item.id) && (category.id === "medicine" || Number.isFinite(shopPrice(item, category))))
     })).filter((entry) => entry.pool.length > 0);
     if (!available.length) throw new Error("商店可用商品不足 7 件");
@@ -126,9 +128,10 @@ function grantTreasure(member, slot, sourceId, stageId) {
     const item = SHOP_TREASURES[slot.itemId];
     if (!item || member.consumedActions.includes(`shop-treasure:${sourceId}`)) return false;
     member.consumedActions.push(`shop-treasure:${sourceId}`);
-    const gains = Object.fromEntries(["atk", "maxHp", "damageReduction", "dodgeRateBonus", "critRateBonus", "lifesteal"]
+    const gains = Object.fromEntries(["atk", "maxHp", "spd", "damageReduction", "dodgeRateBonus", "critRateBonus", "lifesteal"]
       .filter((key) => Number.isFinite(item[key])).map((key) => [key, item[key]]));
     member.atk += gains.atk ?? 0;
+    member.spd += gains.spd ?? 0;
     member.maxHp = Math.max(1, member.maxHp + (gains.maxHp ?? 0));
     member.currentHp = Math.min(member.currentHp, member.maxHp);
     if (gains.critRateBonus) member.critRate = Math.min(1, member.critRate + gains.critRateBonus);
@@ -142,12 +145,15 @@ function grantTreasure(member, slot, sourceId, stageId) {
   return effect;
 }
 
-export function buyShopItem(campaign, index, recipientId = campaign?.playerId) {
+export function buyShopItem(campaign, index, recipientId = campaign?.playerId, replaceId = null) {
   if (campaign?.status !== "shop" || !campaign.activeShop || campaign.activeShop.nodeId !== campaign.activeNode?.id) return false;
   refreshShopPrices(campaign);
   const slot = campaign.activeShop.slots[index];
   const member = campaign.partyStates?.[recipientId];
   if (!slot?.available || slot.purchased || !member || !campaign.partyIds.includes(recipientId) ||
+      (slot.itemId === "prison_realm" && (campaign.partyIds.includes("gojo") ||
+        (campaign.partyIds.length >= MAX_PARTY_MEMBERS && (!replaceId || replaceId === campaign.playerId ||
+          replaceId === recipientId || !campaign.partyIds.includes(replaceId))))) ||
       (slot.itemId === "heavenly_restriction_book" && recipientId === "tang") ||
       (slot.categoryId === "medicine" && (campaign.shopMedicines ?? []).some((effect) =>
         effect.recipientId === recipientId && effect.id === slot.itemId && effect.battlesLeft > 0)) ||
@@ -181,6 +187,9 @@ export function buyShopItem(campaign, index, recipientId = campaign?.playerId) {
     }
   }
   if (!result) return false;
+  if (slot.itemId === "prison_realm") {
+    if (!recruitPartyMember(campaign, "gojo", sourceId, replaceId)) return false;
+  }
   campaign.essence -= chargedPrice;
   slot.purchased = true;
   if (slot.itemId === "vip_card" || slot.itemId === "premium_vip_card") {

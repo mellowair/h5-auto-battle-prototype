@@ -58,15 +58,15 @@ test("seven independent slots are deterministic and obey stage medicine prices",
 });
 
 test("one hundred shop rolls each contain seven distinct item IDs, even when a category runs out", () => {
-  let fireworksSeen = false;
+  let newBookSeen = false;
   for (const stageId of [1, 2, 3]) for (let seed = 0; seed < 100; seed += 1) {
     const slots = generateShopInventory(`unique:${seed}`, stageId);
     assert.equal(slots.length, 7);
     assert.equal(new Set(slots.map((slot) => slot.itemId)).size, 7);
     assert.ok(slots.every((slot) => slot.available && slot.itemId));
-    fireworksSeen ||= slots.some((slot) => slot.itemId === "lonelier_than_fireworks_book" && slot.price === 30);
+    newBookSeen ||= slots.some((slot) => ["mirror_flower_book", "byakugan_book"].includes(slot.itemId) && slot.price === 30);
   }
-  assert.equal(fireworksSeen, true);
+  assert.equal(newBookSeen, true);
   const campaign = shopFixture(1);
   const savedSlots = structuredClone(campaign.activeShop.slots);
   refreshShopPrices(campaign);
@@ -342,40 +342,9 @@ test("passive upgrade uses the existing Lv2 effect exactly once and never change
   assert.equal(upgradePassiveSkill(noLevelTwo, "test:unavailable"), false);
 });
 
-test("Fireworks book costs 30 essence, upgrades only the chosen Lv1 passive, and rejects ineligible recipients", () => {
-  const campaign = shopFixture(2);
-  const eren = createRunCharacterState(STARTING_CHARACTERS.find((entry) => entry.id === "eren"));
-  campaign.partyIds.push("eren");
-  campaign.partyStates.eren = eren;
-  campaign.essence = 90;
-  const slot = replaceSlot(campaign, "book", "lonelier_than_fireworks_book", 1);
-  refreshShopPrices(campaign);
-  assert.equal(slot.price, 30);
-  const before = { maxHp: eren.maxHp, skills: structuredClone(eren.skillLevels),
-    mainPassiveLevel: campaign.runCharacterState.passiveLevel };
-  assert.equal(previewShopItem(campaign, slot, "eren").upgradeUnavailable, false);
-  const purchase = buyShopItem(campaign, slot.index, "eren");
-  assert.deepEqual(purchase, { skillId: "eren-2000-years", level: 2, maxHpBonus: 400 });
-  assert.equal(eren.maxHp, before.maxHp + 400);
-  assert.equal(eren.passiveLevel, 2);
-  assert.deepEqual(eren.skillLevels, before.skills);
-  assert.equal(campaign.runCharacterState.passiveLevel, before.mainPassiveLevel);
-  assert.equal(campaign.essence, 60);
-  assert.equal(campaign.activeShop.purchases[0].recipientId, "eren");
-  campaign.currentBattle = { type: "normal", step: 2, enemies: ["guard"], enemyNames: { guard: "守卫" } };
-  campaign.status = "combat";
-  const battleEren = prepareBattle(campaign).roster.find((unit) => unit.id === "eren");
-  assert.equal(battleEren.passiveLevel, 2);
-  assert.equal(battleEren.maxHp, eren.maxHp);
-  campaign.status = "shop";
-  const second = { ...slot, index: 1, purchased: false };
-  campaign.activeShop.slots[1] = second;
-  assert.equal(previewShopItem(campaign, second, "eren").upgradeUnavailable, true);
-  assert.equal(buyShopItem(campaign, 1, "eren"), false);
-  assert.equal(campaign.essence, 60);
-  const noPassive = createRunCharacterState(STARTING_CHARACTERS.find((entry) => entry.id === "eren"));
-  noPassive.passiveSkillId = null;
-  campaign.partyStates.eren = noPassive;
-  assert.equal(previewShopItem(campaign, second, "eren").upgradeUnavailable, true);
-  assert.equal(buyShopItem(campaign, 1, "eren"), false);
+test("passive-upgrade book no longer appears in shop inventory", () => {
+  assert.equal(SHOP_RULES.books.some((book) => book.skillType === "passive-upgrade"), false);
+  for (let seed = 0; seed < 100; seed += 1)
+    assert.equal(generateShopInventory(`removed-passive:${seed}`, 2)
+      .some((slot) => slot.itemId === "lonelier_than_fireworks_book"), false);
 });

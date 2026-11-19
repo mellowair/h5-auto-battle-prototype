@@ -39,7 +39,8 @@ test("Makima completion leaves the fragment count unchanged", () => {
   const campaign = campaignAtMakima();
   campaign.partyStates[campaign.partyIds[1]].permanentEffects.push(
     { id: "gun_devil_fragment" }, { id: "gun_devil_fragment" });
-  assert.equal(completeSettlement(campaign), "victory");
+  assert.equal(completeSettlement(campaign), "stage_transition");
+  assert.equal(campaign.stageTransition.phase, "stage3_interlude");
   assert.equal(fragmentCount(campaign), 2);
   assert.equal(campaign.runCharacterState.permanentEffects.filter((item) => item.id === "gun_devil_fragment").length, 0);
   assert.equal(completeSettlement(campaign), null);

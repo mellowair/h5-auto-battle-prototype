@@ -13,6 +13,10 @@ function ensureRunState(state) {
   state.skillLevels ??= {};
   state.passiveLevel ??= 1;
   state.bookStatAppliedIds ??= [];
+  if (state.extraPassiveSkillIds?.includes("eren-coordinate") && !state.coordinateMaxHpApplied) {
+    state.maxHp += 600;
+    state.coordinateMaxHpApplied = true;
+  }
   for (const [id, stat, amount] of [["iron-bell", "def", 30], ["armament-haki", "atk", 10]]) {
     if (state.extraPassiveSkillIds?.includes(id) && !state.bookStatAppliedIds.includes(id)) {
       state[stat] = (state[stat] ?? 0) + amount;
@@ -160,10 +164,11 @@ export function claimTreasure(runState, sourceId, treasureId, recipientState, re
   const specialPreview = treasureId === "sukuna_finger"
     ? previewGrowingDrop(recipientState, treasureId, record.data.stageId ?? 1) : null;
   const gains = specialPreview ? { atk: specialPreview.atk, maxHp: specialPreview.maxHp }
-    : Object.fromEntries(["atk", "maxHp", "damageReduction", "dodgeRateBonus", "critRateBonus", "lifesteal"]
+    : Object.fromEntries(["atk", "maxHp", "spd", "damageReduction", "dodgeRateBonus", "critRateBonus", "lifesteal"]
       .filter((stat) => Number.isFinite(treasure[stat]))
       .map((stat) => [stat, treasure[stat]]));
   if (gains.atk) recipientState.atk += gains.atk;
+  if (gains.spd) recipientState.spd += gains.spd;
   if (gains.maxHp) recipientState.maxHp = Math.max(1, recipientState.maxHp + gains.maxHp);
   recipientState.currentHp = Math.min(recipientState.currentHp, recipientState.maxHp);
   if (gains.critRateBonus) recipientState.critRate = Math.min(COMBAT_RULES.maxCritChance, recipientState.critRate + gains.critRateBonus);
@@ -194,7 +199,7 @@ export function grantEventTreasure(member, sourceId, treasureId, stageId, source
   }
   if (!result) return false;
   const effect = member.permanentEffects.slice(before).find((entry) => entry.id === treasureId);
-  if (effect) { effect.sourceLabel = sourceLabel; effect.stageId = stageId; }
+  if (effect) { effect.sourceId = sourceId; effect.sourceLabel = sourceLabel; effect.stageId = stageId; }
   return result;
 }
 
@@ -332,6 +337,7 @@ export function getAvailableAdventureEventIds(runState, step = 1, partyStates = 
       record.eventId === "gamble" && record.status === "completed" && record.data.stageId < stageId) &&
       !Object.values(runState.eventResults).some((record) => record.eventId === "gamble_2"))
     && (eventId !== "kings_treasury" || stageId === 2)
+    && (eventId !== "slot_machine" || stageId >= 3)
     && (stageId !== 3 || eventId !== "giant_encirclement")
     && (eventId !== "death_note_2" || Boolean(series.deathNote?.sequelUnlocked) && !series.deathNote?.chapter2Completed)
     && (eventId !== "fate_gate_2" || Boolean(series.fateGate?.sequelUnlocked) && !series.fateGate?.chapter2Completed)
@@ -671,6 +677,7 @@ export function createAdventureEventResult(runState, sourceId, eventId, random =
     !getAvailableAdventureEventIds(runState, 1, partyStates, stageId).includes(eventId)) return null;
   const record = { sourceId, eventId, name: config.name, description: config.description, image: config.image, effectText: config.effectText, status: config.containsBattle ? "pending_battle" : "pending", type: config.type, containsBattle: config.containsBattle, data: { stageId } };
   if (eventId === "gamble" || eventId === "gamble_2") record.data = { stageId, phase: "recipient", round: 1, successCount: 0, rounds: [] };
+  if (eventId === "slot_machine") record.data = { stageId, phase: "entry", bet: 0, rolls: [] };
   if (eventId === "fall_rock") {
     const stage = runState.fallRockCount + 1;
     const rule = config.stages[stage - 1];

@@ -9,6 +9,7 @@ export function shouldHideFallenUnit(character, deathRound, currentRound) {
 }
 
 export const CHARACTER_VISUALS = Object.freeze({
+  gojo: { scale: 1.25, offsetX: 0, offsetY: 0, frameWidth: 96, frameHeight: 112 },
   "gun-devil": { scale: 1.7, offsetX: 0, offsetY: -16, frameWidth: 112, frameHeight: 128 },
   yoru: { scale: 1.55, offsetX: 0, offsetY: -14, frameWidth: 112, frameHeight: 128,
     frameFootShifts: { walk: { first: 8, second: 7 },
@@ -85,6 +86,9 @@ export const CHARACTER_VISUALS = Object.freeze({
   "silver-king": { scale: 1.4, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98,
     animationFrameScales: { magicAttack: { attack: 1.3 } }, frameFootShifts: { magicAttack: { attack: 9 } } },
   "aging-devil": { scale: 1.4, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98 },
+  "darkness-devil": { scale: 1.55, offsetX: 0, offsetY: -8, frameWidth: 112, frameHeight: 128,
+    animationFrameScales: { death: { down: 1.3 } } },
+  hakari: { scale: 1.15, offsetX: 0, offsetY: 0, frameWidth: 112, frameHeight: 128 },
   giant: { scale: 1.05, offsetX: 0, offsetY: 0, frameWidth: 128, frameHeight: 144 },
   slime: { scale: 0.72, offsetX: 0, offsetY: 0, frameWidth: 128, frameHeight: 144 },
   mage: { scale: 0.86, offsetX: 0, offsetY: 0, frameWidth: 128, frameHeight: 144 },

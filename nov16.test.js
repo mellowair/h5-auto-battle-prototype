@@ -47,7 +47,7 @@ test("dragon radar can draw all three rare drops with their stage-scaled settlem
 
 test("daily progress gives its holder two campfire skill upgrades exactly once", () => {
   const book = SHOP_RULES.books.find((entry) => entry.skillId === "daily-progress");
-  assert.equal(book.price, 30);
+  assert.equal(book.price, 40);
   const member = createRunCharacterState(STARTING_CHARACTERS.find((entry) => entry.id === "naruto"), "shadow-clone-rush");
   member.extraPassiveSkillIds = ["daily-progress"];
   const before = member.skillLevels["shadow-clone-rush"];
@@ -75,22 +75,22 @@ test("two-person campfire gives the extra upgrade only to the book holder", () =
   assert.equal(resolveStageTwoCampfire(campaign, "skill_upgrade", {}), false);
 });
 
-test("evolved Tang shares 30 percent evenly and heals below 70 percent from real ally damage", () => {
+test("evolved Tang shares 20 percent below strict 20 percent HP and heals below 70 percent", () => {
   const state = initializeBattle([
-    unit("tang", "ally", { currentHp: 200, passiveSkillId: "tang-compassion" }),
+    unit("tang", "ally", { currentHp: 190, passiveSkillId: "tang-compassion" }),
     unit("partner", "ally"), unit("summon", "ally", { summonerId: "tang" }),
     unit("foe", "enemy", { atk: 100 })]);
   state.round = 1;
   const [tang, partner, summon, foe] = state.characters;
   const hit = executeAttack(state, foe, tang, () => .99, { skill: null });
   assert.equal(hit.trialDamage.sharedDamages.length, 2);
-  assert.deepEqual(hit.trialDamage.sharedDamages.map((entry) => entry.amount), [12, 12]);
-  assert.equal(tang.currentHp, 144);
-  assert.equal(partner.currentHp, 988);
-  assert.equal(summon.currentHp, 988);
+  assert.deepEqual(hit.trialDamage.sharedDamages.map((entry) => entry.amount), [8, 8]);
+  assert.equal(tang.currentHp, 126);
+  assert.equal(partner.currentHp, 992);
+  assert.equal(summon.currentHp, 992);
   const retaliation = executeAttack(state, partner, foe, () => .99, { skill: null });
   assert.equal(retaliation.actualDamage, 100);
-  assert.equal(tang.currentHp, 164);
+  assert.equal(tang.currentHp, 146);
   tang.currentHp = 700;
   executeAttack(state, partner, foe, () => .99, { skill: null });
   assert.equal(tang.currentHp, 700);
@@ -106,16 +106,16 @@ test("Tang Flesh Lv2 heals 30 percent of summon HP damage", () => {
   assert.equal(state.characters[0].currentHp, 530);
 });
 
-test("Silver King's round-five bottle hurts both living kings by half the absorbed unit's current HP", () => {
+test("Silver King's round-four bottle hurts both living kings by 60 percent of absorbed current HP", () => {
   const gold = unit("gold-king", "enemy", { hp: 30000, maxHp: 30000, currentHp: 30000, atk: 1, spd: 1, rosterOrder: 2 });
   const silver = { ...ELITE_ENEMY_DATA.find((entry) => entry.id === "silver-king"),
     hp: 30000, maxHp: 30000, currentHp: 30000, atk: 1, def: 0, spd: 1, rosterOrder: 3 };
   const result = simulateBattle([unit("hero", "ally", { atk: 10, rosterOrder: 0 }),
     unit("partner", "ally", { atk: 5, rosterOrder: 1 }), gold, silver], () => .99, { playerId: "hero" });
   const bottle = result.events.find((event) => event.type === "silver-bottle");
-  assert.equal(bottle?.round, 5);
+  assert.equal(bottle?.round, 4);
   assert.equal(bottle.kingHits.length, 2);
-  assert.ok(bottle.kingHits.every((hit) => hit.actualDamage === Math.floor(bottle.targetHpBefore * .5)));
+  assert.ok(bottle.kingHits.every((hit) => hit.actualDamage === Math.floor(bottle.targetHpBefore * .6)));
   assert.equal(result.events.filter((event) => event.type === "silver-bottle").length, 1);
 });
 

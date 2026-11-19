@@ -1,6 +1,8 @@
-import { ADVENTURE_EVENTS, CAMPAIGN_BATTLES, CHARACTER_DATA, DEIDARA_ANIMATIONS, ELITE_ENEMY_DATA, EVENT_ENEMY_DATA, NORMAL_ENEMY_APPEARANCES, STAGE_TWO_BOSS_DATA, STAGE_TWO_NORMAL_ENEMY_TIERS, STAGE_THREE_BOSS_DATA, STAGE_THREE_MINIONS, STAGE_THREE_NORMAL_ENEMY_TIERS, STARTING_CHARACTERS, TRIAL_ENEMY_DATA } from "./characters.js";
+import { ADVENTURE_EVENTS, CAMPAIGN_BATTLES, CHARACTER_DATA, DEIDARA_ANIMATIONS, ELITE_ENEMY_DATA, EVENT_ENEMY_DATA, NORMAL_ENEMY_APPEARANCES, PLAYABLE_CHARACTERS, STAGE_TWO_BOSS_DATA, STAGE_TWO_NORMAL_ENEMY_TIERS, STAGE_THREE_BOSS_DATA, STAGE_THREE_MINIONS, STAGE_THREE_NORMAL_ENEMY_TIERS, STARTING_CHARACTERS, TRIAL_ENEMY_DATA } from "./characters.js";
 import { evolvedBattlePresentation } from "./evolvedVisuals.js";
 import { fragmentCount, GUN_DEVIL, HIDDEN_BOSS_RULES } from "./hiddenBoss.js";
+import { STAGE_FOUR_BOSS, STAGE_FOUR_ENEMY_STATS, STAGE_FOUR_UNITS, getStageFourUnit, stageFourBattle } from "./stageFour.js";
+import { MAX_PARTY_MEMBERS, recruitPartyMember as recruitPartyMemberInternal } from "./partyRecruitment.js";
 import { activateVipCard, buyShopItem, essenceRewardForBattle, generateShopInventory, previewShopItem, registerShopEntry } from "./shop.js";
 import { GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT, SKILL_DATA, TREASURE_DATA } from "./skills.js";
 import { SHOP_RULES } from "./shopConfig.js";
@@ -192,6 +194,16 @@ function generateRouteOptions(campaign) {
 
 function encounterFor(campaign, type, node, forcedEncounterId = null) {
   const step = campaign.step;
+  if (campaign.stageId === 4) {
+    const random = createSeededRandom(`stage4:${campaign.routeMap.seed}:${node.id}`);
+    const pick = (pool) => pool[Math.floor(random() * pool.length)];
+    if (type === "elite") {
+      const front = pick(STAGE_FOUR_UNITS.filter((unit) => unit.row === "front"));
+      const back = pick(STAGE_FOUR_UNITS.filter((unit) => unit.row === "back"));
+      return stageFourBattle([front, back], "elite", campaign.battleNumber + 1, step);
+    }
+    return stageFourBattle([pick(STAGE_FOUR_UNITS)], "normal", campaign.battleNumber + 1, step);
+  }
   if (type === "elite") {
     const pool = ELITE_ENEMY_DATA.filter((entry) => (entry.stageId ?? 1) === campaign.stageId);
     const encounterIds = [...new Set(pool.map((entry) => entry.eliteEncounterId ?? entry.id))];
@@ -261,7 +273,11 @@ function enterBattle(campaign, node, type, forcedEncounterId = null) {
   const kind = type === "boss" ? "boss" : type === "elite" ? "elite" : "normal";
   node.resolution = kind;
   node.battle = kind === "boss"
-    ? campaign.stageId === 3
+    ? campaign.stageId === 4
+      ? { number: campaign.completedBattles + 1, step: campaign.step, type: "boss", title: STAGE_FOUR_BOSS.name,
+        location: "第四关终点", description: "击败暗之恶魔。", enemies: [STAGE_FOUR_BOSS.id],
+        enemyNames: { [STAGE_FOUR_BOSS.id]: STAGE_FOUR_BOSS.name }, enemyGrowthExemptIds: [STAGE_FOUR_BOSS.id] }
+      : campaign.stageId === 3
       ? { number: campaign.completedBattles + 1, step: campaign.step, type: "boss", title: "玛奇玛", location: "第三关终点", description: "击败玛奇玛。",
         enemies: [STAGE_THREE_BOSS_DATA.id], enemyNames: { [STAGE_THREE_BOSS_DATA.id]: STAGE_THREE_BOSS_DATA.name },
         enemyGrowthExemptIds: [STAGE_THREE_BOSS_DATA.id] }
@@ -336,7 +352,7 @@ export function createCampaign(random = Math.random, options = {}) {
     currentBattle: null, pendingEvent: null, resolvedEvents: [], eventResolved: false, combatLaunched: false,
     startingSkillSelected: false, activeEventType: null, eventBattleSourceId: null,
     rewardBattleId: null, rewardPhase: null, rewardBattleType: null, stageTransition: null, stageTwoReward: null,
-    essence: 0, essenceHistory: [], lastEssenceReward: null, activeShop: null, shopHistory: [], shopMedicines: [],
+    essence: 0, essenceHistory: [], lastEssenceReward: null, adEssenceClaimed: false, activeShop: null, shopHistory: [], shopMedicines: [],
     chapter3Entered: false, chapter3FirstEncounterAssigned: false, stage2AdventureCount: 0, trialOffered: false,
     hiddenBoss: { unlocked: false, storyShown: false, resolved: false, makimaCleared: false },
     trialAccepted: false, trialDeclined: false, trialCompleted: false, evolutionPending: false,
@@ -346,7 +362,7 @@ export function createCampaign(random = Math.random, options = {}) {
 
 export function startCampaign(campaign) {
   if (!campaign || campaign.status !== "intro") return false;
-  const pool = STARTING_CHARACTERS.map((character) => character.id);
+  const pool = STARTING_CHARACTERS.filter((character) => !character.recruitOnly).map((character) => character.id);
   // Keep the opening draw reproducible without consuming event or combat rolls.
   const candidateRandom = createSeededRandom(`starter-candidates:${campaign.routeMap.seed}`);
   campaign.candidateIds = [];
@@ -427,9 +443,11 @@ export function prepareBattle(campaign) {
   const battleId = campaign.currentBattle?.hiddenBoss ? campaign.currentBattle.id : campaign.trialBattle?.id ?? (campaign.eventBattleSourceId
     ? `event:${campaign.eventBattleSourceId}` : campaign.activeNode?.id ?? `step-${campaign.step}-battle`);
   const allies = campaign.partyIds.map((id, index) => {
-    const template = STARTING_CHARACTERS.find((entry) => entry.id === id);
+    const template = PLAYABLE_CHARACTERS.find((entry) => entry.id === id);
     const state = campaign.partyStates?.[id] ?? (id === campaign.playerId ? run : null);
     if (!template || !state) throw new RangeError(`Missing party member state: ${id}`);
+    if (id === "gun-devil-ally" && state.passiveSkillId === "gun-devil-bullet-hole")
+      state.passiveSkillId = "gun-devil-ally-bleed";
     let skillEffects = state.learnedActiveSkills.map((skillId) => getSkillAtLevel(state, skillId)).filter(Boolean);
     if (agingBattle) skillEffects = skillEffects.map((skill) => ({ ...SKILL_DATA[skill.id], ...SKILL_DATA[skill.id].levels[1], level: 1 }));
     const guarantee = state.nextBattleSkillGuarantee;
@@ -470,6 +488,10 @@ export function prepareBattle(campaign) {
       damageReductionBonus: treasureModifiers.damageReduction, dodgeRateBonus: treasureModifiers.dodgeRateBonus,
       skillDodgeRateBonus: treasureModifiers.skillDodgeRateBonus,
       quinqueGuard: state.permanentEffects?.some((effect) => effect.id === "quinque_guard") ?? false,
+      whiteSpiritBlessing: state.permanentEffects?.some((effect) => effect.id === "white_spirit_blessing") ?? false,
+      sukunaFingerCount: state.permanentEffects?.filter((effect) => effect.id === "sukuna_finger").length ?? 0,
+      gunFragmentCount: state.permanentEffects?.filter((effect) => effect.id === "gun_devil_fragment").length ?? 0,
+      oniHammer: state.permanentEffects?.some((effect) => effect.id === "oni_hammer") ?? false,
       quinqueCrit: state.permanentEffects?.some((effect) => effect.id === "quinque_crit") ?? false,
       shikonOverhealShield: state.permanentEffects?.some((effect) => effect.id === "shikon_fragment") ?? false,
       unavoidableAttack: treasureModifiers.unavoidableAttack,
@@ -477,6 +499,9 @@ export function prepareBattle(campaign) {
       critChance: state.critRate, critMultiplier: state.critMultiplier,
       passiveSkillId: state.passiveSkillId, passiveLevel: agingBattle ? 1 : state.passiveLevel ?? 1,
       extraPassiveSkillIds: state.extraPassiveSkillIds ?? [], evolutionPhase: state.evolution?.phase ?? 1,
+      coordinateMaxHpApplied: Boolean(state.coordinateMaxHpApplied),
+      row: state.extraPassiveSkillIds?.includes("mirror-flower") ? (template.row === "front" ? "back" : "front") : template.row,
+      position: state.extraPassiveSkillIds?.includes("mirror-flower") ? (template.position === "front" ? "back" : "front") : template.position,
       bookStatAppliedIds: state.bookStatAppliedIds ?? [],
       apocalypseKnightLevel: state.skillLevels?.["apocalypse-knight"] ?? 1,
       skills: skillEffects, skill: skillEffects[0] ?? null,
@@ -505,11 +530,22 @@ export function prepareBattle(campaign) {
     return ally;
   });
   campaign.nextAttackMultiplier = 1;
+  if (battle.slotMachine) {
+    // Sum the entering combat panels of formal members. Summons have not
+    // entered the roster and do not contribute to this one-time snapshot.
+    battle.enemyBaseStats.hakari = {
+      hp: Math.max(1, allies.reduce((sum, unit) => sum + unit.maxHp, 0)),
+      atk: allies.reduce((sum, unit) => sum + unit.atk, 0),
+      def: allies.reduce((sum, unit) => sum + unit.def, 0),
+      spd: allies.reduce((sum, unit) => sum + unit.spd, 0),
+    };
+  }
   const enemies = battle.enemies.map((enemyId) => {
     const template = enemyTemplates.get(enemyId) ?? ELITE_ENEMY_DATA.find((entry) => entry.id === enemyId) ??
       (enemyId === GUN_DEVIL.id ? GUN_DEVIL : null) ??
       (enemyId === STAGE_TWO_BOSS_DATA.id ? STAGE_TWO_BOSS_DATA : null) ??
-      (enemyId === STAGE_THREE_BOSS_DATA.id ? STAGE_THREE_BOSS_DATA : null) ?? EVENT_ENEMY_DATA[enemyId] ?? TRIAL_ENEMY_DATA[enemyId];
+      (enemyId === STAGE_THREE_BOSS_DATA.id ? STAGE_THREE_BOSS_DATA : null) ??
+      (enemyId === STAGE_FOUR_BOSS.id ? STAGE_FOUR_BOSS : null) ?? EVENT_ENEMY_DATA[enemyId] ?? TRIAL_ENEMY_DATA[enemyId];
     if (!template) throw new RangeError(`Unknown battle enemy: ${enemyId}`);
     const appearanceId = battle.type === "normal"
       ? battle.enemyAppearanceIds?.[enemyId] ?? (enemyId === "guard" ? "giant" : enemyId === "mage" ? "mage" : null)
@@ -539,7 +575,8 @@ export function prepareBattle(campaign) {
       const guard = enemyTemplates.get("guard");
       const stageStats = campaign.stageId === 1 ? guard
         : campaign.stageId === 2 ? getStageTwoNormalEnemyStats("guard", routeStep)
-        : campaign.stageId === 3 ? getStageThreeNormalEnemyStats("guard", routeStep) : null;
+        : campaign.stageId === 3 ? getStageThreeNormalEnemyStats("guard", routeStep)
+        : campaign.stageId === 4 ? STAGE_FOUR_ENEMY_STATS["armored-titan"] : null;
       if (!stageStats) throw new RangeError(`No ordinary front-line stats for stage ${campaign.stageId}`);
       const growth = campaign.stageId === 1 ? getRouteEnemyGrowth("normal", routeStep, campaign.stageId)
         : { hp: 1, atk: 1, def: 1 };
@@ -557,11 +594,23 @@ export function prepareBattle(campaign) {
     const bossSkill = isDeidaraBoss ? { ...bossSkillConfig, ...bossSkillConfig.levels[1], level: 1 } : null;
     const eliteSkills = (template.activeSkills ?? []).map((skillId) => {
       const config = SKILL_DATA[skillId];
-      return config?.levels?.[1] ? { ...config, ...config.levels[1], level: 1 } : null;
+      return config?.levels?.[1] ? { ...config, ...config.levels[1], level: 1,
+        ...(campaign.stageId === 4 && skillId === "reiner-sat-down" ? { reduction: .4 } : {}) } : null;
     }).filter(Boolean);
     const mimic = enemyId === "six_ear" ? allies.find((ally) => ally.id === campaign.playerId) : null;
+    const stageFour = campaign.stageId === 4;
     return {
       ...template, name: battle.enemyNames?.[enemyId] ?? appearance?.name ?? template.name,
+      ...(stageFour ? {
+        row: enemyId === "bomb-demon" || enemyId === "toji" ? "back" : enemyId === "falling-devil" ? "front" : template.row,
+        position: enemyId === "bomb-demon" || enemyId === "toji" ? "back" : enemyId === "falling-devil" ? "front" : template.position,
+        stageFourVariant: true,
+        ...(enemyId === "armored-titan" ? { stageFourArmorReduction: .4 } : {}),
+        ...(enemyId === "colossal-titan" ? { periodicPassive: { ...template.periodicPassive, allyDamage: 500 } } : {}),
+        ...(["shin", "noi"].includes(enemyId) ? { stageFourReviveRatio: .7 } : {}),
+        ...(enemyId === "toji" ? { tojiFatigueAtHit: 8 } : {}),
+      } : {}),
+      nightGuyEligible: Boolean(battle.hiddenGuy && enemyId === "might-guy"),
       ...(mimic ? {
         mimicSourceId: mimic.id, animationTiming: mimic.animationTiming,
         asset: mimic.asset, animations: { ...mimic.animations, death: template.deathAnimation }, visualId: mimic.visualId ?? mimic.id,
@@ -595,7 +644,8 @@ export function prepareBattle(campaign) {
       spd: mimic?.spd ?? Math.max(1, Math.floor(baseStats.spd * normalScale * trialScale)),
       ...(summonedGuard ? { summonPassive: { ...template.summonPassive, unit: summonedGuard } } : {}),
       ...(template.type === "elite" || template.activeSkills?.length ? {
-        team: "enemy", row: template.row ?? "front", position: template.position ?? "front",
+        team: "enemy", row: stageFour && ["bomb-demon", "toji"].includes(enemyId) ? "back" : stageFour && enemyId === "falling-devil" ? "front" : template.row ?? "front",
+        position: stageFour && ["bomb-demon", "toji"].includes(enemyId) ? "back" : stageFour && enemyId === "falling-devil" ? "front" : template.position ?? "front",
         skills: eliteSkills, skill: eliteSkills[0] ?? null,
         skillAnimationMap: template.skillAnimationMap ?? {},
       } : {}),
@@ -650,6 +700,77 @@ export function claimApocalypseReward(campaign, recipientId) {
   campaign.pendingApocalypseReward = false;
   campaign.hiddenBoss.apocalypseRewarded = true;
   return { skillId: "apocalypse-knight", recipientId, level: 1 };
+}
+
+export const recruitPartyMember = recruitPartyMemberInternal;
+
+export function resolveSlotMachineChoice(campaign, choiceId) {
+  const record = campaign?.runCharacterState?.eventResults?.[campaign.activeNode?.id];
+  if (campaign?.status !== "event" || record?.eventId !== "slot_machine" ||
+      campaign.eventResolved || !campaign.activeNode || record.status !== "pending") return false;
+  campaign.pendingEvent = record;
+  const data = record.data;
+  if (data.phase === "entry") {
+    if (choiceId === "slot_leave") {
+      data.phase = "done";
+      record.status = "completed";
+      record.result = { skipped: true };
+      campaign.eventResolved = true;
+      return record.result;
+    }
+    // Pending design choice: a zero-essence all-in is disabled so it cannot
+    // create free winnings or a repeatable free challenge.
+    if (choiceId !== "slot_all_in" || campaign.essence <= 0) return false;
+    data.bet = campaign.essence;
+    campaign.essence = 0;
+    data.phase = "dice";
+    campaign.essenceHistory.push({ sourceId: record.sourceId, stageId: campaign.stageId,
+      amount: -data.bet, reason: "slot_machine_stake" });
+    return { phase: "dice", bet: data.bet };
+  }
+  if (data.phase === "dice" && choiceId === "slot_roll") {
+    const die = () => 1 + Math.floor(Math.min(.999999999999, Math.max(0, Number(campaign.random()) || 0)) * 6);
+    const houseRoll = Math.min(.999999999999, Math.max(0, Number(campaign.random()) || 0));
+    const house = houseRoll < .25 ? 4 : houseRoll < .75 ? 5 : 6;
+    const player = die();
+    const outcome = player === house ? "tie" : player > house ? "win" : "loss";
+    data.rolls.push({ player, house, outcome });
+    if (outcome !== "tie") {
+      data.phase = outcome;
+      if (outcome === "win") {
+        campaign.essence = data.bet * 2;
+        applyRadarEssenceGrowth(campaign, data.bet);
+        campaign.essenceHistory.push({ sourceId: record.sourceId, stageId: campaign.stageId,
+          amount: data.bet, reason: "slot_machine_win" });
+      }
+    }
+    return { phase: data.phase, player, house, outcome, bet: data.bet, essence: campaign.essence };
+  }
+  if (["win", "loss"].includes(data.phase)) {
+    if ((data.phase === "win" && choiceId === "slot_collect" && data.bet < 100) ||
+        (data.phase === "loss" && choiceId === "slot_accept")) {
+      record.status = "completed";
+      record.result = { phase: data.phase, bet: data.bet, rolls: [...data.rolls], essence: campaign.essence };
+      data.phase = "done";
+      campaign.eventResolved = true;
+      return record.result;
+    }
+    if (choiceId !== "slot_fight") return false;
+    campaign.challengeHpSnapshot = Object.fromEntries(campaign.partyIds.map((id) => [id, campaign.partyStates[id].currentHp]));
+    const stats = Object.fromEntries(["maxHp", "atk", "def", "spd"].map((stat) => [stat,
+      campaign.partyIds.reduce((sum, id) => sum + Math.max(0, campaign.partyStates[id]?.[stat] ?? 0), 0)]));
+    campaign.currentBattle = { id: `slot-machine:${record.sourceId}`, type: "event", slotMachine: true,
+      number: ++campaign.battleNumber, step: campaign.step, stageStep: campaign.stageStep,
+      title: "秤金次", location: "老虎机", enemies: ["hakari"], enemyNames: { hakari: "秤金次" },
+      enemyBaseStats: { hakari: { hp: Math.max(1, stats.maxHp), atk: stats.atk, def: stats.def, spd: stats.spd } },
+      enemyGrowthExemptIds: ["hakari"] };
+    data.phase = "battle";
+    record.status = "in_battle";
+    campaign.status = "combat";
+    campaign.combatLaunched = false;
+    return { phase: "battle", bet: data.bet };
+  }
+  return false;
 }
 
 export function claimFateReward(campaign, recipientId, treasureId = null) {
@@ -803,12 +924,76 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
     campaign.playerMaxHp = campaign.runCharacterState.maxHp;
     return result;
   }
+  if (campaign.currentBattle?.slotMachine) {
+    const record = campaign.runCharacterState.eventResults[campaign.activeNode?.id];
+    if (outcome === "victory") {
+      applyAngelBreathBattleRecovery(campaign);
+      applyVictoryTreasureGrowth(campaign);
+      campaign.completedBattles += 1;
+      campaign.essence += 100;
+      applyRadarEssenceGrowth(campaign, 100);
+      campaign.essenceHistory.push({ battleId: campaign.currentBattle.id, stageId: campaign.stageId,
+        amount: 100, reason: "slot_machine_victory" });
+      campaign.lastEssenceReward = { amount: 100, reason: "slot_machine_victory" };
+    } else {
+      for (const id of campaign.partyIds) {
+        const member = campaign.partyStates[id];
+        if (member && Number.isFinite(campaign.challengeHpSnapshot?.[id]))
+          member.currentHp = Math.max(0, Math.min(member.maxHp, campaign.challengeHpSnapshot[id]));
+      }
+      campaign.essence = 0;
+    }
+    campaign.playerHp = campaign.runCharacterState.currentHp;
+    campaign.playerMaxHp = campaign.runCharacterState.maxHp;
+    campaign.challengeHpSnapshot = null;
+    if (record) {
+      record.status = outcome === "victory" ? "completed" : "failed";
+      record.result = { phase: outcome, bet: record.data.bet, rolls: [...record.data.rolls], essence: campaign.essence };
+    }
+    campaign.eventResolved = true;
+    completeActiveNode(campaign);
+    campaign.currentBattle = null;
+    campaign.status = "route";
+    return { status: "route", next: outcome === "victory" ? "slot_machine_win" : "slot_machine_failed" };
+  }
+  if (outcome !== "victory" && (campaign.currentBattle?.hiddenGuy || campaign.currentBattle?.hiddenBoss || campaign.currentBattle?.hiddenArima)) {
+    const challenge = campaign.currentBattle.hiddenGuy ? "迈特凯"
+      : campaign.currentBattle.hiddenArima ? "有马贵将" : "战争恶魔";
+    if (campaign.currentBattle.hiddenGuy) campaign.guyChallenge.failed = true;
+    if (campaign.currentBattle.hiddenBoss) campaign.hiddenBoss.failed = true;
+    if (campaign.currentBattle.hiddenArima && campaign.eventBattleSourceId) {
+      completeAdventureBattle(campaign.runCharacterState, campaign.eventBattleSourceId, "defeat", campaign.random);
+      campaign.runCharacterState.eventSeries.anteiku.chapter3Failed = true;
+      completeActiveNode(campaign);
+    }
+    for (const id of campaign.partyIds) {
+      const member = campaign.partyStates[id];
+      if (member && Number.isFinite(campaign.challengeHpSnapshot?.[id]))
+        member.currentHp = Math.max(0, Math.min(member.maxHp, campaign.challengeHpSnapshot[id]));
+    }
+    campaign.playerHp = campaign.runCharacterState.currentHp;
+    campaign.playerMaxHp = campaign.runCharacterState.maxHp;
+    campaign.challengeHpSnapshot = null;
+    campaign.lastChallengeFailure = challenge;
+    campaign.currentBattle = null;
+    campaign.eventBattleSourceId = null;
+    campaign.status = "route";
+    if (!campaign.routeOptions?.length) generateRouteOptions(campaign);
+    return { status: "route", next: "challenge_failed", challenge };
+  }
   if (outcome !== "victory" || !campaign.partyIds.some((id) => (campaign.partyStates?.[id]?.currentHp ?? 0) > 0)) {
     applyAngelBreathBattleRecovery(campaign);
     if (campaign.eventBattleSourceId) completeAdventureBattle(campaign.runCharacterState, campaign.eventBattleSourceId, "defeat", campaign.random);
     campaign.settlementNext = "defeat";
     campaign.status = "settlement";
     return { status: "settlement", next: "defeat" };
+  }
+  if (campaign.currentBattle?.hiddenGuy) {
+    applyVictoryTreasureGrowth(campaign); applyAngelBreathBattleRecovery(campaign);
+    campaign.completedBattles += 1; campaign.playerHp = campaign.runCharacterState.currentHp;
+    if (!campaign.guyChallenge.rewarded) campaign.pendingEightGatesReward = true;
+    campaign.settlementNext = "guy_win"; campaign.status = "settlement";
+    return { status: "settlement", next: "guy_win" };
   }
   if (campaign.currentBattle?.hiddenBoss) {
     applyVictoryTreasureGrowth(campaign);
@@ -847,7 +1032,14 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
   applyVictoryTreasureGrowth(campaign);
   campaign.completedBattles += 1;
   campaign.consecutiveWithoutBattle = 0;
-  awardBattleEssence(campaign);
+  const makimaRewardPending = campaign.currentBattle?.enemies?.includes("makima") && !campaign.devBattleOnly && !campaign.makimaRewardClaimed;
+  if (!makimaRewardPending) awardBattleEssence(campaign);
+  if (makimaRewardPending) {
+    campaign.pendingMakimaReward ??= { phase: "skill", treasureClaims: [], statIndex: 0, treasureChoices: null };
+    campaign.settlementNext = "victory";
+    campaign.status = "settlement";
+    return { status: "settlement", next: "victory" };
+  }
   if (campaign.devBattleOnly) {
     campaign.settlementNext = "victory";
     campaign.status = "settlement";
@@ -886,15 +1078,18 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
     const pool = STAGE_TWO_STAT_UPGRADES.map((upgrade) => upgrade.id);
     const choices = [];
     while (choices.length < 3) choices.push(pool.splice(Math.floor(random() * pool.length), 1)[0]);
-    campaign.stageTwoReward = { battleId: campaign.rewardBattleId, choices, assignments: [], phase: "stat" };
+    const recipientIds = campaign.stageId === 4 && campaign.partyIds.length >= 3
+      ? [...campaign.partyIds] : campaign.partyIds.slice(0, 2);
+    campaign.stageTwoReward = { battleId: campaign.rewardBattleId, choices, recipientIds,
+      assignments: [], phase: "stat" };
   }
   return { status: "reward", next: "reward", battleType: campaign.rewardBattleType };
 }
 
 function awardBattleEssence(campaign, battle = campaign.currentBattle) {
   const blocked = (campaign.runCharacterState?.essenceBlockedBattles ?? 0) > 0;
-  const reward = blocked ? { amount: 0, reason: "death_note", blockedBaseAmount: essenceRewardForBattle(battle).amount }
-    : essenceRewardForBattle(battle);
+  const base = battle?.enemies?.includes("makima") ? { amount: 10, reason: "makima" } : essenceRewardForBattle(battle);
+  const reward = blocked ? { amount: 0, reason: "death_note", blockedBaseAmount: base.amount } : base;
   if (blocked) campaign.runCharacterState.essenceBlockedBattles -= 1;
   campaign.essence = (campaign.essence ?? 0) + reward.amount;
   applyRadarEssenceGrowth(campaign, reward.amount);
@@ -906,7 +1101,7 @@ function awardBattleEssence(campaign, battle = campaign.currentBattle) {
 
 export function completeSettlement(campaign) {
   if (!campaign || campaign.status !== "settlement" || !campaign.settlementNext) return null;
-  if (campaign.pendingApocalypseReward) return null;
+  if (campaign.pendingApocalypseReward || campaign.pendingEightGatesReward || campaign.pendingMakimaReward) return null;
   const next = campaign.settlementNext;
   campaign.settlementNext = null;
   if (next === "victory" && campaign.activeNode) {
@@ -914,10 +1109,22 @@ export function completeSettlement(campaign) {
     campaign.history.push({ id: campaign.activeNode.id, step: campaign.step, stageId: campaign.stageId, type: campaign.activeNode.type, resolution: campaign.activeNode.resolution, status: "completed" });
     campaign.activeNode = null;
   }
+  if (next === "guy_win") {
+    campaign.guyChallenge.resolved = true; campaign.currentBattle = null;
+    campaign.status = "route"; generateRouteOptions(campaign); return campaign.status;
+  }
   if (next === "hidden_boss_win") {
     campaign.hiddenBoss.resolved = true;
+    const sourceId = campaign.currentBattle?.id ?? "hidden-boss";
+    if (campaign.partyIds.length >= MAX_PARTY_MEMBERS) {
+      campaign.pendingRecruitment = { characterId: "gun-devil-ally", sourceId };
+      campaign.currentBattle = null;
+      campaign.status = "party_replacement";
+      return campaign.status;
+    }
+    recruitPartyMember(campaign, "gun-devil-ally", sourceId);
     campaign.currentBattle = null;
-    campaign.status = campaign.hiddenBoss.makimaCleared || campaign.devBattleOnly ? "victory" : "route";
+    campaign.status = campaign.devBattleOnly ? "victory" : "route";
     if (campaign.status === "route") generateRouteOptions(campaign);
     return campaign.status;
   }
@@ -925,6 +1132,9 @@ export function completeSettlement(campaign) {
       !campaign.devBattleOnly) {
     campaign.hiddenBoss ??= { unlocked: false, storyShown: false, resolved: false, makimaCleared: false };
     campaign.hiddenBoss.makimaCleared = true;
+    campaign.stageTransition = { phase: "stage3_interlude", lineIndex: 0 };
+    campaign.status = "stage_transition";
+    return campaign.status;
   }
   if (next === "victory" && campaign.stageId === 2 && campaign.currentBattle?.type === "boss" && !campaign.devBattleOnly) {
     campaign.step += 1;
@@ -936,6 +1146,16 @@ export function completeSettlement(campaign) {
       candidateIds: [], partnerId: null, partnerStatRemaining: 5, partnerSkillRemaining: 1, offer: null };
     campaign.status = "stage_transition";
   } else campaign.status = next;
+  return campaign.status;
+}
+
+export function finishPartyReplacement(campaign, replaceId) {
+  if (campaign?.status !== "party_replacement" || !campaign.pendingRecruitment) return false;
+  const { characterId, sourceId, resumeStatus } = campaign.pendingRecruitment;
+  if (!recruitPartyMember(campaign, characterId, sourceId, replaceId)) return false;
+  campaign.pendingRecruitment = null;
+  campaign.status = resumeStatus ?? (campaign.devBattleOnly ? "victory" : "route");
+  if (campaign.status === "route") generateRouteOptions(campaign);
   return campaign.status;
 }
 
@@ -984,6 +1204,7 @@ export function beginHiddenBossChallenge(campaign) {
   }
   campaign.playerHp = campaign.runCharacterState.currentHp;
   campaign.playerMaxHp = campaign.runCharacterState.maxHp;
+  campaign.challengeHpSnapshot = Object.fromEntries(campaign.partyIds.map((id) => [id, campaign.partyStates[id].currentHp]));
   campaign.hiddenBoss.attempted = true;
   campaign.hiddenBoss.deferred = false;
   campaign.currentBattle = { id: `hidden-boss:${campaign.routeMap.seed}`, type: "boss", hiddenBoss: true,
@@ -1028,10 +1249,17 @@ export function getCampaignRewardOffer(campaign) {
 
 export function eliteDropId(campaign) {
   if (campaign?.currentBattle?.type !== "elite") return null;
+  if (campaign.stageId === 4 && campaign.currentBattle.stageFourUnitIds?.length) {
+    const unitId = campaign.currentBattle.stageFourUnitIds[campaign.stageFourDropIndex ?? 0];
+    return getStageFourUnit(unitId)?.rewardId ?? null;
+  }
   const enemies = campaign.currentBattle.enemies ?? [];
-  if (enemies.includes("mahito") || enemies.includes("toji")) return "sukuna_finger";
+  if (enemies.some((id) => ["mahito", "toji"].includes(id)) ||
+      campaign.stageId >= 3 && enemies.some((id) => ["kira", "shin", "noi", "gold-king", "silver-king"].includes(id)))
+    return "sukuna_finger";
   if (enemies.some((id) => id === "bomb-demon" || /devil/i.test(id))) return "gun_devil_fragment";
   if (enemies.includes("swamp-giant")) return "giant_spinal_fluid";
+  if (enemies.includes("might-guy")) return "ninja_footwear";
   if (campaign.stageId === 2 && enemies.includes("armored-titan") && enemies.includes("colossal-titan"))
     return "giant_spinal_fluid";
   return null;
@@ -1042,9 +1270,11 @@ export function claimCampaignEliteDrop(campaign, recipientId) {
   if (!dropId || campaign?.status !== "reward" || campaign.rewardPhase !== "elite_drop" ||
     !campaign.partyIds.includes(recipientId) || campaign.eventBattleSourceId) return false;
   const sourceId = campaign.rewardBattleId;
+  const acquisitionSourceId = campaign.stageId === 4 && campaign.currentBattle.stageFourUnitIds?.length
+    ? `${sourceId}:unit:${campaign.stageFourDropIndex ?? 0}:${campaign.currentBattle.stageFourUnitIds[campaign.stageFourDropIndex ?? 0]}` : sourceId;
   const recipient = campaign.partyStates[recipientId];
   if (!sourceId || !recipient || campaign.partyIds.some((id) => id !== recipientId &&
-    campaign.partyStates[id]?.permanentEffects?.some((item) => item.id === dropId && item.sourceId === sourceId))) return false;
+    campaign.partyStates[id]?.permanentEffects?.some((item) => item.id === dropId && item.sourceId === acquisitionSourceId))) return false;
   const routeAlreadyAdvanced = campaign.history?.some((entry) => entry.id === sourceId);
   if (routeAlreadyAdvanced && campaign.routeMap?.currentNodeId !== sourceId) return false;
   // A saved run can retain the reward screen after the route node was partly
@@ -1063,17 +1293,35 @@ export function claimCampaignEliteDrop(campaign, recipientId) {
     campaign.activeNode = node;
   }
   // A failed route transition must be retryable without granting the item twice.
-  const existing = recipient.permanentEffects?.find((item) => item.id === dropId && item.sourceId === sourceId);
-  const effect = existing ?? (dropId === "giant_spinal_fluid"
-    ? grantGiantSpinalFluid(recipient, sourceId, campaign.stageId)
+  const existing = recipient.permanentEffects?.find((item) => item.id === dropId && item.sourceId === acquisitionSourceId);
+  const granted = existing ?? (dropId === "giant_spinal_fluid"
+    ? grantGiantSpinalFluid(recipient, acquisitionSourceId, campaign.stageId)
     : dropId === "gun_devil_fragment"
-      ? grantGunDevilFragment(recipient, sourceId, campaign.stageId)
-      : grantEliteSukunaFinger(recipient, sourceId, campaign.stageId));
+      ? grantGunDevilFragment(recipient, acquisitionSourceId, campaign.stageId)
+      : dropId === "ninja_footwear" ? grantEventTreasure(recipient, acquisitionSourceId, dropId, campaign.stageId, "迈特凯精英战奖励")
+      : grantEliteSukunaFinger(recipient, acquisitionSourceId, campaign.stageId));
+  if (!granted) return false;
+  const effect = recipient.permanentEffects?.find((item) => item.id === dropId && item.sourceId === acquisitionSourceId);
   if (!effect) return false;
-  effect.sourceLabel = `${campaign.currentBattle?.enemyNames?.[campaign.currentBattle?.enemies?.[0]] ?? campaign.currentBattle?.title ?? "精英"}战斗奖励`;
+  const unitName = campaign.stageId === 4
+    ? getStageFourUnit(campaign.currentBattle.stageFourUnitIds?.[campaign.stageFourDropIndex ?? 0])?.name : null;
+  effect.sourceLabel = `${unitName ?? campaign.currentBattle?.enemyNames?.[campaign.currentBattle?.enemies?.[0]] ?? campaign.currentBattle?.title ?? "精英"}战斗奖励`;
   campaign.playerHp = campaign.runCharacterState.currentHp;
   campaign.playerMaxHp = campaign.runCharacterState.maxHp;
   const offer = campaign.runCharacterState.rewardOffers?.[sourceId];
+  if (campaign.stageId === 4 && (campaign.stageFourDropIndex ?? 0) + 1 < campaign.currentBattle.stageFourUnitIds.length) {
+    campaign.stageFourDropIndex = (campaign.stageFourDropIndex ?? 0) + 1;
+    return { effect, recipientId, status: "reward", remaining: campaign.currentBattle.stageFourUnitIds.length - campaign.stageFourDropIndex };
+  }
+  campaign.stageFourDropIndex = 0;
+  const queueGuyIntro = () => {
+    if (dropId !== "ninja_footwear") return;
+    campaign.guyChallenge ??= {};
+    if (!campaign.guyChallenge.unlocked && !campaign.guyChallenge.introSeen) {
+      campaign.guyChallenge.introPending = true;
+      campaign.status = "guy_intro";
+    }
+  };
   if (routeAlreadyAdvanced) {
     // The node was recorded before an interrupted reward cleanup. Keep the
     // existing route step and item instead of asking the player to claim twice.
@@ -1086,13 +1334,15 @@ export function claimCampaignEliteDrop(campaign, recipientId) {
     if (offer?.status === "awaiting_bonus") offer.status = "applied";
     if (campaign.stageId >= 2) campaign.stageTwoReward = null;
     generateRouteOptions(campaign);
+    queueGuyIntro();
     return { effect, recipientId, status: campaign.status };
   }
   const status = finishRewardAndAdvance(campaign);
   if (!status) return false;
+  queueGuyIntro();
   if (offer?.status === "awaiting_bonus") offer.status = "applied";
   if (campaign.stageId >= 2) campaign.stageTwoReward = null;
-  return { effect, recipientId, status };
+  return { effect, recipientId, status: campaign.status };
 }
 
 export function getCampaignTreasureOffer(campaign) {
@@ -1180,12 +1430,12 @@ export function claimStageTwoGiantRecipient(campaign, characterId) {
 
 export function claimStageTwoStatReward(campaign, characterId, statId) {
   const offer = getCampaignRewardOffer(campaign);
-  const expectedCharacterId = offer?.assignments.length === 0
-    ? campaign?.playerId
-    : campaign?.partyIds.find((id) => id !== campaign.playerId);
+  const recipientIds = offer?.recipientIds ?? campaign?.partyIds?.slice(0, 2) ?? [];
+  const expectedCharacterId = recipientIds[offer?.assignments.length ?? 0];
   if (campaign?.stageId < 2 || campaign.status !== "reward" || campaign.rewardPhase !== "stat" ||
     !offer || offer.phase !== "stat" || characterId !== expectedCharacterId ||
-    !offer.choices.includes(statId) || offer.assignments.some((item) => item.characterId === characterId || item.statId === statId)) return false;
+    !offer.choices.includes(statId) || offer.assignments.some((item) => item.characterId === characterId ||
+      campaign.stageId < 4 && item.statId === statId)) return false;
   const state = campaign.partyStates[characterId];
   const upgrade = STAGE_TWO_STAT_UPGRADES.find((item) => item.id === statId);
   if (!state || !upgrade) return false;
@@ -1194,7 +1444,8 @@ export function claimStageTwoStatReward(campaign, characterId, statId) {
   state.statPointChoices[statId] = (state.statPointChoices[statId] ?? 0) + 1;
   state.currentHp = Math.min(state.maxHp, state.currentHp);
   offer.assignments.push({ characterId, statId });
-  if (offer.assignments.length < 2) return { phase: "stat", remaining: 1 };
+  if (offer.assignments.length < recipientIds.length)
+    return { phase: "stat", remaining: recipientIds.length - offer.assignments.length };
   offer.phase = "complete";
   if (eliteDropId(campaign)) {
     campaign.rewardPhase = "elite_drop";
@@ -1482,11 +1733,139 @@ export function resolveCampaignEvent(campaign, choiceId = null, skillId = null) 
   return result;
 }
 
+export function finishGuyIntro(campaign) {
+  if (campaign?.status !== "guy_intro" || !campaign.guyChallenge?.introPending && !campaign.guyChallenge?.unlocked) return false;
+  campaign.guyChallenge.introPending = false;
+  campaign.guyChallenge.introSeen = true;
+  campaign.guyChallenge.unlocked = true;
+  campaign.status = "route";
+  return true;
+}
+
+export function canChallengeGuyAtCampfire(campaign) {
+  return Boolean(campaign?.status === "event" && campaign.activeEventType === "campfire" &&
+    campaign.activeNode?.type === "campfire" && !campaign.eventResolved &&
+    campaign.guyChallenge?.unlocked && !campaign.guyChallenge.attempted);
+}
+
+export function beginGuyCampfireChallenge(campaign) {
+  if (!canChallengeGuyAtCampfire(campaign) || !completeActiveNode(campaign)) return false;
+  campaign.guyChallenge.attempted = true;
+  campaign.challengeHpSnapshot = Object.fromEntries(campaign.partyIds.map((id) => [id, campaign.partyStates[id].currentHp]));
+  campaign.currentBattle = { id: `guy-challenge:${campaign.routeMap.seed}`, type: "event", hiddenGuy: true,
+    number: ++campaign.battleNumber, step: campaign.step, stageStep: campaign.stageStep,
+    title: "凯的约定", location: "青春之舞", enemies: ["might-guy"],
+    enemyNames: { "might-guy": "迈特凯" }, enemyGrowthExemptIds: ["might-guy"] };
+  campaign.activeNode = null;
+  campaign.combatLaunched = false;
+  campaign.status = "combat";
+  return true;
+}
+
+export function claimEightGatesReward(campaign, recipientId) {
+  if (!campaign?.pendingEightGatesReward || campaign.status !== "settlement" ||
+      campaign.settlementNext !== "guy_win" || !campaign.partyIds.includes(recipientId)) return false;
+  const member = campaign.partyStates?.[recipientId];
+  if (!member || member.extraPassiveSkillIds?.includes("eight-gates")) return false;
+  member.extraPassiveSkillIds ??= []; member.extraPassiveSkillIds.push("eight-gates");
+  member.skillLevels ??= {}; member.skillLevels["eight-gates"] = 1;
+  member.skillHistory ??= []; member.skillHistory.push({ skillId: "eight-gates", level: 1,
+    sourceId: campaign.currentBattle.id, kind: "learn" });
+  campaign.pendingEightGatesReward = false; campaign.guyChallenge.rewarded = true;
+  return { skillId: "eight-gates", recipientId, level: 1 };
+}
+
+export function getMakimaRewardOffer(campaign) {
+  const offer = campaign?.pendingMakimaReward;
+  if (!offer || campaign.status !== "settlement") return null;
+  if (offer.phase === "skill") {
+    const choices = campaign.partyIds.flatMap((id) => getSkillTrainingChoices(campaign.partyStates[id])
+      .map((skillId) => ({ recipientId: id, skillId })));
+    if (!choices.length) offer.phase = "treasure";
+    else return { phase: "skill", choices };
+  }
+  if (offer.phase === "treasure") {
+    if (!offer.treasureChoices) {
+      const pool = [GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT,
+        ...Object.values(TREASURE_DATA).filter((item) => item.grade === "rare")];
+      const choiceCount = Math.min(3, pool.length);
+      offer.treasureChoices = [];
+      while (offer.treasureChoices.length < choiceCount) {
+        const index = Math.min(pool.length - 1, Math.floor(campaign.random() * pool.length));
+        offer.treasureChoices.push(pool.splice(index, 1)[0].id);
+      }
+    }
+    return { phase: "treasure", number: offer.treasureClaims.length + 1,
+      choices: offer.treasureChoices.map((id) => id) };
+  }
+  if (offer.phase === "stat") {
+    const recipientId = offer.statIndex < 3 ? campaign.playerId
+      : campaign.partyIds.find((id) => id !== campaign.playerId);
+    return { phase: "stat", recipientId, number: offer.statIndex < 3 ? offer.statIndex + 1 : offer.statIndex - 2,
+      total: recipientId === campaign.playerId ? 3 : 5, choices: STAGE_TWO_STAT_UPGRADES };
+  }
+  return { phase: "passive", recipientId: campaign.partyIds.find((id) => id !== campaign.playerId) };
+}
+
+export function claimMakimaSkillReward(campaign, recipientId, skillId) {
+  const offer = getMakimaRewardOffer(campaign);
+  if (offer?.phase !== "skill" || !offer.choices.some((choice) => choice.recipientId === recipientId && choice.skillId === skillId)) return false;
+  const member = campaign.partyStates[recipientId];
+  const sourceId = `makima:${campaign.currentBattle.id}:skill`;
+  const result = getUpgradeableSkills(member).includes(skillId)
+    ? upgradeActiveSkill(member, skillId, sourceId) : learnActiveSkill(member, skillId, sourceId);
+  if (!result) return false;
+  campaign.pendingMakimaReward.phase = "treasure";
+  return result;
+}
+
+export function claimMakimaTreasureReward(campaign, recipientId, treasureId) {
+  const offer = getMakimaRewardOffer(campaign);
+  if (offer?.phase !== "treasure" || !campaign.partyIds.includes(recipientId) || !offer.choices.includes(treasureId)) return false;
+  const sourceId = `makima:${campaign.currentBattle.id}:treasure:${offer.number}`;
+  const result = grantEventTreasure(campaign.partyStates[recipientId], sourceId, treasureId,
+    campaign.stageId, `玛奇玛战斗奖励第 ${offer.number} 次`);
+  if (!result) return false;
+  campaign.pendingMakimaReward.treasureClaims.push({ recipientId, treasureId, sourceId });
+  campaign.pendingMakimaReward.treasureChoices = null;
+  if (campaign.pendingMakimaReward.treasureClaims.length >= 2) campaign.pendingMakimaReward.phase = "stat";
+  return result;
+}
+
+export function claimMakimaStatReward(campaign, recipientId, statId) {
+  const offer = getMakimaRewardOffer(campaign);
+  const upgrade = STAGE_TWO_STAT_UPGRADES.find((item) => item.id === statId);
+  if (offer?.phase !== "stat" || offer.recipientId !== recipientId || !upgrade) return false;
+  const member = campaign.partyStates[recipientId];
+  member[statId] += upgrade.value;
+  member.statPointChoices ??= { maxHp: 0, atk: 0, def: 0, spd: 0 };
+  member.statPointChoices[statId] += 1;
+  member.currentHp = Math.min(member.currentHp, member.maxHp);
+  campaign.pendingMakimaReward.statIndex += 1;
+  if (campaign.pendingMakimaReward.statIndex >= 8) {
+    const alreadyPaid = campaign.essenceHistory?.some((entry) => entry.battleId === campaign.currentBattle.id);
+    if (!alreadyPaid) awardBattleEssence(campaign);
+    campaign.pendingMakimaReward.essenceClaimed = true;
+    campaign.pendingMakimaReward.phase = "passive";
+  }
+  return { recipientId, statId, amount: upgrade.value };
+}
+
+export function claimMakimaPassiveReward(campaign) {
+  const offer = getMakimaRewardOffer(campaign);
+  if (offer?.phase !== "passive") return false;
+  const member = campaign.partyStates[offer.recipientId];
+  const upgraded = member ? upgradePassiveSkill(member, `makima:${campaign.currentBattle.id}:passive`) : false;
+  campaign.makimaRewardClaimed = true;
+  campaign.pendingMakimaReward = null;
+  return { recipientId: offer.recipientId, upgraded: upgraded || null };
+}
+
 export function canChallengeArimaAtCampfire(campaign) {
   const anteiku = campaign?.runCharacterState?.eventSeries?.anteiku;
   return Boolean(campaign?.status === "event" && campaign.activeEventType === "campfire" &&
     campaign.activeNode?.type === "campfire" && !campaign.eventResolved &&
-    (anteiku?.chapter2Triggered || anteiku?.chapter2Completed) && !anteiku.chapter3Completed);
+    (anteiku?.chapter2Triggered || anteiku?.chapter2Completed) && !anteiku.chapter3Completed && !anteiku.chapter3Attempted);
 }
 
 export function beginArimaCampfireChallenge(campaign) {
@@ -1502,7 +1881,12 @@ export function beginArimaCampfireChallenge(campaign) {
   campaign.pendingEvent = record;
   if (resolveCampaignEvent(campaign, "anteiku_arima")) {
     const battle = startCampaignEventBattle(campaign);
-    if (battle) return battle;
+    if (battle) {
+      anteiku.chapter3Attempted = true;
+      campaign.currentBattle.hiddenArima = true;
+      campaign.challengeHpSnapshot = Object.fromEntries(campaign.partyIds.map((id) => [id, campaign.partyStates[id].currentHp]));
+      return battle;
+    }
   }
   delete campaign.runCharacterState.eventResults[node.id];
   anteiku.lastChoice = previousChoice;
@@ -1653,6 +2037,17 @@ export function getShopRouteOptions(campaign) {
   return campaign.consecutiveWithoutBattle >= 2 ? next.filter((node) => ["battle", "elite", "demon", "shop"].includes(node.type)) : next;
 }
 
+export function claimAdEssence(campaign) {
+  if (campaign?.status !== "shop" || !campaign.activeShop || campaign.adEssenceClaimed) return false;
+  campaign.adEssenceClaimed = true;
+  campaign.essence = (campaign.essence ?? 0) + 10;
+  campaign.lastRadarRewards = [];
+  applyRadarEssenceGrowth(campaign, 10);
+  campaign.essenceHistory ??= [];
+  campaign.essenceHistory.push({ sourceId: "rewarded_ad", amount: 10, stageId: campaign.stageId });
+  return true;
+}
+
 export function leaveShop(campaign) {
   if (campaign?.status !== "shop" || campaign.activeNode?.id !== campaign.activeShop?.nodeId) return false;
   if (campaign.vipTrialTicket?.shopId === campaign.activeShop.nodeId) campaign.vipTrialTicket.used = true;
@@ -1696,7 +2091,7 @@ export function getStageTransitionChoices(campaign) {
         offer: stageOffer(campaign, campaign.runCharacterState, `hero-stat-${3 - flow.statRemaining}`) };
     case "recruit":
       if (!flow.candidateIds.length) {
-        const pool = STARTING_CHARACTERS.map((character) => character.id).filter((id) => !campaign.partyIds.includes(id));
+        const pool = STARTING_CHARACTERS.filter((character) => !character.recruitOnly).map((character) => character.id).filter((id) => !campaign.partyIds.includes(id));
         const random = createSeededRandom(`recruit:${campaign.routeMap.seed}`);
         while (pool.length && flow.candidateIds.length < 2) flow.candidateIds.push(pool.splice(Math.floor(random() * pool.length), 1)[0]);
       }
@@ -1831,6 +2226,24 @@ export function beginStageThree(campaign) {
   campaign.chapter3Entered = true;
   campaign.stageStep = 1;
   campaign.routeMap = generateRouteMap(`stage3:${campaign.routeMap.seed}`, { stageId: 3 });
+  campaign.activeNode = null;
+  campaign.currentBattle = null;
+  campaign.pendingEvent = null;
+  campaign.eventBattleSourceId = null;
+  campaign.consecutiveWithoutBattle = 0;
+  generateRouteOptions(campaign);
+  return campaign.status;
+}
+
+export function beginStageFour(campaign) {
+  if (campaign?.status !== "stage_transition" || campaign.stageTransition?.phase !== "stage3_interlude" ||
+      campaign.stageId !== 3 || campaign.stageFourEntered) return false;
+  restorePartyHealthForStage(campaign, 4);
+  campaign.stageId = 4;
+  campaign.stageFourEntered = true;
+  campaign.eliteEncounterHistory = [];
+  campaign.stageStep = 1;
+  campaign.routeMap = generateRouteMap(`stage4:${campaign.routeMap.seed}`, { stageId: 4 });
   campaign.activeNode = null;
   campaign.currentBattle = null;
   campaign.pendingEvent = null;

@@ -47,8 +47,17 @@ button { font: inherit; }
 .shop-slot-price { display: block; min-width: 45px; padding: 1px 3px; color: #ffe5a5; background: #402934; border: 1px solid #d8a45d; font-size: 10px; font-weight: 900; line-height: 1.2; text-align: center; white-space: nowrap; }
 .shop-slot:hover, .shop-slot:focus-visible { scale: 1.08; outline: 2px solid #ffe5a5; outline-offset: 2px; }
 .shop-slot.is-purchased img { opacity: .42; }
+.shop-ad-essence { display: block; margin: 4px 0; font-size: 11px; }
+.shop-ad-essence[hidden] { display: none; }
 .shop-feedback { min-height: 1.2em; margin: 4px 0; color: #ffe9a4; font-size: 11px; }
 .shop-leave { display: block; margin: 4px auto 0; }
+.leaderboards-dialog { width: min(390px, calc(100vw - 28px)); max-width: none; padding: 0; color: #f8e9c4; background: #2d1c25; border: 4px solid #9d7950; border-radius: 8px; }
+.leaderboards-dialog::backdrop { background: #0b172dcc; }
+.leaderboards-panel { display: flex; flex-direction: column; gap: 10px; padding: 16px; }
+.leaderboards-panel .detail-close { align-self: flex-end; }
+.leaderboards-panel h2 { margin: 0; text-align: center; }
+.leaderboards-panel .control-btn { width: 100%; }
+#leaderboards-feedback { min-height: 1.2em; margin: 0; font-size: 11px; }
 .shop-detail-dialog { width: min(430px, calc(100vw - 28px)); max-height: 85dvh; padding: 0; color: #334456; background: #f7edd7; border: 4px solid #a47b4b; border-radius: 6px; }
 .shop-detail-dialog::backdrop { background: #0b172dbb; }
 .shop-detail-inner { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px; text-align: center; }
@@ -69,8 +78,25 @@ button { font: inherit; }
 .brand-mark { width: 37px; height: 37px; display: grid; place-items: center; background: #f6a33f; border: 2px solid var(--navy); box-shadow: 2px 2px 0 var(--navy); color: #fff9dc; font-weight: 900; font-size: 20px; transform: rotate(-3deg); }
 .battle-screen.stage-two .arena, .route-screen.stage-two .route-landscape, .route-map-dialog.stage-two .route-map-scroll { background-image: linear-gradient(rgba(9,14,29,.16), rgba(9,14,29,.28)), url("assets/stage2-golden-tree.png"); background-position: center 56%; }
 .battle-screen.stage-three .arena, .route-screen.stage-three .route-landscape, .route-map-dialog.stage-three .route-map-scroll { background-image: linear-gradient(rgba(9,14,29,.16), rgba(9,14,29,.28)), url("assets/stage3-background.png"); background-position: center 56%; }
+.battle-screen.stage-four .arena, .route-screen.stage-four .route-landscape, .route-map-dialog.stage-four .route-map-scroll { background-image: linear-gradient(rgba(9,14,29,.16), rgba(9,14,29,.28)), url("assets/stage4-background.png"); background-position: center 56%; }
+.battle-screen.darkness-battle .arena { background: #120f1d url("assets/stage4-darkness/background.png") center / cover no-repeat; }
+.battle-screen.darkness-battle .arena::after { content: ""; position: absolute; inset: 0; z-index: 16; background: rgba(0,0,0,.54); opacity: 0; pointer-events: none; transition: opacity .28s linear; }
+.battle-screen.darkness-battle.darkness-phase-active .arena::after { opacity: 1; }
+.darkness-entrance { position: fixed; inset: 0; z-index: 1000; width: 100%; height: 100%; object-fit: contain; background: #080711; pointer-events: none; animation: darkness-entrance-show var(--darkness-entrance-ms, 1300ms) ease-in-out both; }
+@keyframes darkness-entrance-show { 0% { opacity: 0; } 12%, 84% { opacity: 1; } 100% { opacity: 0; } }
 .battle-screen.stage-three.trial-battle .arena { background-image: linear-gradient(rgba(9,14,29,.16), rgba(9,14,29,.28)), url("assets/trial-background.png"); }
 .battle-screen.aging-battle .arena { background-image: url("assets/stage3-elites/aging/background.png"); background-position: center; background-size: cover; }
+.battle-screen.hakari-jackpot .arena { background-image: radial-gradient(circle at 50% 28%, rgba(250,217,92,.68), transparent 42%), repeating-linear-gradient(110deg, #26102e 0 16px, #441b4b 16px 32px, #611e42 32px 48px); }
+.slot-die-rolling { animation: slot-die-roll 1.3s steps(12, end) both; image-rendering: pixelated; }
+@keyframes slot-die-roll { to { transform: rotate(720deg) scale(1.18); } }
+.darkness-sever-overlay { position: fixed; inset: 0; z-index: 1001; overflow: hidden; background: #000; pointer-events: none; animation: darkness-sever-screen var(--sever-ms, 500ms) steps(1,end) both; }
+.darkness-sever-overlay img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; animation: darkness-sever-art var(--sever-ms, 500ms) linear both; }
+.darkness-sever-overlay::before { content: ""; position: absolute; z-index: 1; left: -10%; top: 48%; width: 120%; height: 2px; background: #fff; box-shadow: 0 -9px 1px rgba(255,255,255,.46), 0 10px 1px rgba(255,255,255,.32); transform: rotate(-8deg) scaleX(.02); animation: darkness-sever-line var(--sever-ms, 500ms) steps(5,end) both; }
+.darkness-sever-overlay::after { content: ""; position: absolute; z-index: 2; inset: 0; background: #fff; opacity: 0; animation: darkness-sever-flash var(--sever-ms, 500ms) steps(1,end) both; }
+@keyframes darkness-sever-screen { 0% { opacity: 0; } 20%, 64% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes darkness-sever-art { 0%, 19% { opacity: 0; transform: scaleX(.08); } 30%, 45% { opacity: 1; transform: scaleX(1); } 62%, 100% { opacity: 0; transform: scaleX(1.08); } }
+@keyframes darkness-sever-line { 0%, 19% { opacity: 0; transform: rotate(-8deg) scaleX(.02); } 30% { opacity: 1; transform: rotate(-8deg) scaleX(.35); } 45% { opacity: 1; transform: rotate(-8deg) scaleX(1); } 64%, 100% { opacity: 0; transform: rotate(-8deg) scaleX(1.1); } }
+@keyframes darkness-sever-flash { 0%, 43% { opacity: 0; } 45% { opacity: .84; } 57%, 100% { opacity: 0; } }
 .battle-screen.stage-three .fighter[data-character="gold-king"] { left: 56%; }
 .battle-screen.stage-three .fighter[data-character="silver-king"] { left: 76%; }
 @media (max-width: 580px) { .battle-screen.stage-three .fighter[data-character="gold-king"], .battle-screen.stage-three .fighter[data-character="silver-king"] { scale: .70; } }
@@ -119,6 +145,14 @@ button { font: inherit; }
 .route-partner-link { padding: 2px 5px; color: #42536b; background: #f9f5df; border: 1px solid #a6b4a9; border-radius: 4px; font-size: 9px; cursor: pointer; }
 .route-sign-pending { position: absolute; left: 50%; bottom: 5px; transform: translateX(-50%); padding: 2px 4px; color: #fff6dc; background: #563b38; border: 1px solid #d9b36b; font-size: 9px; font-weight: 900; white-space: nowrap; }
 .stage-interlude-screen { min-height: 450px; display: grid; place-items: center; margin: -16px; color: #f3dfad; background: #08090e; text-align: center; }
+.stage-interlude-screen.stage-two { background: linear-gradient(#08090e99, #08090ecc), url("assets/stage2-golden-tree.png") center / cover; }
+.stage-interlude-screen.stage-three { background: linear-gradient(#08090e99, #08090ecc), url("assets/stage3-background.png") center / cover; }
+.stage-interlude-screen.stage-four { background: linear-gradient(#08090e99, #08090ecc), url("assets/stage4-background.png") center / cover; }
+.arena.ally-squad .fighter[data-team="ally"] { scale: .8; }
+.route-party.party-expanded { gap: 2px; }
+.route-party.party-expanded .route-player { flex-basis: 62px; width: 62px; }
+.route-party.party-expanded .route-player img { width: 62px; height: 100px; object-fit: contain; object-position: center bottom; image-rendering: pixelated; }
+@media (max-width: 699px) { .arena.ally-squad .fighter[data-team="ally"] { scale: .65; } }
 .stage-interlude-screen p { max-width: 85%; font-size: clamp(16px, 4vw, 25px); font-weight: 900; letter-spacing: .12em; line-height: 1.8; }
 .stage-transition-screen.stage3-interlude .transition-hero { display: none; }
 .stage-transition-screen.stage3-interlude .transition-left { left: 14%; transform: translateX(0); }
@@ -252,7 +286,10 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 @keyframes gamble-coin-land { from { transform: scale(1.18); } to { transform: scale(1); } }
 @keyframes cannot-act-pulse { from { opacity: .75; } to { opacity: 1; } }
 .fighter[data-team="enemy"][data-controlled-by-makima="true"] .sprite-visual { transform: scaleX(-1); }
+.fighter[data-character="gun-devil-ally"][data-team="ally"] .sprite-visual { transform: scaleX(-1); }
 .fighter[data-character="falling-devil"] .sprite-visual { transform: scaleX(-1); }
+.fighter[data-character="darkness-devil"][data-team="enemy"] .sprite-visual { transform: scaleX(-1); }
+.fighter[data-character="hakari"][data-team="enemy"] .sprite-visual { transform: scaleX(-1); }
 .fighter[data-character="swamp-giant"] .sprite-action-frame[data-frame-name="raise"],
 .fighter[data-character="swamp-giant"] .sprite-action-frame[data-frame-name="release"] { transform: scaleX(-1); transform-origin: center bottom; }
 .swamp-flask-projectile { width: clamp(32px, 7vw, 60px); image-rendering: pixelated; }
@@ -333,6 +370,25 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .fighter[data-character="quanxi"].is-quanxi-behind { translate: var(--quanxi-behind-x, -90px) 0; z-index: 9; }
 .fighter[data-character="quanxi"] .sprite-action-frame[data-frame-name="flash"],
 .fighter[data-character="quanxi"] .sprite-action-frame[data-frame-name="strike"] { transform: scaleX(-1) scale(var(--action-frame-scale, 1)); transform-origin: center bottom; }
+.fighter[data-character="might-guy"].is-night-striking { translate: var(--night-x, 0px) 0; z-index: 12; }
+.fighter[data-character="might-guy"].is-night-vanishing .sprite-wrap { opacity: 0; }
+.fighter[data-character="might-guy"] .sprite-action-frame[data-frame-name="strike_3"] { transform: scaleX(-1) scale(var(--action-frame-scale, 1)); transform-origin: center bottom; }
+.fighter[data-character="gojo"].is-magic-attacking .sprite { animation: none; }
+.fighter[data-character="gojo"].is-hit .sprite-wrap, .fighter[data-character="gojo"].is-dodging .sprite-wrap { animation: none; }
+.gojo-skill-effect { position: absolute; z-index: 18; height: clamp(54px, 18%, 92px); object-fit: fill; image-rendering: pixelated; pointer-events: none; translate: 0 -50%; }
+.gojo-skill-effect.toward-right { animation: gojo-beam-right .65s steps(9, end) both; }
+.gojo-skill-effect.toward-left { transform: scaleX(-1); animation: gojo-beam-left .65s steps(9, end) both; }
+.gojo-skill-effect.gojo-domain-impact { width: clamp(140px, 28vw, 240px); height: auto; max-height: 48%; object-fit: contain; translate: -50% -50%; animation: gojo-domain-impact .65s steps(8, end) both; }
+@keyframes gojo-domain-impact { 0% { opacity: 0; scale: .35; } 24%, 70% { opacity: 1; scale: 1; } 100% { opacity: 0; scale: 1.12; } }
+@keyframes gojo-beam-right { 0% { opacity: 0; clip-path: inset(0 100% 0 0); } 18%, 76% { opacity: 1; } 65% { clip-path: inset(0 0 0 0); } 100% { opacity: 0; clip-path: inset(0 0 0 0); } }
+@keyframes gojo-beam-left { 0% { opacity: 0; clip-path: inset(0 100% 0 0); } 18%, 76% { opacity: 1; } 65% { clip-path: inset(0 0 0 0); } 100% { opacity: 0; clip-path: inset(0 0 0 0); } }
+.gojo-domain-cinematic { position: absolute; inset: 0; z-index: 24; width: 100%; height: 100%; object-fit: contain; background: #090810; pointer-events: none; image-rendering: pixelated; animation: gojo-cinematic 1.35s steps(8, end) both; }
+.gojo-execution-overlay { position: absolute; inset: 0; z-index: 24; display: grid; place-items: center; background: rgba(6, 4, 16, .82); pointer-events: none; animation: gojo-cinematic .85s steps(8, end) both; }
+.gojo-execution-closeup { display: block; max-width: min(65%, 290px); max-height: 88%; object-fit: contain; image-rendering: pixelated; }
+@keyframes gojo-cinematic { 0% { opacity: 0; } 12%, 80% { opacity: 1; } 100% { opacity: 0; } }
+.night-guy-entrance { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 24; object-fit: cover; image-rendering: pixelated; pointer-events: none; animation: night-guy-entrance 1300ms steps(8, end) both; }
+.night-guy-eight-gates { position: absolute; z-index: 1; left: 50%; bottom: -7px; width: calc(var(--visual-frame-width, 84px) * 1.5); height: calc(var(--visual-frame-height, 98px) * 1.35); object-fit: contain; object-position: center bottom; translate: -50% 0; image-rendering: pixelated; opacity: .76; pointer-events: none; }
+@keyframes night-guy-entrance { 0% { opacity: 0; } 12%, 78% { opacity: 1; } 100% { opacity: 0; } }
 .fighter[data-character="makima"].is-makima-landing .sprite-visual { animation: makima-landing var(--makima-landing-duration, 1000ms) ease-in both; }
 @keyframes makima-landing { from { translate: 0 -42px; } to { translate: 0 0; } }
 .fighter.is-clone-melee-returning { animation: melee-return var(--return-duration, 500ms) cubic-bezier(.2,.72,.25,1) forwards; }
@@ -356,6 +412,7 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .fighter[data-character="eren"][data-evolution="2"].is-skill-posing .sprite-action-frame { transform: scale(var(--action-frame-scale, 1)); }
 .evolution-aura { position: absolute; z-index: -1; width: 125%; height: 125%; left: -12.5%; bottom: -8%; object-fit: contain; image-rendering: pixelated; pointer-events: none; filter: drop-shadow(0 0 5px #a22950); }
 .trial-projectile { position: absolute; z-index: 18; width: clamp(70px, 13vw, 140px); height: clamp(70px, 13vw, 140px); object-fit: contain; image-rendering: pixelated; pointer-events: none; transform: scaleX(-1); }
+.gun-ally-projectile { position: absolute; z-index: 18; width: clamp(90px, 18vw, 150px); height: auto; translate: -50% -50%; object-fit: contain; image-rendering: pixelated; pointer-events: none; }
 .shin-hammer-projectile { position: absolute; z-index: 18; width: clamp(120px, 16vw, 170px); height: auto; image-rendering: pixelated; pointer-events: none; }
 .fighter[data-character="shin"] .sprite-action-frame[data-frame-name="throw"] { transform: scaleX(-1); }
 .fighter[data-character="shin"].is-melee-running .sprite-wrap,
@@ -377,6 +434,9 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .hidden-yoru-entrance { position: absolute; z-index: 31; inset: 0; display: grid; place-items: center; background: #090810dd; pointer-events: none; }
 .hidden-yoru-entrance.is-revealing { opacity: 0; transition: opacity var(--hidden-entrance-reveal-ms, 560ms) linear; }
 .hidden-yoru-entrance img { display: block; max-width: min(65%, 290px); max-height: 88%; object-fit: contain; image-rendering: pixelated; }
+.fighter.hidden-yoru-converting { z-index: 32; animation: hidden-yoru-convert var(--yoru-convert-ms, 850ms) ease-in both; }
+.fighter.hidden-yoru-converting .fighter-name { opacity: 0; }
+@keyframes hidden-yoru-convert { from { transform: translate(0, 0) rotate(0) scale(1); opacity: 1; } to { transform: translate(var(--yoru-convert-x), var(--yoru-convert-y)) rotate(720deg) scale(.08); opacity: 0; } }
 .hidden-spinal-sword { position: absolute; z-index: 16; width: clamp(210px, 42vw, 310px); height: auto; transform: translate(-50%, 0) rotate(-7deg); transform-origin: 72% 22%; image-rendering: pixelated; pointer-events: none; transition: left var(--sword-flight-ms, 600ms) ease-in, top var(--sword-flight-ms, 600ms) ease-in, transform var(--sword-flight-ms, 600ms) ease-in; }
 .hidden-boss-projectile { position: absolute; z-index: 19; width: clamp(125px, 25vw, 205px); height: auto; transform: translate(-50%, -50%) scaleX(-1); image-rendering: pixelated; pointer-events: none; transition: left var(--bullet-flight-ms, 1450ms) cubic-bezier(.3,.1,.75,.88); }
 .hidden-boss-ground-effect { position: absolute; z-index: 3; width: clamp(170px, 42vw, 270px); height: auto; transform: translate(-50%, -100%); image-rendering: pixelated; pointer-events: none; animation: hidden-boss-ground-flash var(--ground-effect-ms, 900ms) steps(5, end) both; }

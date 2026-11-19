@@ -55,5 +55,5 @@ test("Arima remains an optional campfire challenge until victory", () => {
 test("every configured treasure image resolves by its ID", () => {
   const treasures = [...Object.values(TREASURE_DATA), GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT];
   const missing = treasures.filter((item) => !item.image || !existsSync(new URL(item.image, import.meta.url)));
-  assert.deepEqual(missing.map((item) => item.id), []);
+  assert.deepEqual(missing.map((item) => item.id).sort(), []);
 });

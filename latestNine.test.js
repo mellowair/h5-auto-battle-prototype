@@ -182,7 +182,9 @@ test("shop uses separate common, rare and legendary pools and VIP prices refresh
     assert.equal(slots.length, 7);
     assert.equal(new Set(slots.map((slot) => slot.itemId)).size, 7);
     for (const slot of slots.filter((entry) => ["common", "rare", "legendary"].includes(entry.categoryId)))
-      assert.equal(TREASURE_DATA[slot.itemId]?.grade ?? (slot.categoryId === "rare" ? "rare" : null), slot.categoryId);
+      assert.ok(TREASURE_DATA[slot.itemId]?.grade === slot.categoryId ||
+        slot.categoryId === "legendary" && TREASURE_DATA[slot.itemId]?.grade === "superlegendary" ||
+        slot.categoryId === "rare" && !TREASURE_DATA[slot.itemId]);
   }
   const campaign = campaignFixture();
   campaign.status = "shop";

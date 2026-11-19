@@ -1,9 +1,7 @@
-export const AUTO_SPEED_LOG_THRESHOLD = 100;
-
-export function isAutoSpeedActive(logCount) {
-  return logCount > AUTO_SPEED_LOG_THRESHOLD;
+export function battlePlaybackMultiplier(speed = 1) {
+  return [1, 2, 3].includes(speed) ? speed : 1;
 }
 
-export function battlePlaybackMultiplier(logCount, manualFast, fastMultiplier = 2) {
-  return (manualFast ? fastMultiplier : 1) * (isAutoSpeedActive(logCount) ? 2 : 1);
+export function nextPlaybackSpeed(speed = 1) {
+  return battlePlaybackMultiplier(speed) % 3 + 1;
 }
