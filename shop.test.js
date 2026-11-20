@@ -347,4 +347,18 @@ test("passive-upgrade book no longer appears in shop inventory", () => {
   for (let seed = 0; seed < 100; seed += 1)
     assert.equal(generateShopInventory(`removed-passive:${seed}`, 2)
       .some((slot) => slot.itemId === "lonelier_than_fireworks_book"), false);
+  const oldSave = shopFixture(2);
+  Object.assign(oldSave.activeShop.slots[0], { categoryId: "book", itemId: "lonelier_than_fireworks_book",
+    name: "比烟花还寂寞", price: 30 });
+  refreshShopPrices(oldSave);
+  const ids = oldSave.activeShop.slots.map((slot) => slot.itemId);
+  assert.equal(ids.includes("lonelier_than_fireworks_book"), false);
+  assert.equal(new Set(ids).size, SHOP_RULES.slots);
+  assert.ok(SHOP_RULES.books.some((book) => book.id === ids[0]));
+});
+
+test("Mirror Flower uses a skill book icon in shops and keeps its opening effect", () => {
+  const book = SHOP_RULES.books.find((entry) => entry.id === "mirror_flower_book");
+  assert.equal(book.image, "assets/shop/skill-book.png");
+  assert.equal(book.effectImage, "assets/shop/mirror-flower-effect.png");
 });

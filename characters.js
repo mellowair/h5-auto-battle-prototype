@@ -61,6 +61,12 @@ export const EVENT_ENEMY_DATA = Object.freeze({
     hp: 1, atk: 1, def: 1, spd: 1, attackType: "melee", deathPose: "cute-flop",
     asset: "assets/event-enemies/hakari/idle.png", visualId: "hakari", rosterOrder: 1,
     extraPassiveSkillIds: ["hakari-gamble"],
+    passiveEffectAssets: {
+      1: "assets/event-enemies/hakari/passive-1-2.png", 2: "assets/event-enemies/hakari/passive-1-2.png",
+      3: "assets/event-enemies/hakari/passive-3-4.png", 4: "assets/event-enemies/hakari/passive-3-4.png",
+      5: "assets/event-enemies/hakari/passive-5.png", 6: "assets/event-enemies/hakari/passive-6.png",
+    },
+    coinEffectAsset: "assets/event-enemies/hakari/coin-effect.png",
     animations: {
       idle: { type: "frames", frames: { idle: "assets/event-enemies/hakari/idle.png" } },
       run: { type: "frames", frames: {
@@ -608,7 +614,7 @@ export const STAGE_TWO_BOSS_DATA = Object.freeze({
 // Stage-three presentation is independent of combat stats and route scaling.
 export const STAGE_THREE_BOSS_DATA = Object.freeze({
   id: "makima", name: "玛奇玛", type: "boss", team: "enemy", role: "支配恶魔",
-  row: "back", position: "back", hp: 3700, atk: 150, def: 160, spd: 160,
+  row: "back", position: "back", hp: 3200, atk: 150, def: 160, spd: 160,
   attackType: "ranged", asset: "assets/stage3-enemies/makima_hover_idle.png", visualId: "makima", stageThreeKind: "makima",
   attackAnimation: "hoverAttack",
   animations: {

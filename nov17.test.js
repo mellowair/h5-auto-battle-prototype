@@ -51,10 +51,13 @@ test("Night Guy transforms once below 30 percent, pays five percent per attack a
   const guy = unit("might-guy", "enemy", { hp: 3000, maxHp: 3000, currentHp: 3000,
     atk: 280, def: 130, spd: 300, nightGuyEligible: true });
   const result = simulateBattle([hero, guy], () => .99);
-  assert.equal(result.events.filter((event) => event.type === "night-guy-transform").length, 1);
+  const transformations = result.events.filter((event) => event.type === "night-guy-transform");
+  assert.equal(transformations.length, 1);
+  assert.equal(transformations[0].maxHp, 3500);
+  assert.equal(transformations[0].currentHp, 3500);
   const costs = result.events.filter((event) => event.type === "night-guy-cost");
   assert.ok(costs.length > 0);
-  assert.ok(costs.every((event) => event.amount === 150));
+  assert.ok(costs.every((event) => event.amount === 175));
   assert.ok(result.events.some((event) => event.attackerId === "might-guy" && event.burnStacksApplied > 0 && event.nightGuyBurnStacks > 0));
   assert.ok(result.events.some((event) => event.type === "trial-dot" && event.name === "灼烧" && event.damage > 0));
 });

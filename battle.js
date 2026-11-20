@@ -355,6 +355,8 @@ function applyTrialDamage(state, target, requested, kind = "attack", quinqueChec
   let nightGuyTriggered = false;
   if (target.nightGuyEligible && !target.nightGuyActive && target.currentHp < target.maxHp * .3) {
     target.nightGuyActive = true;
+    target.maxHp += 500;
+    target.hp = target.maxHp;
     target.currentHp = target.maxHp;
     target.atk += 500;
     target.def += 100;
@@ -491,8 +493,6 @@ export function isBattleOver(state) {
   const livingTeams = new Set(state.characters.filter((c) => c.alive && c.currentHp > 0).map((c) => c.team));
   if (!livingTeams.has("ally")) return "defeat";
   if (state.hiddenBoss) {
-    const hero = state.characters.find((unit) => unit.id === state.playerId && unit.team === "ally");
-    if (!hero?.alive || hero.currentHp <= 0) return "defeat";
     if (state.hiddenBoss.phase === 2) {
       return state.characters.find((unit) => unit.id === YORU.id)?.alive ? null : "victory";
     }

@@ -38,7 +38,7 @@ export const SHOP_RULES = Object.freeze({
     { id: "three_teachers_book", name: "必有我师", image: "assets/shop/skill-book.png", price: 40,
       description: "我方至少 3 名存活单位时，其他队友每次普通攻击使自己本场 ATK +5。",
       skillId: "three-teachers", skillType: "passive", characterIds: null },
-    { id: "mirror_flower_book", name: "镜花水月", image: "assets/shop/mirror-flower-effect.png", effectImage: "assets/shop/mirror-flower-effect.png", price: 30, description: "前后排站位交换；每次入场仅交换一次。", skillId: "mirror-flower", skillType: "passive", characterIds: null },
+    { id: "mirror_flower_book", name: "镜花水月", image: "assets/shop/skill-book.png", effectImage: "assets/shop/mirror-flower-effect.png", price: 30, description: "前后排站位交换；每次入场仅交换一次。", skillId: "mirror-flower", skillType: "passive", characterIds: null },
     { id: "byakugan_book", name: "白眼", image: "assets/shop/skill-book.png", price: 30, description: "普通攻击 10% 概率使目标沉默 1 回合。", skillId: "byakugan", skillType: "passive", characterIds: null },
     { id: "daily_progress_book", name: "天天向上", image: "assets/shop/skill-book.png", price: 40,
       description: "每次篝火选择技能升级时，持有者额外获得一次技能升级机会。",

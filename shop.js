@@ -1,5 +1,5 @@
 import { createSeededRandom } from "./routeMap.js";
-import { GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT, SKILL_DATA, TREASURE_DATA } from "./skills.js";
+import { GIANT_SPINAL_FLUID, GUN_DEVIL_FRAGMENT, TREASURE_DATA } from "./skills.js";
 import { applyPassiveBookStats, applyRockLeeWeight, grantAdventureSpecialReward, grantEliteSukunaFinger, grantGiantSpinalFluid, grantGunDevilFragment, grantQuinque, learnActiveSkill, previewGrowingDrop, upgradePassiveSkill } from "./progression.js";
 import { MAX_PARTY_MEMBERS, recruitPartyMember } from "./partyRecruitment.js";
 import { SHOP_RULES } from "./shopConfig.js";
@@ -58,6 +58,17 @@ function activeDiscount(campaign) {
 }
 
 export function refreshShopPrices(campaign) {
+  // Retire the removed skill book from shops already stored in an older save.
+  const slots = campaign?.activeShop?.slots ?? [];
+  const takenIds = new Set(slots.map((slot) => slot.itemId));
+  for (const slot of slots) {
+    if (slot.itemId !== "lonelier_than_fireworks_book") continue;
+    const replacement = SHOP_RULES.books.find((book) => !takenIds.has(book.id));
+    if (!replacement) continue;
+    takenIds.add(replacement.id);
+    Object.assign(slot, { itemId: replacement.id, name: replacement.name, image: replacement.image,
+      description: replacement.description, placeholderArt: false });
+  }
   for (const slot of campaign?.activeShop?.slots ?? []) {
     const category = SHOP_RULES.categories.find((entry) => entry.id === slot.categoryId)
       ?? (slot.categoryId === "growing" ? { id: "growing", price: 20 } : null);
@@ -106,12 +117,8 @@ export function previewShopItem(campaign, slot, recipientId = campaign?.playerId
   const count = member.permanentEffects?.filter((effect) => effect.id === slot.itemId).length ?? 0;
   const alreadyOwned = slot.categoryId === "medicine" && (campaign.shopMedicines ?? [])
     .some((effect) => effect.recipientId === recipientId && effect.id === slot.itemId && effect.battlesLeft > 0);
-  const upgradeBook = slot.itemId === "lonelier_than_fireworks_book";
-  const passive = SKILL_DATA[member.passiveSkillId];
-  const upgradeUnavailable = upgradeBook && (!passive?.passive || !passive.levels?.[2] ||
-    (passive.maxLevel ?? 1) < 2 || (member.passiveLevel ?? 1) !== 1);
   const growth = GROWING_SHOP_IDS.has(slot.itemId) ? previewGrowingDrop(member, slot.itemId, 1) : null;
-  return { ...slot, ownedCount: count, alreadyOwned, upgradeUnavailable,
+  return { ...slot, ownedCount: count, alreadyOwned,
     recipientIneligible: slot.itemId === "heavenly_restriction_book" && recipientId === "tang", recipientId,
     expectedGains: growth ? { atk: growth.atk, def: growth.def, maxHp: growth.maxHp } : null,
     fullDescription: growth ? `${item.description} 本次购买预计：${growth.description.replace(/^第 1 关/, "商店")}` : slot.description };

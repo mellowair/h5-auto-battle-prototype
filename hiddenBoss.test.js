@@ -35,6 +35,41 @@ test("Gun Devil bullets fly horizontally while the firing effect stays at ground
   assert.deepEqual(shot.ground, { x: 415, y: 411 });
 });
 
+test("Gun Devil can kill the hero while surviving teammates finish both hidden-boss phases", () => {
+  const result = simulateBattle([
+    { id: "hero", name: "主角", team: "ally", row: "front", hp: 100, atk: 1, def: 0, spd: 1, critChance: 0 },
+    { id: "partner-one", name: "伙伴一", team: "ally", row: "back", hp: 10000, atk: 100, def: 1000, spd: 10, critChance: 0 },
+    { id: "partner-two", name: "伙伴二", team: "ally", row: "back", hp: 50000, atk: 40000, def: 10000, spd: 200, critChance: 0 },
+    { ...GUN_DEVIL, critChance: 0 },
+  ], () => .99, { playerId: "hero" });
+  assert.ok(result.events.some((event) => event.attackerId === GUN_DEVIL.id &&
+    event.targetId === "hero" && event.targetDied));
+  assert.equal(result.events.filter((event) => event.type === "hidden-boss-phase").length, 1);
+  assert.equal(result.outcome, "victory");
+  assert.equal(result.finalCharacters.find((unit) => unit.id === "hero").currentHp, 0);
+  assert.ok(result.finalCharacters.find((unit) => unit.id === "partner-two").currentHp > 0);
+});
+
+test("a teammate's hidden-boss victory settles rewards and revives the fallen hero", () => {
+  const campaign = campaignAtMakima();
+  const partnerId = campaign.partyIds[1];
+  campaign.status = "combat";
+  campaign.combatLaunched = true;
+  campaign.currentBattle = { id: "hidden-boss-teammate-win", hiddenBoss: true };
+  campaign.partyStates[partnerId].currentHp = 1000;
+  const result = finishBattle(campaign, "victory", 0, [], [
+    { id: campaign.playerId, originalTeam: "ally", currentHp: 0 },
+    { id: partnerId, originalTeam: "ally", currentHp: 1000 },
+  ]);
+  assert.equal(result.next, "hidden_boss_win");
+  assert.equal(campaign.runCharacterState.currentHp,
+    Math.max(1, Math.floor(campaign.runCharacterState.maxHp * .05)));
+  assert.equal(campaign.playerHp, campaign.runCharacterState.currentHp);
+  assert.equal(campaign.partyStates[partnerId].currentHp, 1000);
+  assert.ok(campaign.lastBattleRecovery.some((entry) => entry.characterId === campaign.playerId && entry.kind === "revive"));
+  assert.equal(campaign.pendingApocalypseReward, true);
+});
+
 test("Makima completion leaves the fragment count unchanged", () => {
   const campaign = campaignAtMakima();
   campaign.partyStates[campaign.partyIds[1]].permanentEffects.push(

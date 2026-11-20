@@ -45,7 +45,7 @@ export const STAGE_FOUR_UNITS = Object.freeze([...grouped].map(([id, members]) =
 export const STAGE_FOUR_ENEMY_STATS = STATS;
 export const STAGE_FOUR_BOSS = Object.freeze({
   id: "darkness-devil", name: "暗之恶魔", type: "boss", team: "enemy", role: "第四关首领",
-  row: "back", position: "back", hp: 9999, atk: 999, def: 999, spd: 444,
+  row: "back", position: "back", hp: 9999, atk: 999, def: 555, spd: 444,
   attackType: "ranged", asset: "assets/stage4-darkness/idle.png", activeSkills: ["darkness-sever"],
   attackAnimation: "idle", skillAnimationMap: { "darkness-sever": "severCharge" },
   animations: {

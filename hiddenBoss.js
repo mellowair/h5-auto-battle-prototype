@@ -35,7 +35,7 @@ export const GUN_DEVIL = Object.freeze({
 
 export const YORU = Object.freeze({
   id: "yoru", name: "战争恶魔·夜", type: "boss", team: "enemy", role: "隐藏首领",
-  row: "back", position: "back", hp: 6500, atk: 1444, def: 280, spd: 250,
+  row: "back", position: "back", hp: 5500, atk: 1444, def: 230, spd: 250,
   attackType: "ranged", asset: asset("yoru-idle"), visualId: "yoru",
   activeSkills: ["yoru-gun-summon"], attackAnimation: "pointUp",
   skillAnimationMap: { "yoru-gun-summon": "pointAtTarget" },

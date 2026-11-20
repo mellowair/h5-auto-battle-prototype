@@ -1250,8 +1250,8 @@ function renderAllyStatusIcons() {
         name: `${unit.name} · ${SKILL_DATA[id].name}${id === "apocalypse-knight" ? ` Lv.${unit.apocalypseKnightLevel ?? 1}` : id === "three-teachers" ? `：ATK +${unit.teacherAttackGained ?? 0}` : ""}`, image: "assets/shop/skill-book.png", tone: "buff",
         description: id === "three-teachers" ? `${SKILL_DATA[id].description} 本场累计 ATK +${unit.teacherAttackGained ?? 0}。` : SKILL_DATA[id].description });
     if (unit.id === "might-guy") statuses.push({ id: "might-guy-state", name: unit.nightGuyActive ? "夜凯模式" : "苍蓝野兽",
-      image: unit.asset, tone: "buff", description: unit.nightGuyActive
-        ? `已开启八门遁甲：ATK +500、DEF +100；每次攻击自损 5% 最大 HP 并附加灼烧。当前 SPD ${unit.spd}，超过敌方最高 SPD 的三倍后每回合行动三次。`
+      image: unit.nightGuyActive ? unit.animations?.nightPassive?.frames?.cast : unit.asset, tone: "buff", description: unit.nightGuyActive
+        ? `已开启八门遁甲：最大 HP +500、ATK +500、DEF +100；每次攻击自损 5% 最大 HP 并附加灼烧。当前 SPD ${unit.spd}，超过敌方最高 SPD 的三倍后每回合行动三次。`
         : `每回合 SPD +100，最高 800；达到 800 后攻击无视目标 50% DEF。` });
     if (unit.heavenlyDamageReduction) statuses.push({ id: `heavenly-fortitude-${unit.id}`,
       name: `${unit.name} · 四拳减伤`, image: "assets/shop/heavenly-restriction-effect.png", tone: "buff",
@@ -1802,7 +1802,7 @@ function clearEffects() {
   clearBorosVisuals();
   lastBorosVisualCastId = null;
   lastGilgameshVisualCastId = null;
-  document.querySelectorAll(".colossal-battle-smoke, .gilgamesh-visual, .trial-projectile, .shin-hammer-projectile, .eren-warhammer-strike, .evolution-entrance, .clone-protect-effect, .summon-portal, .arima-weakpoint, .cannot-act-effect, .skill-book-opening, .gojo-domain-cinematic, .gojo-execution-overlay, .gojo-skill-effect, .darkness-entrance, .darkness-sever-overlay, .apocalypse-sword, .gravity-circle, .gravity-dish, .hidden-yoru-entrance, .hidden-spinal-sword, .hidden-boss-projectile, .hidden-boss-ground-effect, .hidden-yoru-summoned-gun, .hidden-yoru-tank, .aging-choice-overlay, .aging-projectile, .aging-absorbed, .aging-passive-effect").forEach((node) => node.remove());
+  document.querySelectorAll(".colossal-battle-smoke, .gilgamesh-visual, .trial-projectile, .shin-hammer-projectile, .eren-warhammer-strike, .evolution-entrance, .clone-protect-effect, .summon-portal, .arima-weakpoint, .cannot-act-effect, .skill-book-opening, .gojo-domain-cinematic, .gojo-execution-overlay, .gojo-skill-effect, .darkness-entrance, .darkness-sever-overlay, .apocalypse-sword, .gravity-circle, .gravity-dish, .hidden-yoru-entrance, .hidden-spinal-sword, .hidden-boss-projectile, .hidden-boss-ground-effect, .hidden-yoru-summoned-gun, .hidden-yoru-tank, .aging-choice-overlay, .aging-projectile, .aging-absorbed, .aging-passive-effect, .hakari-passive-effect, .hakari-coin-rain, .hakari-dice-roll").forEach((node) => node.remove());
   document.querySelectorAll(".fighter.is-yoru-countering").forEach((node) => node.classList.remove("is-yoru-countering"));
   clearAllSpriteFrameCycles();
   timer = null;
@@ -2275,6 +2275,46 @@ function showGojoExecutionCloseup(finish) {
   return true;
 }
 
+function showHakariRollEffect(actor, roll, rain = true) {
+  const fighter = document.querySelector('[data-character="hakari"]');
+  const visual = fighter?.querySelector(".sprite-visual");
+  visual?.querySelector(".hakari-passive-effect")?.remove();
+  const passiveAsset = actor.passiveEffectAssets?.[roll];
+  if (visual && passiveAsset) {
+    const effect = document.createElement("img");
+    effect.className = "hakari-passive-effect";
+    effect.src = passiveAsset;
+    effect.alt = "";
+    effect.setAttribute("aria-hidden", "true");
+    visual.prepend(effect);
+  }
+  const arena = document.querySelector("#battle-screen .arena");
+  arena?.querySelector(".hakari-coin-rain")?.remove();
+  if (!rain || roll < 5 || !actor.coinEffectAsset || !arena) return;
+  const layer = document.createElement("div");
+  layer.className = "hakari-coin-rain";
+  layer.setAttribute("aria-hidden", "true");
+  const count = arena.clientWidth < 500 ? 12 : 18;
+  for (let i = 0; i < count; i += 1) {
+    const late = i >= Math.ceil(count * .72);
+    const coin = document.createElement("img");
+    coin.className = "hakari-falling-coins";
+    coin.src = actor.coinEffectAsset;
+    coin.alt = "";
+    coin.style.left = `${Math.round(Math.random() * 94)}%`;
+    coin.style.width = `${Math.round((arena.clientWidth < 500 ? 80 : 110) + Math.random() * (arena.clientWidth < 500 ? 45 : 65))}px`;
+    coin.style.setProperty("--coin-delay", `${Math.round((late ? 550 : 0) + Math.random() * (late ? 300 : 320))}ms`);
+    coin.style.setProperty("--coin-duration", `${Math.round((late ? 700 : 1000) + Math.random() * 180)}ms`);
+    coin.style.setProperty("--coin-drift", `${Math.round((Math.random() - .5) * 80)}px`);
+    coin.style.setProperty("--coin-distance", `${arena.clientHeight + 100}px`);
+    coin.style.setProperty("--coin-start-angle", `${Math.round((Math.random() - .5) * 50)}deg`);
+    coin.style.setProperty("--coin-end-angle", `${Math.round((Math.random() - .5) * 240)}deg`);
+    layer.append(coin);
+  }
+  layer.addEventListener("animationend", (event) => { if (event.target === layer) layer.remove(); });
+  arena.append(layer);
+}
+
 function playEvent(event, finish) {
   if (Number.isFinite(event.round) && event.round !== battleStatusState.currentRound) {
     battleStatusState.currentRound = event.round;
@@ -2295,8 +2335,17 @@ function playEvent(event, finish) {
   if (event.type === "silver-bottle") return playSilverBottle(event, finish);
   if (["hakari-roll", "hakari-heal"].includes(event.type)) {
     const actor = viewState.characters.find((unit) => unit.id === "hakari");
-    if (actor) {
-      if (event.type === "hakari-roll") {
+    if (event.type === "hakari-roll" && actor) {
+      const arena = document.querySelector("#battle-screen .arena");
+      const dice = document.createElement("div");
+      dice.className = "hakari-dice-roll";
+      dice.setAttribute("aria-hidden", "true");
+      dice.innerHTML = '<img src="assets/events/slot-dice.svg" alt=""><span></span>';
+      arena?.append(dice);
+      addLog("<b>秤金次</b>发动坐杀搏徒，正在掷骰……", "log-enemy");
+      timer = window.setTimeout(() => {
+        dice.classList.add("is-result");
+        dice.querySelector("span").textContent = String(event.roll);
         actor.hakariDiceRoll = event.roll;
         actor.hakariDiceReduction = event.damageReduction;
         actor.hakariDiceAttackBonus = event.attackBonus;
@@ -2305,8 +2354,15 @@ function playEvent(event, finish) {
         actor.bleedStacks = 0; actor.burnStacks = 0; actor.poisonStacks = 0;
         actor.gunDevilBleedStacks = 0; actor.nightGuyBurnStacks = 0;
         $("#battle-screen").classList.toggle("hakari-jackpot", event.jackpot);
+        showHakariRollEffect(actor, event.roll);
         addLog(`<b>秤金次</b>掷出 ${event.roll} 点：${event.jackpot ? "大奖！！！无敌状态（75% 减伤）" : "坐杀搏徒更新"}。`, "log-enemy");
-      } else { actor.currentHp = event.hpAfter; updateHealth(actor);
+        renderAllyStatusIcons();
+        timer = window.setTimeout(() => { dice.remove(); finish(); }, event.roll >= 5 ? 1850 : 650);
+      }, 1050);
+      return;
+    }
+    if (actor) {
+      if (event.type === "hakari-heal") { actor.currentHp = event.hpAfter; updateHealth(actor);
         if (event.amount) addLog(`<b>秤金次</b>回复 ${event.amount} HP。`, "log-enemy"); }
       renderAllyStatusIcons();
     }
@@ -2426,7 +2482,8 @@ function playEvent(event, finish) {
     addLog(`<b>${unit?.name ?? "角色"}</b> 的速度提升至 ${event.spd}。`, "log-skill");
     if (event.type === "might-guy-speed" && unit) {
       const fighter = document.querySelector(`[data-character="${unit.id}"]`);
-      if (fighter && showFighterFrame(fighter, unit, "speedBoost", "cast")) {
+      const speedPose = unit.nightGuyActive ? "nightPassive" : "speedBoost";
+      if (fighter && showFighterFrame(fighter, unit, speedPose, "cast")) {
         timer = window.setTimeout(() => {
           clearSpriteFrame(fighter);
           if (unit.alive) startIdleCycle(fighter, unit);
@@ -4170,6 +4227,7 @@ function playEvent(event, finish) {
     gojoSkillEffect.alt = "";
     gojoSkillEffect.setAttribute("aria-hidden", "true");
     if (domainActive) {
+      gojoSkillEffect.style.setProperty("--gojo-impact-ms", `${scaled(650)}ms`);
       gojoSkillEffect.style.left = `${targetBox.left - bounds.left + targetBox.width / 2}px`;
       gojoSkillEffect.style.top = `${targetBox.top - bounds.top + targetBox.height * .55}px`;
     } else {
@@ -4654,8 +4712,12 @@ function playNext(token) {
   }
   const event = playback.events[playback.index++];
   playEvent(event, () => {
+    const gojo = viewState?.characters?.find((unit) => unit.id === "gojo");
+    const domainActive = gojo?.gojoDomainUntilRound > 0 &&
+      gojo.gojoDomainUntilRound >= (event.round ?? Infinity);
     if (token === generation && event.attackerId === "gojo" && event.targetDied &&
-        event.type !== "gojo-domain-execute" && showGojoExecutionCloseup(() => playNext(token))) return;
+        event.type !== "gojo-domain-execute" && domainActive &&
+        showGojoExecutionCloseup(() => playNext(token))) return;
     playNext(token);
   });
 }
@@ -4883,6 +4945,8 @@ function beginBattle() {
   selectedStatusId = null;
   renderSquad();
   buildHealthRows(viewState.characters);
+  const hakari = viewState.characters.find((unit) => unit.id === "hakari");
+  if (hakari?.hakariDiceRoll) showHakariRollEffect(hakari, hakari.hakariDiceRoll, false);
   for (const summon of initialMakimaSummons)
     document.querySelector(`[data-character="${summon.id}"]`)?.classList.add("is-portal-pending");
   renderAllyStatusIcons();
@@ -5046,8 +5110,8 @@ function beginBattle() {
       : actor.id === "shin" ? [actor.animations?.meleeAttack?.frames?.punch,
         actor.animations?.hammerThrow?.frames?.charge, actor.animations?.hammerThrow?.frames?.throw, actor.projectileAsset]
       : actor.id === "noi" ? [actor.animations?.meleeAttack?.frames?.punch, actor.animations?.heal?.frames?.cast]
-      : actor.id === "hakari" ? Object.values(actor.animations ?? {}).flatMap((animation) =>
-        Object.values(animation.frames ?? {}))
+      : actor.id === "hakari" ? [...Object.values(actor.animations ?? {}).flatMap((animation) =>
+        Object.values(animation.frames ?? {})), ...Object.values(actor.passiveEffectAssets ?? {}), actor.coinEffectAsset]
       : actor.id === "might-guy" ? [actor.animations?.nightPassive?.frames?.cast,
         SKILL_DATA["eight-gates"].battleEffectAsset]
       : actor.id === "falling-devil" ? [actor.animations?.magicAttack?.frames?.attack,
@@ -5640,6 +5704,13 @@ function renderEnding() {
   $("#ending-copy").textContent = won
     ? (campaign.stageId === 4 ? "你击败了暗之恶魔，完成了第四大关。" : campaign.hiddenBoss?.resolved ? "你击败了枪之恶魔与战争恶魔·夜，获得 20 点精华。" : campaign.stageId === 3 ? "你击败了玛奇玛，完成了第三大关。" : campaign.stageId === 2 ? "你击败了波罗斯，完成了第二大关。" : "你战胜了遗迹首领，完成了第一大关。")
     : (partyPresentation(campaign.playerId)?.name ?? "角色") + "倒下了，旅程止步于第 " + campaign.step + " 步。";
+  if (won && campaign.devBattleOnly && campaign.hiddenBoss?.resolved) {
+    const learnerId = campaign.partyIds.concat(campaign.reservePartyIds ?? []).find((id) =>
+      campaign.partyStates?.[id]?.extraPassiveSkillIds?.includes("apocalypse-knight"));
+    const learner = learnerId ? partyPresentation(learnerId)?.name ?? learnerId : "未领取";
+    const gunJoined = campaign.partyIds.includes("gun-devil-ally");
+    $("#ending-copy").textContent += ` 测试结算：天启骑士 Lv1 → ${learner}；枪之恶魔${gunJoined ? "已入队" : "未入队"}；当前小队：${campaign.partyIds.map((id) => partyPresentation(id)?.name ?? id).join("、")}。`;
+  }
   $("#ending-count").textContent = "路线已走 " + campaign.history.length + " 步 · 完成战斗 " + campaign.completedBattles + " · 最终生命 " + campaign.playerHp + " / " + campaign.playerMaxHp;
   if (localStageTwoTest && campaign.devBattleOnly) {
     let returnLink = $("#dev-battle-return");
@@ -5647,10 +5718,10 @@ function renderEnding() {
       returnLink = document.createElement("a");
       returnLink.id = "dev-battle-return";
       returnLink.className = "primary-button";
-      returnLink.href = "dev/stage2.html";
       returnLink.textContent = "返回本地测试入口";
       $("#ending-screen").append(returnLink);
     }
+    returnLink.href = campaign.stageId >= 3 ? "dev/stage3.html" : "dev/stage2.html";
     returnLink.hidden = false;
   }
   setScreen("ending-screen");

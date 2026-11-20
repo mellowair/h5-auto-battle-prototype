@@ -117,7 +117,8 @@ function slotFixture(rolls, essence = 40) {
 test("slot machine appears from stage three, ties reroll without another stake, win doubles total", () => {
   const hakari = EVENT_ENEMY_DATA.hakari;
   assert.ok([hakari.asset, ...Object.values(hakari.animations).flatMap((animation) =>
-    Object.values(animation.frames))].every((path) => existsSync(new URL(path, import.meta.url))));
+    Object.values(animation.frames)), ...Object.values(hakari.passiveEffectAssets), hakari.coinEffectAsset]
+    .every((path) => existsSync(new URL(path, import.meta.url))));
   const campaign = slotFixture([.1, .5, .1, .99]); // 4–4 tie, then 4–6 win.
   assert.ok(!getAvailableAdventureEventIds(campaign.runCharacterState, 1, [campaign.runCharacterState], 2).includes("slot_machine"));
   assert.ok(getAvailableAdventureEventIds(campaign.runCharacterState, 1, [campaign.runCharacterState], 3).includes("slot_machine"));
@@ -163,6 +164,18 @@ test("Hakari rolls every four rounds, jackpot is 75 percent reduction and heals 
   assert.ok(rolls.every((event) => event.atk === 40));
 });
 
+test("Hakari's six dice faces apply the correct independent passive tier", () => {
+  for (let roll = 1; roll <= 6; roll += 1) {
+    const result = simulateBattle([
+      { id: "hero", team: "ally", row: "front", hp: 1000, atk: 10000, def: 0, spd: 1, critChance: 0 },
+      { ...EVENT_ENEMY_DATA.hakari, hp: 100, atk: 10, def: 0, spd: 10, critChance: 0 },
+    ], () => (roll - .5) / 6, { playerId: "hero" });
+    const event = result.events.find((entry) => entry.type === "hakari-roll");
+    assert.deepEqual([event.round, event.roll, event.attackBonus, event.damageReduction, event.jackpot],
+      [1, roll, [0, 0, 10, 10, 15, 30][roll - 1], roll === 6 ? .75 : .25, roll === 6]);
+  }
+});
+
 test("hidden challenge failure restores HP and returns to route", () => {
   const campaign = campaignFixture();
   campaign.status = "combat";
@@ -206,7 +219,7 @@ test("Arima and Yoru failures each consume only their own hidden challenge", () 
 
 test("Darkness Devil new panel and vanishing heal use 25 percent of missing HP", () => {
   assert.deepEqual([STAGE_FOUR_BOSS.hp, STAGE_FOUR_BOSS.atk, STAGE_FOUR_BOSS.def, STAGE_FOUR_BOSS.spd],
-    [9999, 999, 999, 444]);
+    [9999, 999, 555, 444]);
   const skill = { ...SKILL_DATA["darkness-sever"], ...SKILL_DATA["darkness-sever"].levels[1], level: 1 };
   const result = simulateBattle([
     { id: "hero", team: "ally", row: "front", hp: 90000, atk: 25000, def: 900, spd: 10, critChance: 0 },

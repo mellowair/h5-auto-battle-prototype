@@ -278,6 +278,22 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .fighter.is-steam-casting .sprite-wrap { animation: steam-fall var(--steam-duration, 650ms) steps(5,end) both; transform-origin: center bottom; }
 @keyframes steam-fall { 0%,100% { transform: rotate(0); } 45%,75% { transform: translateX(-12px) rotate(-18deg); } }
 .sprite-visual { position: absolute; z-index: 2; bottom: 5px; left: 50%; margin-left: calc(var(--visual-frame-width, 84px) * -.5); display: grid; place-items: end center; width: var(--visual-frame-width, 84px); height: var(--visual-frame-height, 98px); scale: var(--visual-scale, 1); translate: calc(var(--visual-offset-x, 0px) + var(--visual-action-offset-x, 0px)) calc(0px - var(--visual-offset-y, 0px) - var(--visual-stage-foot-offset-y, 0px) - var(--visual-action-offset-y, 0px)); transform-origin: center bottom; }
+.hakari-passive-effect { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; object-fit: contain; object-position: center bottom; image-rendering: pixelated; pointer-events: none; animation: hakari-passive-glow 550ms ease-out both; }
+.fighter.is-dead .hakari-passive-effect { display: none; }
+@keyframes hakari-passive-glow { from { opacity: 0; scale: .86; } to { opacity: 1; scale: 1; } }
+.hakari-dice-roll { position: absolute; z-index: 8; top: 16%; left: 50%; width: 72px; height: 72px; transform: translateX(-50%); pointer-events: none; filter: drop-shadow(0 4px 7px rgba(24,13,32,.7)); }
+.hakari-dice-roll img { display: block; width: 100%; height: 100%; image-rendering: pixelated; animation: hakari-dice-shake 1050ms steps(9,end) both; }
+.hakari-dice-roll span { display: none; width: 100%; height: 100%; place-items: center; color: #462536; background: #fff0b2; border: 5px solid #9b3353; border-radius: 10px; box-shadow: inset 0 0 0 3px #f8cf78; font-size: 38px; font-weight: 1000; line-height: 1; }
+.hakari-dice-roll.is-result img { display: none; }
+.hakari-dice-roll.is-result span { display: grid; animation: hakari-dice-reveal 320ms steps(3,end) both; }
+@keyframes hakari-dice-shake { 0% { transform: translate(-8px,0) rotate(-18deg); } 20% { transform: translate(12px,-16px) rotate(95deg); } 40% { transform: translate(-13px,-8px) rotate(185deg); } 60% { transform: translate(12px,-21px) rotate(285deg); } 80% { transform: translate(-6px,-7px) rotate(380deg); } 100% { transform: translate(0,0) rotate(540deg); } }
+@keyframes hakari-dice-reveal { from { opacity: 0; scale: 1.35; } to { opacity: 1; scale: 1; } }
+.hakari-coin-rain { position: absolute; z-index: 1; inset: 0; overflow: hidden; pointer-events: none; animation: hakari-coin-rain-fade 1850ms linear both; }
+.hakari-coin-rain::before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 50% 34%, rgba(255,228,109,.5), transparent 60%); animation: hakari-coin-flash 1850ms ease-out both; }
+.hakari-falling-coins { position: absolute; top: 0; height: auto; max-width: none; image-rendering: pixelated; filter: drop-shadow(0 0 5px rgba(255,218,74,.75)); animation: hakari-coin-fall var(--coin-duration) var(--coin-delay) ease-in both; }
+@keyframes hakari-coin-rain-fade { 0%, 85% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes hakari-coin-flash { 0% { opacity: 0; } 14% { opacity: 1; } 55%, 100% { opacity: 0; } }
+@keyframes hakari-coin-fall { 0% { translate: 0 -120px; rotate: var(--coin-start-angle); opacity: 0; } 8% { opacity: 1; } 76% { translate: var(--coin-drift) var(--coin-distance); rotate: var(--coin-end-angle); opacity: 1; } 85% { translate: var(--coin-drift) calc(var(--coin-distance) - 16px); opacity: 1; } 100% { translate: var(--coin-drift) var(--coin-distance); rotate: var(--coin-end-angle); opacity: 0; } }
 .cannot-act-effect { position: absolute; z-index: 15; left: 50%; bottom: 6%; width: 145%; height: 115%; max-width: none; object-fit: contain; transform: translateX(-50%); pointer-events: none; image-rendering: pixelated; animation: cannot-act-pulse 1.2s ease-in-out infinite alternate; }
 .gamble-coin { display: block; width: 104px; height: 104px; margin: 28px auto; image-rendering: pixelated; filter: drop-shadow(0 8px 0 #4b321a); }
 .gamble-coin.is-flipping { animation: gamble-coin-toss 1.35s ease-in-out both; }
@@ -378,7 +394,7 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .gojo-skill-effect { position: absolute; z-index: 18; height: clamp(54px, 18%, 92px); object-fit: fill; image-rendering: pixelated; pointer-events: none; translate: 0 -50%; }
 .gojo-skill-effect.toward-right { animation: gojo-beam-right .65s steps(9, end) both; }
 .gojo-skill-effect.toward-left { transform: scaleX(-1); animation: gojo-beam-left .65s steps(9, end) both; }
-.gojo-skill-effect.gojo-domain-impact { width: clamp(140px, 28vw, 240px); height: auto; max-height: 48%; object-fit: contain; translate: -50% -50%; animation: gojo-domain-impact .65s steps(8, end) both; }
+.gojo-skill-effect.gojo-domain-impact { width: clamp(140px, 28vw, 240px); height: auto; max-height: 48%; object-fit: contain; translate: -50% -50%; animation: gojo-domain-impact var(--gojo-impact-ms, 650ms) steps(8, end) both; }
 @keyframes gojo-domain-impact { 0% { opacity: 0; scale: .35; } 24%, 70% { opacity: 1; scale: 1; } 100% { opacity: 0; scale: 1.12; } }
 @keyframes gojo-beam-right { 0% { opacity: 0; clip-path: inset(0 100% 0 0); } 18%, 76% { opacity: 1; } 65% { clip-path: inset(0 0 0 0); } 100% { opacity: 0; clip-path: inset(0 0 0 0); } }
 @keyframes gojo-beam-left { 0% { opacity: 0; clip-path: inset(0 100% 0 0); } 18%, 76% { opacity: 1; } 65% { clip-path: inset(0 0 0 0); } 100% { opacity: 0; clip-path: inset(0 0 0 0); } }

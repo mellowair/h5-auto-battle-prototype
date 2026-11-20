@@ -62,7 +62,7 @@ test("stage four groups duo encounters and isolates its panel overrides", () => 
   assert.equal(encounter.enemyBaseStats["gold-king"].hp, 3700);
   assert.equal(encounter.enemyBaseStats["silver-king"].hp, 3300);
   assert.equal(ELITE_ENEMY_DATA.find((unit) => unit.id === "gold-king").hp, 2700);
-  assert.deepEqual([STAGE_FOUR_BOSS.hp, STAGE_FOUR_BOSS.atk, STAGE_FOUR_BOSS.def, STAGE_FOUR_BOSS.spd], [9999, 999, 999, 444]);
+  assert.deepEqual([STAGE_FOUR_BOSS.hp, STAGE_FOUR_BOSS.atk, STAGE_FOUR_BOSS.def, STAGE_FOUR_BOSS.spd], [9999, 999, 555, 444]);
   assert.equal(encounter.enemyBaseStats["gold-king"].def, 210);
   assert.equal(encounter.enemyBaseStats["silver-king"].def, 180);
   assert.ok(existsSync(new URL("./assets/stage4-background.png", import.meta.url)));
@@ -174,7 +174,7 @@ test("Gojo expands his domain after the third skill at any level, after its atta
   assert.equal(RECRUIT_CHARACTERS.find((unit) => unit.id === "gojo").row, "back");
 });
 
-test("Gojo's ordinary and active-skill kills carry the same death signal as domain execution", () => {
+test("Gojo's ordinary and active-skill kills before domain are not executions", () => {
   const gojo = RECRUIT_CHARACTERS.find((unit) => unit.id === "gojo");
   const skill = { ...SKILL_DATA["gojo-hollow"], ...SKILL_DATA["gojo-hollow"].levels[1], level: 1, chance: 1 };
   for (const skills of [[], [skill]]) {
@@ -185,6 +185,7 @@ test("Gojo's ordinary and active-skill kills carry the same death signal as doma
     const kill = result.events.find((event) => event.type === "attack" && event.attackerId === "gojo" && event.targetDied);
     assert.ok(kill);
     assert.equal(kill.skilled, skills.length > 0);
+    assert.ok(!result.events.some((event) => event.type === "gojo-domain" || event.type === "gojo-domain-execute"));
   }
 });
 
@@ -216,7 +217,7 @@ test("Darkness Devil uses five full rounds per phase and vanishing replaces its 
   assert.equal(STAGE_FOUR_BOSS.attackType, "ranged");
   assert.equal(skill.attackType, "ranged");
   const result = simulateBattle([
-    { id: "hero", team: "ally", row: "front", hp: 50000, atk: 25000, def: 1000, spd: 10,
+    { id: "hero", team: "ally", row: "front", hp: 50000, atk: 12000, def: 1000, spd: 10,
       critChance: 0, unavoidableAttack: true },
     { ...STAGE_FOUR_BOSS, skills: [skill], skill, critChance: 0 },
   ], () => .99);

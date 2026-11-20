@@ -846,6 +846,17 @@ function applyAngelBreathBattleRecovery(campaign) {
   }
 }
 
+function reviveFallenPartyAfterVictory(campaign) {
+  if (campaign.stageId < 2 || campaign.partyIds.length < 2) return;
+  for (const id of campaign.partyIds) {
+    const state = campaign.partyStates[id];
+    if (state?.currentHp !== 0 || hasStoneMask(state)) continue;
+    state.currentHp = Math.max(1, Math.floor(state.maxHp * .05));
+    campaign.lastBattleRecovery.push({ characterId: id, kind: "revive",
+      restored: state.currentHp, currentHp: state.currentHp });
+  }
+}
+
 export function finishBattle(campaign, outcome, playerHp, battleEvents = [], finalCharacters = null) {
   if (!campaign || campaign.status !== "combat" || !campaign.combatLaunched) return false;
   campaign.combatLaunched = false;
@@ -996,6 +1007,7 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
     return { status: "settlement", next: "guy_win" };
   }
   if (campaign.currentBattle?.hiddenBoss) {
+    reviveFallenPartyAfterVictory(campaign);
     applyVictoryTreasureGrowth(campaign);
     applyAngelBreathBattleRecovery(campaign);
     campaign.hiddenBoss ??= { unlocked: true, storyShown: true, resolved: false, makimaCleared: false };
@@ -1020,13 +1032,7 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
   }
   // Victory is already fixed by the precomputed battle outcome. Rejoin fallen
   // allies first, then apply treasure healing; neither can rescue a lost fight.
-  if (campaign.stageId >= 2 && campaign.partyIds.length > 1) for (const id of campaign.partyIds) {
-    const state = campaign.partyStates[id];
-    if (state?.currentHp === 0 && !hasStoneMask(state)) {
-      state.currentHp = Math.max(1, Math.floor(state.maxHp * .05));
-      campaign.lastBattleRecovery.push({ characterId: id, kind: "revive", restored: state.currentHp, currentHp: state.currentHp });
-    }
-  }
+  reviveFallenPartyAfterVictory(campaign);
   applyAngelBreathBattleRecovery(campaign);
   campaign.playerHp = campaign.runCharacterState.currentHp;
   applyVictoryTreasureGrowth(campaign);
@@ -1116,6 +1122,12 @@ export function completeSettlement(campaign) {
   if (next === "hidden_boss_win") {
     campaign.hiddenBoss.resolved = true;
     const sourceId = campaign.currentBattle?.id ?? "hidden-boss";
+    if (campaign.partyIds.includes("gun-devil-ally")) {
+      campaign.currentBattle = null;
+      campaign.status = campaign.devBattleOnly ? "victory" : "route";
+      if (campaign.status === "route") generateRouteOptions(campaign);
+      return campaign.status;
+    }
     if (campaign.partyIds.length >= MAX_PARTY_MEMBERS) {
       campaign.pendingRecruitment = { characterId: "gun-devil-ally", sourceId };
       campaign.currentBattle = null;

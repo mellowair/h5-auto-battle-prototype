@@ -28,7 +28,7 @@ test("Makima and follower panels use the updated base DEF in both summon waves",
   };
   for (const [id, stats] of Object.entries(expected))
     assert.deepEqual([STAGE_THREE_MINIONS[id].hp, STAGE_THREE_MINIONS[id].def], stats);
-  assert.equal(STAGE_THREE_BOSS_DATA.hp, 3700);
+  assert.equal(STAGE_THREE_BOSS_DATA.hp, 3200);
   assert.equal(STAGE_THREE_BOSS_DATA.atk, 150);
   assert.equal(STAGE_THREE_BOSS_DATA.def, 160);
   assert.deepEqual([elite("shin").hp, elite("shin").atk, elite("shin").def, elite("shin").row], [2500, 700, 160, "front"]);
