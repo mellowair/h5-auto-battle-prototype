@@ -28,7 +28,7 @@ test("new stage-three elites use their documented panels, shared encounter and f
   assert.ok(existsSync(new URL(aging.animations.agingPassive.frames.cast, import.meta.url)));
   assert.ok(existsSync(new URL(aging.passiveEffectAsset, import.meta.url)));
   assert.equal(eliteDropId({ currentBattle: { type: "elite", enemies: [gold.id, silver.id] }, stageId: 3 }), "sukuna_finger");
-  assert.equal(eliteDropId({ currentBattle: { type: "elite", enemies: ["kira"] }, stageId: 2 }), null);
+  assert.equal(eliteDropId({ currentBattle: { type: "elite", enemies: ["kira"] }, stageId: 2 }), "sukuna_finger");
   assert.equal(eliteDropId({ currentBattle: { type: "elite", enemies: [aging.id] }, stageId: 3 }), "gun_devil_fragment");
 });
 

@@ -1,6 +1,6 @@
 import { ANIMATION_TIMING, CHARACTER_DATA, COMBAT_RULES, PLAYABLE_CHARACTERS, STAGE_TWO_NORMAL_PASSIVES, STAGE_THREE_NORMAL_PASSIVES, STARTING_CHARACTERS } from "./characters.js";
 import { beginHiddenBossChallenge, deferHiddenBossChallenge, queueHiddenBossIntro, resumeHiddenBossAtCampfire,
-  beginArimaCampfireChallenge, canChallengeArimaAtCampfire } from "./campaign.js";
+  beginArimaCampfireChallenge, canChallengeArimaAtCampfire, ownedTreasureCount } from "./campaign.js";
 import { beginStageFour, finishPartyReplacement, resolveSlotMachineChoice } from "./campaign.js";
 import { MAX_PARTY_MEMBERS, migrateLegacyParty } from "./partyRecruitment.js";
 import { HIDDEN_BOSS_RULES, GUN_DEVIL, hiddenBossShotLayout, SPINAL_SWORD_BY_PARTNER, YORU } from "./hiddenBoss.js";
@@ -1245,13 +1245,13 @@ function renderAllyStatusIcons() {
         image: "assets/shop/skill-book.png", tone: "buff",
         description: SKILL_DATA["iron-bell"].description });
     }
-    for (const id of ["armament-haki", "heavenly-restriction-book", "undying-subspecies", "brick-force", "three-teachers", "daily-progress", "apocalypse-knight", "eight-gates", "mirror-flower", "byakugan"])
+    for (const id of ["armament-haki", "heavenly-restriction-book", "undying-subspecies", "brick-force", "three-teachers", "daily-progress", "apocalypse-knight", "eight-gates", "mirror-flower", "byakugan", "hakari-book"])
       if (unit.extraPassiveSkillIds?.includes(id)) statuses.push({ id: `${id}-${unit.id}`,
-        name: `${unit.name} · ${SKILL_DATA[id].name}${id === "apocalypse-knight" ? ` Lv.${unit.apocalypseKnightLevel ?? 1}` : id === "three-teachers" ? `：ATK +${unit.teacherAttackGained ?? 0}` : ""}`, image: "assets/shop/skill-book.png", tone: "buff",
-        description: id === "three-teachers" ? `${SKILL_DATA[id].description} 本场累计 ATK +${unit.teacherAttackGained ?? 0}。` : SKILL_DATA[id].description });
+        name: `${unit.name} · ${SKILL_DATA[id].name}${id === "apocalypse-knight" ? ` Lv.${unit.apocalypseKnightLevel ?? 1}` : id === "three-teachers" ? `：ATK +${unit.teacherAttackGained ?? 0}` : id === "hakari-book" && unit.hakariBookRoll ? ` · ${unit.hakariBookRoll} 点` : ""}`, image: "assets/shop/skill-book.png", tone: "buff",
+        description: id === "three-teachers" ? `${SKILL_DATA[id].description} 本场累计 ATK +${unit.teacherAttackGained ?? 0}。` : id === "hakari-book" && unit.hakariBookRoll ? `${SKILL_DATA[id].description} 本场掷出 ${unit.hakariBookRoll} 点。` : SKILL_DATA[id].description });
     if (unit.id === "might-guy") statuses.push({ id: "might-guy-state", name: unit.nightGuyActive ? "夜凯模式" : "苍蓝野兽",
       image: unit.nightGuyActive ? unit.animations?.nightPassive?.frames?.cast : unit.asset, tone: "buff", description: unit.nightGuyActive
-        ? `已开启八门遁甲：最大 HP +500、ATK +500、DEF +100；每次攻击自损 5% 最大 HP 并附加灼烧。当前 SPD ${unit.spd}，超过敌方最高 SPD 的三倍后每回合行动三次。`
+        ? `已开启八门遁甲：最大 HP +500、ATK +500、DEF +100；每次攻击自损 1% 最大 HP 并附加灼烧。当前 SPD ${unit.spd}，超过敌方最高 SPD 的三倍后每回合行动三次。`
         : `每回合 SPD +100，最高 800；达到 800 后攻击无视目标 50% DEF。` });
     if (unit.heavenlyDamageReduction) statuses.push({ id: `heavenly-fortitude-${unit.id}`,
       name: `${unit.name} · 四拳减伤`, image: "assets/shop/heavenly-restriction-effect.png", tone: "buff",
@@ -1355,7 +1355,7 @@ function renderAllyStatusIcons() {
       description: "暗之恶魔保持虚化姿势；普通攻击与技能闪避率均增加 40 个百分点，直到下一次攻击。" });
     if (unit.id === "hakari" && unit.hakariDiceRoll) statuses.push({ id: "hakari-gamble", name: `坐杀搏徒 · ${unit.hakariDiceRoll} 点${unit.hakariDiceRoll === 6 ? " · 无敌" : ""}`,
       image: "assets/events/slot-dice.svg", tone: "buff",
-      description: `本档持续 4 回合；ATK +${unit.hakariDiceAttackBonus ?? 0}，伤害减免 ${Math.round((unit.hakariDiceReduction ?? 0) * 100)}%，${unit.hakariDiceRoll >= 3 ? "暴击率 100%，" : ""}${unit.hakariTrueDamage ? "攻击造成真实伤害，" : ""}每回合恢复最大 HP 的 ${unit.hakariDiceRoll === 6 ? 30 : 10}%。` });
+      description: `本档持续 3 回合；ATK +${unit.hakariDiceAttackBonus ?? 0}，伤害减免 ${Math.round((unit.hakariDiceReduction ?? 0) * 100)}%，${unit.hakariDiceRoll === 6 ? "暴击率 100%，" : unit.hakariDiceRoll === 5 ? "暴击率 +50%，" : ""}${unit.hakariTrueDamage ? "攻击造成真实伤害，" : ""}每回合恢复最大 HP 的 ${unit.hakariDiceRoll === 6 ? 30 : unit.hakariDiceRoll === 5 ? 20 : unit.hakariDiceRoll >= 3 ? 10 : 5}%。` });
     if (unit.gojoDomainUntilRound >= battleStatusState.currentRound && unit.gojoDomainUntilRound > 0)
       statuses.push({ id: "gojo-domain", name: "无量空处", image: unit.asset, tone: "buff",
         description: `领域持续至第 ${unit.gojoDomainUntilRound} 回合结束；每回合结束处决 HP 严格低于 10% 的敌人。` });
@@ -2333,6 +2333,35 @@ function playEvent(event, finish) {
   }
   if (event.type === "gold-gourd") return playGoldGourd(event, finish);
   if (event.type === "silver-bottle") return playSilverBottle(event, finish);
+  if (event.type === "hakari-book-roll") {
+    const actor = viewState.characters.find((unit) => unit.id === event.targetId);
+    if (actor) {
+      actor.hakariBookRoll = event.roll;
+      actor.atk = event.atk;
+      actor.critRateBonus = (actor.critRateBonus ?? 0) + event.critBonus;
+      actor.damageReductionBonus = (actor.damageReductionBonus ?? 0) + event.damageReduction;
+      actor.lifesteal = (actor.lifesteal ?? 0) + event.lifesteal;
+      renderAllyStatusIcons();
+    }
+    const dice = document.createElement("div");
+    dice.className = "hakari-dice-roll";
+    dice.setAttribute("aria-hidden", "true");
+    dice.innerHTML = '<img src="assets/events/slot-dice.svg" alt=""><span></span>';
+    document.querySelector("#battle-screen .arena")?.append(dice);
+    addLog(`<b>${actor?.name ?? "队员"}</b>使用坐杀搏徒，正在掷骰……`, "log-skill");
+    timer = window.setTimeout(() => {
+      dice.classList.add("is-result");
+      dice.querySelector("span").textContent = String(event.roll);
+      addLog(`<b>${actor?.name ?? "队员"}</b>掷出 ${event.roll} 点，增益持续本场。`, "log-skill");
+      timer = window.setTimeout(() => { dice.remove(); finish(); }, 850);
+    }, 1050);
+    return;
+  }
+  if (event.type === "hakari-book-heal") {
+    const actor = viewState.characters.find((unit) => unit.id === event.targetId);
+    if (actor) { actor.currentHp = event.hpAfter; updateHealth(actor); }
+    return finish();
+  }
   if (["hakari-roll", "hakari-heal"].includes(event.type)) {
     const actor = viewState.characters.find((unit) => unit.id === "hakari");
     if (event.type === "hakari-roll" && actor) {
@@ -2349,13 +2378,13 @@ function playEvent(event, finish) {
         actor.hakariDiceRoll = event.roll;
         actor.hakariDiceReduction = event.damageReduction;
         actor.hakariDiceAttackBonus = event.attackBonus;
-        actor.hakariTrueDamage = event.roll >= 5;
+        actor.hakariTrueDamage = event.roll === 6;
         actor.atk = event.atk;
         actor.bleedStacks = 0; actor.burnStacks = 0; actor.poisonStacks = 0;
         actor.gunDevilBleedStacks = 0; actor.nightGuyBurnStacks = 0;
         $("#battle-screen").classList.toggle("hakari-jackpot", event.jackpot);
         showHakariRollEffect(actor, event.roll);
-        addLog(`<b>秤金次</b>掷出 ${event.roll} 点：${event.jackpot ? "大奖！！！无敌状态（75% 减伤）" : "坐杀搏徒更新"}。`, "log-enemy");
+        addLog(`<b>秤金次</b>掷出 ${event.roll} 点：${event.jackpot ? "大奖！！！50% 减伤" : "坐杀搏徒更新"}。`, "log-enemy");
         renderAllyStatusIcons();
         timer = window.setTimeout(() => { dice.remove(); finish(); }, event.roll >= 5 ? 1850 : 650);
       }, 1050);
@@ -3490,6 +3519,7 @@ function playEvent(event, finish) {
     recordBossLeaderboardScore(campaign, completedBattle, pendingResult);
     if (!transition) return finish();
     if (campaign.lastEssenceReward?.amount) addLog(`精华 +${campaign.lastEssenceReward.amount} · 当前 ×${campaign.essence}`, "log-win");
+    if (campaign.lastHakariBookEssence) addLog(`坐杀搏徒 6 点奖励：精华 +${campaign.lastHakariBookEssence}。`, "log-win");
     for (const reward of campaign.lastRadarRewards ?? [])
       addLog(`<b>龙珠雷达</b>：${reward.characterId} 获得 ${reward.name}。`, "log-win");
     for (const recovery of campaign.lastBattleRecovery ?? []) {
@@ -5277,6 +5307,14 @@ function renderHiddenBossIntro() {
 
 function renderRoute() {
   if (!campaign || campaign.status !== "route") return;
+  if (ownedTreasureCount(campaign) >= 8 && !campaign.arimaTreasureHintShown) {
+    campaign.arimaTreasureHintShown = true;
+    renderDecisionScreen("白色死神", "你身上有太多异种的气息，白色死神盯上了你...",
+      [decisionChoice("continue", "继续前进", "可在篝火处选择挑战有马贵将。")], "继续", () => {
+        renderRoute(); return true;
+      }, "ACT · ENCOUNTER");
+    return;
+  }
   if (getFateReward(campaign)) return renderFateReward(() => renderRoute());
   if (getDragonRadarOffer(campaign)) return renderDragonRadarOffer(() => renderRoute());
   if (queueHiddenBossIntro(campaign)) return renderHiddenBossIntro();
@@ -6606,12 +6644,12 @@ function renderCampfire() {
       decisionChoice("skill_upgrade", "全队技能升级", `每名符合条件的队员各升级一次${extraTraining ? "；天天向上持有者再升级一次" : ""}。`, !canUpgrade),
       ...(apocalypseUpgrade ? [decisionChoice("upgrade_apocalypse", "天启骑士 Lv2",
         `献祭 4 个枪魔碎片，移除其属性收益（现有 ${apocalypseUpgrade.fragments}/4）。`, apocalypseUpgrade.fragments < 4)] : []),
-      ...(arimaChallenge ? [decisionChoice("arima_challenge", "挑战有马贵将", "可留待之后的篝火挑战。")]: []),
+      ...(arimaChallenge ? [decisionChoice("arima_challenge", "挑战有马贵将", "你将以全盛姿态挑战敌人，即使失败也不会结束旅途")]: []),
       ...(campaign.runCharacterState?.eventSeries?.anteiku?.chapter3Failed ? [decisionChoice("arima_failed", "有马贵将 · 已挑战失败", "本局无法再次挑战。", true)] : []),
-      ...(guyChallenge ? [decisionChoice("guy_challenge", "凯的约定", "挑战迈特凯，胜利后获得八门遁甲。")]: []),
+      ...(guyChallenge ? [decisionChoice("guy_challenge", "凯的约定", "你将以全盛姿态挑战敌人，即使失败也不会结束旅途")]: []),
       ...(campaign.guyChallenge?.failed ? [decisionChoice("guy_failed", "凯的约定 · 已挑战失败", "本局无法再次挑战。", true)] : []),
-      ...(deferredBoss ? [decisionChoice("hidden_boss", "挑战枪之恶魔与战争恶魔·夜", "若击败战争恶魔，你将获得她的眷属。")]: []),
-      ...(campaign.hiddenBoss?.failed ? [decisionChoice("hidden_boss_failed", "战争恶魔 · 已挑战失败", "本局无法再次挑战。", true)] : []),
+      ...(deferredBoss ? [decisionChoice("hidden_boss", "挑战枪之恶魔", "你将以全盛姿态挑战敌人，即使失败也不会结束旅途")]: []),
+      ...(campaign.hiddenBoss?.failed ? [decisionChoice("hidden_boss_failed", "枪之恶魔 · 已挑战失败", "本局无法再次挑战。", true)] : []),
     ], "确认", (id) => {
       if (id === "guy_challenge") {
         if (!beginGuyCampfireChallenge(campaign)) return false;
@@ -6770,7 +6808,7 @@ function renderSlotMachineEvent() {
   if (["win", "loss"].includes(phase)) {
     renderDecisionScreen(phase === "win" ? "老虎机 · 你赢了" : "老虎机 · 你输了",
       `${rollText}\n当前精华 ${campaign.essence}。`, phase === "win" ? [
-        decisionChoice("slot_fight", "继续all in", "秤说：“*****，我要修理一下你了”；直接进入战斗。"),
+        decisionChoice("slot_fight", "继续all in", "继续下一轮赌局。"),
         decisionChoice("slot_collect", "见好就收", "保留已翻倍精华并离开。"),
       ] : [
         decisionChoice("slot_fight", "出千的家伙，不可饶恕", "迎战秤金次。"),

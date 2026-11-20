@@ -141,9 +141,9 @@ test("slot machine defeat restores prebattle HP and clears essence without Game 
   campaign.nextAttackMultiplier = 1.25;
   const prepared = prepareBattle(campaign);
   assert.equal(prepared.roster.find((unit) => unit.id === "hakari").maxHp,
-    campaign.partyIds.reduce((total, id) => total + campaign.partyStates[id].maxHp, 0));
+    Math.floor(campaign.partyIds.slice(0, 2).reduce((total, id) => total + campaign.partyStates[id].maxHp, 0) * .8));
   assert.equal(prepared.roster.find((unit) => unit.id === "hakari").atk,
-    prepared.roster.filter((unit) => unit.team === "ally").reduce((total, unit) => total + unit.atk, 0));
+    Math.floor(prepared.roster.filter((unit) => unit.team === "ally").slice(0, 2).reduce((total, unit) => total + unit.atk, 0) * .8));
   const transition = finishBattle(campaign, "defeat", 0, [], prepared.roster.map((unit) =>
     unit.team === "ally" ? { ...unit, currentHp: 0 } : unit));
   assert.deepEqual(transition, { status: "route", next: "slot_machine_failed" });
@@ -151,14 +151,14 @@ test("slot machine defeat restores prebattle HP and clears essence without Game 
   for (const id of campaign.partyIds) assert.equal(campaign.partyStates[id].currentHp, originalHp[id]);
 });
 
-test("Hakari rolls every four rounds, jackpot is 75 percent reduction and heals once per round", () => {
+test("Hakari rolls every three rounds, jackpot is 50 percent reduction and heals once per round", () => {
   const result = simulateBattle([
     { id: "hero", team: "ally", row: "front", hp: 100000, atk: 50, def: 0, spd: 10, critChance: 0 },
     { ...EVENT_ENEMY_DATA.hakari, hp: 100000, atk: 10, def: 0, spd: 5, critChance: 0 },
   ], () => .99, { playerId: "hero" });
   const rolls = result.events.filter((event) => event.type === "hakari-roll");
   assert.deepEqual(rolls.slice(0, 3).map((event) => [event.round, event.roll, event.damageReduction]),
-    [[1, 6, .75], [5, 6, .75], [9, 6, .75]]);
+    [[1, 6, .5], [4, 6, .5], [7, 6, .5]]);
   const heals = result.events.filter((event) => event.type === "hakari-heal");
   assert.equal(new Set(heals.map((event) => event.round)).size, heals.length);
   assert.ok(rolls.every((event) => event.atk === 40));
@@ -172,8 +172,24 @@ test("Hakari's six dice faces apply the correct independent passive tier", () =>
     ], () => (roll - .5) / 6, { playerId: "hero" });
     const event = result.events.find((entry) => entry.type === "hakari-roll");
     assert.deepEqual([event.round, event.roll, event.attackBonus, event.damageReduction, event.jackpot],
-      [1, roll, [0, 0, 10, 10, 15, 30][roll - 1], roll === 6 ? .75 : .25, roll === 6]);
+      [1, roll, [2, 2, 5, 5, 15, 30][roll - 1], roll === 6 ? .5 : roll === 5 ? .25 : roll >= 3 ? .2 : 0, roll === 6]);
   }
+});
+
+test("Hakari battle with Gojo cannot lock synchronous battle startup", () => {
+  const campaign = slotFixture([.99, 0]);
+  assert.ok(recruitPartyMember(campaign, "gojo", "prison"));
+  assert.equal(resolveSlotMachineChoice(campaign, "slot_all_in").phase, "dice");
+  assert.equal(resolveSlotMachineChoice(campaign, "slot_roll").outcome, "loss");
+  assert.equal(resolveSlotMachineChoice(campaign, "slot_fight").phase, "battle");
+  const prepared = prepareBattle(campaign);
+  const hakari = prepared.roster.find((unit) => unit.id === "hakari");
+  const pair = prepared.roster.filter((unit) => unit.team === "ally").slice(0, 2);
+  for (const stat of ["maxHp", "atk", "def", "spd"])
+    assert.equal(hakari[stat], Math.floor(pair.reduce((total, unit) => total + unit[stat], 0) * .8));
+  const result = simulateBattle(prepared.roster, () => .99, prepared.combatOptions);
+  assert.equal(result.outcome, "defeat");
+  assert.ok(result.rounds <= 81);
 });
 
 test("hidden challenge failure restores HP and returns to route", () => {

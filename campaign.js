@@ -477,7 +477,8 @@ export function prepareBattle(campaign) {
       ...template, name: evolutionDisplayName(id, state.evolution) ?? template.name,
       ...(state.evolution?.phase === 2 ? evolvedBattlePresentation(id) : {}),
       rosterOrder: index,
-      hp: suppressedMaxHp, maxHp: suppressedMaxHp, currentHp: Math.min(state.currentHp, suppressedMaxHp),
+      hp: suppressedMaxHp, maxHp: suppressedMaxHp, currentHp: battle.hiddenGuy || battle.hiddenBoss || battle.hiddenArima
+        ? suppressedMaxHp : Math.min(state.currentHp, suppressedMaxHp),
       ...(id === "tang" ? { tangGrowth: Object.fromEntries(["maxHp", "atk", "def", "spd"].map((stat) =>
         [stat, Math.max(0, (stat === "atk" ? battlePanelAtk : state[stat]) - template.baseStats[stat])])) } : {}),
       atk: Math.floor(battlePanelAtk * (id === campaign.playerId ? campaign.nextAttackMultiplier : 1) * temporaryModifiers.atkMultiplier) + shopModifiers.atk,
@@ -531,13 +532,13 @@ export function prepareBattle(campaign) {
   });
   campaign.nextAttackMultiplier = 1;
   if (battle.slotMachine) {
-    // Sum the entering combat panels of formal members. Summons have not
-    // entered the roster and do not contribute to this one-time snapshot.
+    // Hakari copies only the hero and first partner, then takes 80% of that panel.
+    const wagerMembers = allies.slice(0, 2);
     battle.enemyBaseStats.hakari = {
-      hp: Math.max(1, allies.reduce((sum, unit) => sum + unit.maxHp, 0)),
-      atk: allies.reduce((sum, unit) => sum + unit.atk, 0),
-      def: allies.reduce((sum, unit) => sum + unit.def, 0),
-      spd: allies.reduce((sum, unit) => sum + unit.spd, 0),
+      hp: Math.max(1, Math.floor(wagerMembers.reduce((sum, unit) => sum + unit.maxHp, 0) * .8)),
+      atk: Math.floor(wagerMembers.reduce((sum, unit) => sum + unit.atk, 0) * .8),
+      def: Math.floor(wagerMembers.reduce((sum, unit) => sum + unit.def, 0) * .8),
+      spd: Math.floor(wagerMembers.reduce((sum, unit) => sum + unit.spd, 0) * .8),
     };
   }
   const enemies = battle.enemies.map((enemyId) => {
@@ -758,7 +759,8 @@ export function resolveSlotMachineChoice(campaign, choiceId) {
     if (choiceId !== "slot_fight") return false;
     campaign.challengeHpSnapshot = Object.fromEntries(campaign.partyIds.map((id) => [id, campaign.partyStates[id].currentHp]));
     const stats = Object.fromEntries(["maxHp", "atk", "def", "spd"].map((stat) => [stat,
-      campaign.partyIds.reduce((sum, id) => sum + Math.max(0, campaign.partyStates[id]?.[stat] ?? 0), 0)]));
+      Math.floor(campaign.partyIds.slice(0, 2).reduce((sum, id) =>
+        sum + Math.max(0, campaign.partyStates[id]?.[stat] ?? 0), 0) * .8)]));
     campaign.currentBattle = { id: `slot-machine:${record.sourceId}`, type: "event", slotMachine: true,
       number: ++campaign.battleNumber, step: campaign.step, stageStep: campaign.stageStep,
       title: "秤金次", location: "老虎机", enemies: ["hakari"], enemyNames: { hakari: "秤金次" },
@@ -857,6 +859,17 @@ function reviveFallenPartyAfterVictory(campaign) {
   }
 }
 
+function restoreChallengeHpSnapshot(campaign) {
+  for (const id of campaign.partyIds ?? []) {
+    const member = campaign.partyStates?.[id];
+    const before = campaign.challengeHpSnapshot?.[id];
+    if (member && Number.isFinite(before)) member.currentHp = Math.max(0, Math.min(member.maxHp, before));
+  }
+  campaign.playerHp = campaign.runCharacterState?.currentHp ?? campaign.playerHp;
+  campaign.playerMaxHp = campaign.runCharacterState?.maxHp ?? campaign.playerMaxHp;
+  campaign.challengeHpSnapshot = null;
+}
+
 export function finishBattle(campaign, outcome, playerHp, battleEvents = [], finalCharacters = null) {
   if (!campaign || campaign.status !== "combat" || !campaign.combatLaunched) return false;
   campaign.combatLaunched = false;
@@ -922,6 +935,21 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
     advanceDivinePunishment(campaign);
     campaign.playerMaxHp = campaign.runCharacterState.maxHp;
   }
+  campaign.lastHakariBookEssence = 0;
+  if (outcome === "victory" && !campaign.hakariBookEssenceBattleIds?.includes(campaign.currentBattle?.id)) {
+    const winners = new Set(battleEvents.filter((event) => event?.type === "hakari-book-roll" && event.roll === 6)
+      .map((event) => event.targetId));
+    if (winners.size) {
+      const amount = winners.size * 10;
+      campaign.essence = (campaign.essence ?? 0) + amount;
+      campaign.lastHakariBookEssence = amount;
+      campaign.essenceHistory ??= [];
+      campaign.essenceHistory.push({ battleId: campaign.currentBattle?.id, stageId: campaign.stageId,
+        amount, reason: "hakari_book" });
+      (campaign.hakariBookEssenceBattleIds ??= []).push(campaign.currentBattle?.id);
+      applyRadarEssenceGrowth(campaign, amount);
+    }
+  }
   if (campaign.trialBattle) {
     const completedTrialBattle = campaign.currentBattle;
     if (outcome === "victory") applyVictoryTreasureGrowth(campaign);
@@ -938,6 +966,7 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
   if (campaign.currentBattle?.slotMachine) {
     const record = campaign.runCharacterState.eventResults[campaign.activeNode?.id];
     if (outcome === "victory") {
+      campaign.hakariBookUnlocked = true;
       applyAngelBreathBattleRecovery(campaign);
       applyVictoryTreasureGrowth(campaign);
       campaign.completedBattles += 1;
@@ -1001,6 +1030,7 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
   }
   if (campaign.currentBattle?.hiddenGuy) {
     applyVictoryTreasureGrowth(campaign); applyAngelBreathBattleRecovery(campaign);
+    restoreChallengeHpSnapshot(campaign);
     campaign.completedBattles += 1; campaign.playerHp = campaign.runCharacterState.currentHp;
     if (!campaign.guyChallenge.rewarded) campaign.pendingEightGatesReward = true;
     campaign.settlementNext = "guy_win"; campaign.status = "settlement";
@@ -1010,6 +1040,7 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
     reviveFallenPartyAfterVictory(campaign);
     applyVictoryTreasureGrowth(campaign);
     applyAngelBreathBattleRecovery(campaign);
+    restoreChallengeHpSnapshot(campaign);
     campaign.hiddenBoss ??= { unlocked: true, storyShown: true, resolved: false, makimaCleared: false };
     campaign.playerHp = campaign.runCharacterState.currentHp;
     campaign.completedBattles += 1;
@@ -1036,6 +1067,7 @@ export function finishBattle(campaign, outcome, playerHp, battleEvents = [], fin
   applyAngelBreathBattleRecovery(campaign);
   campaign.playerHp = campaign.runCharacterState.currentHp;
   applyVictoryTreasureGrowth(campaign);
+  if (campaign.currentBattle?.hiddenArima) restoreChallengeHpSnapshot(campaign);
   campaign.completedBattles += 1;
   campaign.consecutiveWithoutBattle = 0;
   const makimaRewardPending = campaign.currentBattle?.enemies?.includes("makima") && !campaign.devBattleOnly && !campaign.makimaRewardClaimed;
@@ -1209,13 +1241,6 @@ export function resumeHiddenBossAtCampfire(campaign) {
 export function beginHiddenBossChallenge(campaign) {
   if (campaign?.status !== "hidden_boss_intro" || !campaign.hiddenBoss?.unlocked ||
       campaign.hiddenBoss.introPending || campaign.hiddenBoss.resolved || campaign.hiddenBoss.attempted) return false;
-  for (const id of campaign.partyIds) {
-    const state = campaign.partyStates?.[id];
-    if (state && !hasStoneMask(state)) state.currentHp = Math.min(state.maxHp,
-      state.currentHp + Math.floor(state.maxHp * HIDDEN_BOSS_RULES.entryHealFraction));
-  }
-  campaign.playerHp = campaign.runCharacterState.currentHp;
-  campaign.playerMaxHp = campaign.runCharacterState.maxHp;
   campaign.challengeHpSnapshot = Object.fromEntries(campaign.partyIds.map((id) => [id, campaign.partyStates[id].currentHp]));
   campaign.hiddenBoss.attempted = true;
   campaign.hiddenBoss.deferred = false;
@@ -1266,8 +1291,8 @@ export function eliteDropId(campaign) {
     return getStageFourUnit(unitId)?.rewardId ?? null;
   }
   const enemies = campaign.currentBattle.enemies ?? [];
-  if (enemies.some((id) => ["mahito", "toji"].includes(id)) ||
-      campaign.stageId >= 3 && enemies.some((id) => ["kira", "shin", "noi", "gold-king", "silver-king"].includes(id)))
+  if (enemies.some((id) => ["mahito", "toji", "kira"].includes(id)) ||
+      campaign.stageId >= 3 && enemies.some((id) => ["shin", "noi", "gold-king", "silver-king"].includes(id)))
     return "sukuna_finger";
   if (enemies.some((id) => id === "bomb-demon" || /devil/i.test(id))) return "gun_devil_fragment";
   if (enemies.includes("swamp-giant")) return "giant_spinal_fluid";
@@ -1584,7 +1609,8 @@ export function chooseRoute(campaign, nodeId) {
     if (node.type === "shop") {
       node.resolution = "shop";
       campaign.activeShop = { nodeId: node.id, stageId: campaign.stageId,
-        slots: generateShopInventory(`${campaign.routeMap.seed}:${node.id}`, campaign.stageId), purchases: [] };
+        slots: generateShopInventory(`${campaign.routeMap.seed}:${node.id}`, campaign.stageId,
+          { hakariBookUnlocked: Boolean(campaign.hakariBookUnlocked) }), purchases: [] };
       campaign.status = "shop";
       registerShopEntry(campaign, node.id);
       return { type: "shop", shop: campaign.activeShop };
@@ -1877,13 +1903,20 @@ export function canChallengeArimaAtCampfire(campaign) {
   const anteiku = campaign?.runCharacterState?.eventSeries?.anteiku;
   return Boolean(campaign?.status === "event" && campaign.activeEventType === "campfire" &&
     campaign.activeNode?.type === "campfire" && !campaign.eventResolved &&
-    (anteiku?.chapter2Triggered || anteiku?.chapter2Completed) && !anteiku.chapter3Completed && !anteiku.chapter3Attempted);
+    (anteiku?.chapter2Triggered || anteiku?.chapter2Completed || ownedTreasureCount(campaign) >= 8) &&
+    !anteiku?.chapter3Completed && !anteiku?.chapter3Attempted);
+}
+
+export function ownedTreasureCount(campaign) {
+  const ids = new Set([...Object.keys(TREASURE_DATA), GIANT_SPINAL_FLUID.id, GUN_DEVIL_FRAGMENT.id]);
+  return (campaign?.partyIds ?? []).reduce((count, id) => count +
+    (campaign.partyStates?.[id]?.permanentEffects ?? []).filter((effect) => ids.has(effect.id)).length, 0);
 }
 
 export function beginArimaCampfireChallenge(campaign) {
   if (!canChallengeArimaAtCampfire(campaign)) return false;
   const node = campaign.activeNode;
-  const anteiku = campaign.runCharacterState.eventSeries.anteiku;
+  const anteiku = (campaign.runCharacterState.eventSeries.anteiku ??= {});
   const previousChoice = anteiku.lastChoice;
   const previousResolution = node.resolution;
   const record = createAdventureEventResult(campaign.runCharacterState, node.id, "anteiku_3",

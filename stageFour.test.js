@@ -139,12 +139,12 @@ test("three formal allies receive one stat point each and an elite duo gives two
   assert.equal(claimCampaignEliteDrop(campaign, campaign.playerId), false);
 });
 
-test("Gojo ignores only ordinary damage and domain executes under ten percent", () => {
+test("Gojo reduces ordinary damage by ninety percent and domain executes under ten percent", () => {
   const normal = initializeBattle([
     { id: "foe", team: "enemy", row: "front", hp: 2000, atk: 100, def: 0, spd: 10, critChance: 0 },
     { id: "gojo", team: "ally", row: "back", hp: 1000, atk: 100, def: 0, spd: 200, passiveSkillId: "gojo-infinity", critChance: 0 },
   ]);
-  assert.equal(executeAttack(normal, normal.characters[0], normal.characters[1], () => .99, { skill: null }).actualDamage, 0);
+  assert.equal(executeAttack(normal, normal.characters[0], normal.characters[1], () => .99, { skill: null }).actualDamage, 10);
   assert.ok(executeAttack(normal, normal.characters[0], normal.characters[1], () => .99,
     { skill: { id: "test", name: "技能", effectType: "damage", multiplier: 1 } }).actualDamage > 0);
   const skill = { ...SKILL_DATA["gojo-hollow"], ...SKILL_DATA["gojo-hollow"].levels[4], level: 4, chance: 1 };

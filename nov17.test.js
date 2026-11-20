@@ -19,7 +19,7 @@ const unit = (id, team, extra = {}) => ({ id, name: id, team, row: "front", posi
 
 test("Might Guy uses his stage-two panel and actual supplied frames", () => {
   const guy = ELITE_ENEMY_DATA.find((entry) => entry.id === "might-guy");
-  assert.deepEqual([guy.hp, guy.atk, guy.def, guy.spd], [3000, 280, 130, 300]);
+  assert.deepEqual([guy.hp, guy.atk, guy.def, guy.spd], [3500, 320, 140, 300]);
   assert.ok(existsSync(guy.asset));
   assert.ok(existsSync(guy.animations.meleeAttack.frames.attack));
   assert.ok(existsSync(guy.animations.speedBoost.frames.cast));
@@ -46,18 +46,18 @@ test("Night Guy flashes through three authored strikes in one round at triple SP
   assert.equal(slowerResult.events.filter((event) => event.type === "attack" && event.attackerId === "might-guy" && event.round === 1).length, 1);
 });
 
-test("Night Guy transforms once below 30 percent, pays five percent per attack and applies burn", () => {
+test("Night Guy transforms once below 30 percent, pays one percent per attack and applies burn", () => {
   const hero = unit("hero", "ally", { hp: 12000, maxHp: 12000, currentHp: 12000, atk: 4000, spd: 1000 });
-  const guy = unit("might-guy", "enemy", { hp: 3000, maxHp: 3000, currentHp: 3000,
-    atk: 280, def: 130, spd: 300, nightGuyEligible: true });
+  const guy = unit("might-guy", "enemy", { hp: 3500, maxHp: 3500, currentHp: 3500,
+    atk: 320, def: 140, spd: 300, nightGuyEligible: true });
   const result = simulateBattle([hero, guy], () => .99);
   const transformations = result.events.filter((event) => event.type === "night-guy-transform");
   assert.equal(transformations.length, 1);
-  assert.equal(transformations[0].maxHp, 3500);
-  assert.equal(transformations[0].currentHp, 3500);
+  assert.equal(transformations[0].maxHp, 4000);
+  assert.equal(transformations[0].currentHp, 4000);
   const costs = result.events.filter((event) => event.type === "night-guy-cost");
   assert.ok(costs.length > 0);
-  assert.ok(costs.every((event) => event.amount === 175));
+  assert.ok(costs.every((event) => event.amount === 40));
   assert.ok(result.events.some((event) => event.attackerId === "might-guy" && event.burnStacksApplied > 0 && event.nightGuyBurnStacks > 0));
   assert.ok(result.events.some((event) => event.type === "trial-dot" && event.name === "灼烧" && event.damage > 0));
 });
@@ -188,7 +188,14 @@ test("Might Guy elite drop unlocks a one-time campfire challenge and Eight Gates
   assert.ok(chooseRoute(campaign, elite.id));
   campaign.currentBattle.enemies = ["might-guy"];
   campaign.currentBattle.enemyNames = { "might-guy": "迈特凯" };
-  assert.ok(prepareBattle(campaign));
+  const eliteGuy = prepareBattle(campaign).roster.find((member) => member.id === "might-guy");
+  assert.equal(eliteGuy.nightGuyEligible, false);
+  const ordinaryFight = simulateBattle([
+    unit("hero", "ally", { hp: 12000, maxHp: 12000, currentHp: 12000, atk: 5000, spd: 1000 }),
+    { ...eliteGuy, critChance: 0 },
+  ], () => .99);
+  assert.ok(ordinaryFight.events.some((event) => event.type === "might-guy-speed"));
+  assert.equal(ordinaryFight.events.some((event) => event.type === "night-guy-transform"), false);
   assert.equal(finishBattle(campaign, "victory", campaign.playerHp).next, "reward");
   const offer = getCampaignRewardOffer(campaign);
   for (const [index, id] of campaign.partyIds.entries())

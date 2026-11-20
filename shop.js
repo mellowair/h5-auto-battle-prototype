@@ -84,13 +84,13 @@ export function refreshShopPrices(campaign) {
   }
 }
 
-export function generateShopInventory(seed, stageId) {
+export function generateShopInventory(seed, stageId, options = {}) {
   const random = createSeededRandom(`shop:${seed}`);
   const categories = SHOP_RULES.categories;
   const selectedIds = new Set();
   return Array.from({ length: SHOP_RULES.slots }, (_, index) => {
     const available = categories.map((category) => ({ category,
-      pool: (category.id === "book" ? SHOP_RULES.books : category.id === "medicine" ? SHOP_RULES.medicines.filter((item) => item.stageId === stageId)
+      pool: (category.id === "book" ? SHOP_RULES.books.filter((item) => item.id !== "hakari_book" || options.hakariBookUnlocked) : category.id === "medicine" ? SHOP_RULES.medicines.filter((item) => item.stageId === stageId)
         : category.ids.map((id) => SHOP_TREASURES[id]).filter((item) => item &&
           (!["common", "rare", "legendary"].includes(category.id) || item.grade === category.id ||
             category.id === "legendary" && item.grade === "superlegendary")))
@@ -100,7 +100,10 @@ export function generateShopInventory(seed, stageId) {
     const totalWeight = available.reduce((sum, entry) => sum + entry.category.weight, 0);
     let roll = random() * totalWeight;
     const { category, pool } = available.find((entry) => (roll -= entry.category.weight) < 0) ?? available.at(-1);
-    const item = draw(random, pool);
+    const hakariBook = category.id === "book" && options.hakariBookUnlocked && !selectedIds.has("hakari_book")
+      ? pool.find((entry) => entry.id === "hakari_book") : null;
+    const regularBooks = hakariBook ? pool.filter((entry) => entry.id !== "hakari_book") : pool;
+    const item = hakariBook && (!regularBooks.length || random() < .1) ? hakariBook : draw(random, regularBooks);
     selectedIds.add(item.id);
     return { index, categoryId: category.id, itemId: item?.id ?? null,
       name: item?.name ?? (category.id === "book" ? "技能书待配置" : "状态药物待配置"),

@@ -20,6 +20,9 @@ export const SHOP_RULES = Object.freeze({
   })))),
   // A future book has {id,name,image,description,skillId,skillType,characterIds}.
   books: Object.freeze([
+    { id: "hakari_book", name: "坐杀搏徒", grade: "eternal", image: "assets/shop/skill-book.png", effectImage: "assets/events/slot-dice.svg", price: 100,
+      description: "永恒品质。每场战斗开局掷骰一次，按点数获得本场增益；6 点胜利额外获得 10 精华。击败秤金次后解锁。",
+      skillId: "hakari-book", skillType: "passive", characterIds: null },
     { id: "iron_bell_book", name: "金钟罩铁布衫", image: "assets/shop/skill-book.png", effectImage: "assets/shop/iron-bell-effect.png", price: 40,
       description: "DEF +30；被普通攻击或主动技能命中且自身当前 DEF 严格高于伤害来源时，按实际承伤的 50% 造成真实伤害反击。",
       skillId: "iron-bell", skillType: "passive", characterIds: null },
@@ -36,7 +39,7 @@ export const SHOP_RULES = Object.freeze({
       description: "入场时 DEF 清零，并将原 DEF 的 200% 转为本场 ATK。",
       skillId: "brick-force", skillType: "passive", characterIds: null },
     { id: "three_teachers_book", name: "必有我师", image: "assets/shop/skill-book.png", price: 40,
-      description: "我方至少 3 名存活单位时，其他队友每次普通攻击使自己本场 ATK +5。",
+      description: "我方至少 3 名存活单位时，其他正式队员每次普通攻击使自己本场 ATK +5；召唤物攻击不触发。",
       skillId: "three-teachers", skillType: "passive", characterIds: null },
     { id: "mirror_flower_book", name: "镜花水月", image: "assets/shop/skill-book.png", effectImage: "assets/shop/mirror-flower-effect.png", price: 30, description: "前后排站位交换；每次入场仅交换一次。", skillId: "mirror-flower", skillType: "passive", characterIds: null },
     { id: "byakugan_book", name: "白眼", image: "assets/shop/skill-book.png", price: 30, description: "普通攻击 10% 概率使目标沉默 1 回合。", skillId: "byakugan", skillType: "passive", characterIds: null },

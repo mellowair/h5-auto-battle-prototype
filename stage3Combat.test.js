@@ -242,13 +242,13 @@ test("Shin and Noi still revive when both fall in the same round", () => {
   assert.equal(isBattleOver(state), "victory");
 });
 
-test("Arima counts separate landed hits and Quinque can reduce a hit by 80 percent", () => {
+test("Arima counts separate landed hits and Quinque can reduce a hit by 70 percent", () => {
   const state = initializeBattle([hero(), { ...hero("partner"), row: "back" }, EVENT_ENEMY_DATA.arima]);
   state.round = 1;
   const arima = state.characters.find((unit) => unit.id === "arima");
   const target = state.characters.find((unit) => unit.id === "hero");
   const first = executeAttack(state, arima, target, () => .99);
-  assert.equal(first.damage, 250);
+  assert.equal(first.damage, 275);
   assert.equal(first.arimaHitCount, 1);
   executeAttack(state, arima, target, () => .99);
   const third = executeAttack(state, arima, target, () => .99);
@@ -256,12 +256,12 @@ test("Arima counts separate landed hits and Quinque can reduce a hit by 80 perce
   assert.equal(third.arimaWeaknessRevealed, true);
   target.currentHp = target.maxHp;
   const fourth = executeAttack(state, arima, target, () => .99);
-  assert.equal(fourth.damage, 416);
+  assert.equal(fourth.damage, 458);
   assert.equal(fourth.arimaHitCount, 4);
   assert.equal(fourth.arimaWeaknessRevealed, false);
   assert.equal(arima.arimaHits.partner, undefined);
   arima.currentHp = 2000;
-  assert.equal(getCritChance(arima), .35);
+  assert.equal(getCritChance(arima), .65);
   assert.equal(SKILL_DATA["arima-pierce"].levels[1].chance, .4);
   const guarded = initializeBattle([{ ...hero(), quinqueGuard: true }, { ...elite("shin"), skills: [], skill: null }]);
   const rolls = [.99, .99, 0];

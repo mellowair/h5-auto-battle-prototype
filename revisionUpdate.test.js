@@ -17,9 +17,9 @@ test("Quinque combination increases low-HP critical stats and guard uses only wh
   const guard = unit("guard", "ally", { quinqueGuard: true, quinqueCrit: true });
   const state = initializeBattle([attacker, guard]);
   state.round = 1;
-  for (let i = 0; i < 5; i++)
+  for (let i = 0; i < 3; i++)
     assert.equal(executeAttack(state, state.characters[0], state.characters[1], () => 0).quinqueGuardTriggered, true);
-  assert.equal(state.characters[1].quinqueGuardUses, 5);
+  assert.equal(state.characters[1].quinqueGuardUses, 3);
   assert.equal(executeAttack(state, state.characters[0], state.characters[1], () => 0).quinqueGuardTriggered, false);
 });
 

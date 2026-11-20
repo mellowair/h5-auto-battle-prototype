@@ -88,7 +88,7 @@ export const CHARACTER_VISUALS = Object.freeze({
   "aging-devil": { scale: 1.4, offsetX: 0, offsetY: 0, frameWidth: 84, frameHeight: 98 },
   "darkness-devil": { scale: 1.55, offsetX: 0, offsetY: -8, frameWidth: 112, frameHeight: 128,
     animationFrameScales: { death: { down: 1.3 } } },
-  hakari: { scale: 1.15, offsetX: 0, offsetY: 0, frameWidth: 112, frameHeight: 128 },
+  hakari: { scale: 0.9, offsetX: 0, offsetY: 0, frameWidth: 112, frameHeight: 128 },
   giant: { scale: 1.05, offsetX: 0, offsetY: 0, frameWidth: 128, frameHeight: 144 },
   slime: { scale: 0.72, offsetX: 0, offsetY: 0, frameWidth: 128, frameHeight: 144 },
   mage: { scale: 0.86, offsetX: 0, offsetY: 0, frameWidth: 128, frameHeight: 144 },

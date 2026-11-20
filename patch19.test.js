@@ -16,7 +16,7 @@ const unit = (id, team, extras = {}) => ({ id, team, name: id, row: "front", pos
 
 test("passive skill books have battle artwork, battle-start presentation, and their own shop prices", () => {
   const books = SHOP_RULES.books.filter((book) => book.skillType === "passive");
-  assert.deepEqual(books.map((book) => book.price), [40, 30, 40, 40, 30, 40, 30, 30, 40]);
+  assert.deepEqual(books.map((book) => book.price), [100, 40, 30, 40, 40, 30, 40, 30, 30, 40]);
   for (const book of books.filter((entry) => entry.effectImage)) assert.ok(existsSync(book.effectImage), book.name);
   const ally = unit("hero", "ally", { extraPassiveSkillIds: books.map((book) => book.skillId) });
   const result = simulateBattle([ally, unit("foe", "enemy", { currentHp: 1, maxHp: 1, hp: 1 })], () => .99);

@@ -26,23 +26,22 @@ test("读万卷书扣除 25% 最大 HP，抽取现有传说宝物池", () => {
   assert.deepEqual([...seen].sort(), [...legendary].sort());
 });
 
-test("库因克格挡以 15% 概率减免普通攻击和主动技能的 80%，每战最多三次", () => {
+test("库因克格挡以 15% 概率减免普通攻击和主动技能的 70%，每战最多两次", () => {
   const state = initializeBattle([unit("hero", "ally"), unit("target", "enemy", { quinqueGuard: true })]);
   const [attacker, target] = state.characters;
   state.round = 1;
   const normal = executeAttack(state, attacker, target, () => .1);
   const active = executeAttack(state, attacker, target, () => .1,
     { skill: { id: "test-active", type: "active", effectType: "damage", multiplier: 1 } });
-  const third = executeAttack(state, attacker, target, () => .1);
-  for (const event of [normal, active, third]) {
+  for (const event of [normal, active]) {
     assert.equal(event.quinqueGuardTriggered, true);
     assert.ok(event.actualDamage > 0);
     assert.equal(event.actualDamage, Math.floor(event.calculatedDamage));
   }
-  assert.equal(target.quinqueGuardUses, 3);
-  const fourth = executeAttack(state, attacker, target, () => .1);
-  assert.equal(fourth.quinqueGuardTriggered, false);
-  assert.ok(fourth.actualDamage > 0);
+  assert.equal(target.quinqueGuardUses, 2);
+  const third = executeAttack(state, attacker, target, () => .1);
+  assert.equal(third.quinqueGuardTriggered, false);
+  assert.ok(third.actualDamage > 0);
   const nextBattle = initializeBattle([unit("hero", "ally"), unit("target", "enemy", { quinqueGuard: true })]);
   assert.equal(nextBattle.characters[1].quinqueGuardUses, 0);
   nextBattle.round = 1;

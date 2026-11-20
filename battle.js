@@ -232,10 +232,10 @@ export function getSkillDodgeChance(character) {
 }
 
 export function getCritChance(character) {
-  if (character.id === "hakari" && (character.hakariDiceRoll ?? 0) >= 3) return 1;
+  if (character.id === "hakari" && character.hakariDiceRoll === 6) return 1;
   const conditional = (character.stageThreeKind === "arima" || character.quinqueCrit) && character.currentHp < character.maxHp * .6
-    ? (character.quinqueCrit && character.quinqueGuard ? .5 : .3) : 0;
-  return Math.max(0, Math.min(COMBAT_RULES.maxCritChance, (character.critChance ?? COMBAT_RULES.baseCritChance) + (character.critRateBonus ?? 0) + conditional));
+    ? (character.stageThreeKind === "arima" ? .6 : character.quinqueCrit && character.quinqueGuard ? .5 : .3) : 0;
+  return Math.max(0, Math.min(COMBAT_RULES.maxCritChance, (character.critChance ?? COMBAT_RULES.baseCritChance) + (character.critRateBonus ?? 0) + conditional + (character.id === "hakari" && character.hakariDiceRoll === 5 ? .5 : 0)));
 }
 
 export function handleDeath(character) {
@@ -252,7 +252,7 @@ export function handleDeath(character) {
 }
 
 function consumeQuinqueGuard(target, damage, random = Math.random) {
-  if (damage <= 0 || !target.quinqueGuard || (target.quinqueGuardUses ?? 0) >= (target.quinqueCrit ? 5 : 3) || random() >= .15) return false;
+  if (damage <= 0 || !target.quinqueGuard || (target.quinqueGuardUses ?? 0) >= (target.quinqueCrit ? 3 : 2) || random() >= (target.quinqueCrit ? .25 : .15)) return false;
   target.quinqueGuardUses = (target.quinqueGuardUses ?? 0) + 1;
   return true;
 }
@@ -1102,7 +1102,7 @@ export function executeAttack(state, attacker, target, random = Math.random, att
       : targetEffectiveDef * (1 - (attacker.stageThreeKind === "arima" && (attacker.arimaHits?.[target.id] ?? 0) >= 3 ? .8
         : Math.max(guyDefenseIgnore, skill?.ignoreDefenseFraction ?? 0))) },
     skillMultiplier * (critical ? critMultiplier : 1));
-  if (target.passiveSkillId === "gojo-infinity" && isNormalAttack) damage = 0;
+  if (target.passiveSkillId === "gojo-infinity" && isNormalAttack) damage = Math.floor(damage * .1);
   if (damage > 0 && (target.gojoVulnerableUntilRound ?? 0) > 0 &&
       target.gojoVulnerableUntilRound >= state.round)
     damage = Math.floor(damage * 1.4);
@@ -1136,10 +1136,10 @@ export function executeAttack(state, attacker, target, random = Math.random, att
   if (armorReductionApplied) damage = Math.max(1, Math.floor(damage * (1 - (target.stageFourArmorReduction ?? SKILL_DATA["reiner-sat-down"].levels[1].reduction))));
   damage = applyNormalDamageReduction(target, damage);
   damage = applyTojiExhaustion(target, damage);
-  const attackGuard = !dodged && damage > 0 && !directDamageSkill && target.stageThreeKind === "arima" && random() < .5;
+  const attackGuard = !dodged && damage > 0 && target.stageThreeKind === "arima" && random() < .5;
   if (attackGuard) damage = Math.max(1, Math.floor(damage * .5));
   const quinqueGuardTriggered = (target.pathsImmuneRemaining ?? 0) <= 0 && consumeQuinqueGuard(target, damage, random);
-  if (quinqueGuardTriggered) damage = Math.floor(damage * .2);
+  if (quinqueGuardTriggered) damage = Math.floor(damage * (target.quinqueCrit ? .1 : .3));
   if (target.id === "makima" && (state.makima?.deadMinions.length ?? 0) < 4) damage = 0;
   const yoruCounterTriggered = target.id === YORU.id && attacker.team !== target.team &&
     !dodged && damage > 0 && random() < .6;
@@ -1228,7 +1228,9 @@ export function executeAttack(state, attacker, target, random = Math.random, att
   if (byakuganSilence) target.silencedThroughRound = Math.max(target.silencedThroughRound ?? 0, state.round + 1);
   const silverStun = actualDamage > 0 && !died && attacker.id === "silver-king" && random() < .2;
   const shijiSilence = actualDamage > 0 && !died && attacker.normalPassiveId === "shiji" && random() < .4;
-  if (actualDamage > 0 && skill?.id === "arima-pierce" || shijiSilence) target.silencedThroughRound = state.round + 1;
+  if (actualDamage > 0 && skill?.id === "arima-pierce")
+    target.silencedThroughRound = Math.max(target.silencedThroughRound ?? 0, state.round + skill.silenceRounds - 1);
+  else if (shijiSilence) target.silencedThroughRound = state.round + 1;
   if (actualDamage > 0 && skill?.id === "odin-gungnir" && target.team !== attacker.team || medusaStun || silverStun)
     target.stunNextAction = true;
   const scorpionHeals = healScorpionAllies(state, target, actualDamage);
@@ -1303,7 +1305,8 @@ export function executeAttack(state, attacker, target, random = Math.random, att
   // An attack attempt grants armor even when the target dodges; one action grants one stack.
   if (deepSeaDefenseGain) attacker.def += deepSeaDefenseGain;
   const teacherBuffs = [];
-  if (isNormalAttack && state.characters.filter((unit) => unit.alive && unit.currentHp > 0 && unit.team === attacker.team).length >= 3)
+  if (isNormalAttack && attacker.originalTeam === "ally" && !attacker.summonerId && !attacker.tangSummonKind &&
+      state.characters.filter((unit) => unit.alive && unit.currentHp > 0 && unit.team === attacker.team).length >= 3)
     for (const ally of state.characters.filter((unit) => unit.alive && unit.currentHp > 0 && unit.team === attacker.team && unit.id !== attacker.id && unit.extraPassiveSkillIds?.includes("three-teachers"))) {
       ally.atk += 5;
       ally.teacherAttackGained = (ally.teacherAttackGained ?? 0) + 5;
@@ -1904,6 +1907,25 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
     events.push({ type: "skill-book-opening", round: 0, targetId: unit.id,
       bookId: skillId, skillName: book.name, asset: book.battleEffectAsset });
   }
+  if (!resuming) for (const unit of state.characters.filter((entry) => entry.alive && entry.extraPassiveSkillIds?.includes("hakari-book"))) {
+    const roll = 1 + Math.floor(Math.min(.999999999999, Math.max(0, Number(random()) || 0)) * 6);
+    const tier = [null,
+      { atk: .05, crit: 0, reduction: 0, heal: 0, lifesteal: 0 },
+      { atk: .05, crit: .05, reduction: 0, heal: 0, lifesteal: 0 },
+      { atk: .05, crit: .10, reduction: .05, heal: 0, lifesteal: 0 },
+      { atk: .05, crit: .10, reduction: .05, heal: .01, lifesteal: 0 },
+      { atk: .10, crit: .15, reduction: .05, heal: .02, lifesteal: .10 },
+      { atk: .20, crit: .20, reduction: .10, heal: .03, lifesteal: .15 },
+    ][roll];
+    unit.hakariBookRoll = roll;
+    unit.hakariBookHealRatio = tier.heal;
+    unit.atk += Math.floor(unit.atk * tier.atk);
+    unit.critRateBonus = (unit.critRateBonus ?? 0) + tier.crit;
+    unit.damageReductionBonus = (unit.damageReductionBonus ?? 0) + tier.reduction;
+    unit.lifesteal = (unit.lifesteal ?? 0) + tier.lifesteal;
+    events.push({ type: "hakari-book-roll", round: 0, targetId: unit.id, roll, atk: unit.atk,
+      critBonus: tier.crit, damageReduction: tier.reduction, healRatio: tier.heal, lifesteal: tier.lifesteal });
+  }
   if (state.agingSkillSuppression && !resuming)
     events.push({ type: "aging-suppression", round: 0, attackerId: "aging-devil" });
   state.eventSink = events;
@@ -1922,6 +1944,13 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
   while (!outcome) {
     if (!resumeSameRound) state.round += 1;
     resumeSameRound = false;
+    // Hakari's repeated healing can create a stalemate against a high-defense party.
+    // Bound synchronous pre-simulation so it cannot lock the battle UI.
+    if (state.round > 80 && state.characters.some((unit) => unit.id === "hakari" && unit.alive)) {
+      events.push({ type: "hakari-stalemate", round: state.round });
+      outcome = "defeat";
+      break;
+    }
     if (state.agingSkillSuppression && AGING_CHOICE_ROUNDS.includes(state.round) &&
         state.characters.some((unit) => unit.id === "aging-devil" && unit.alive) &&
         !(state.agingResolvedRounds ?? []).includes(state.round)) {
@@ -1932,6 +1961,11 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
     applyAgingPenalties(state, events);
     outcome = isBattleOver(state);
     if (outcome) break;
+    for (const unit of state.characters.filter((entry) => entry.alive && entry.hakariBookHealRatio > 0)) {
+      const healed = applyBattleHeal(unit, Math.floor(unit.maxHp * unit.hakariBookHealRatio));
+      if (healed > 0) events.push({ type: "hakari-book-heal", round: state.round,
+        targetId: unit.id, amount: healed, hpAfter: unit.currentHp });
+    }
     const eternity = state.characters.find((unit) => unit.id === "eternity-devil" && unit.stageFourVariant && unit.alive);
     if (state.round === 9 && eternity && !eternity.stageFourBuffClearUsed) {
       eternity.stageFourBuffClearUsed = true;
@@ -1943,29 +1977,31 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
     }
     const hakari = state.characters.find((unit) => unit.id === "hakari" && unit.alive && unit.currentHp > 0);
     if (hakari) {
-      if ((state.round - 1) % 4 === 0 && hakari.hakariLastRollRound !== state.round) {
+      if ((state.round - 1) % 3 === 0 && hakari.hakariLastRollRound !== state.round) {
         hakari.hakariLastRollRound = state.round;
         const roll = 1 + Math.floor(Math.min(.999999999999, Math.max(0, Number(random()) || 0)) * 6);
         const oldAttackBonus = hakari.hakariDiceAttackBonus ?? 0;
         const oldReduction = hakari.hakariDiceReduction ?? 0;
-        const attackRatio = roll === 6 ? 3 : roll === 5 ? 1.5 : roll >= 3 ? 1 : 0;
+        const attackRatio = roll === 6 ? 3 : roll === 5 ? 1.5 : roll >= 3 ? .5 : .25;
         const baseAttack = hakari.atk - oldAttackBonus;
         hakari.hakariDiceAttackBonus = Math.floor(baseAttack * attackRatio);
         hakari.atk = baseAttack + hakari.hakariDiceAttackBonus;
-        hakari.hakariDiceReduction = roll === 6 ? .75 : .25;
+        hakari.hakariDiceReduction = roll === 6 ? .5 : roll === 5 ? .25 : roll >= 3 ? .2 : 0;
         hakari.damageReductionBonus = Math.max(0, (hakari.damageReductionBonus ?? 0) - oldReduction + hakari.hakariDiceReduction);
         hakari.hakariDiceRoll = roll;
-        hakari.hakariTrueDamage = roll >= 5;
-        for (const field of ["bleedStacks", "burnStacks", "poisonStacks", "gravityStacks", "gravityHealProgress", "bulletHoleStacks", "gunDevilBleedStacks", "nightGuyBurnStacks"])
-          hakari[field] = 0;
-        hakari.suffocating = false;
-        hakari.stageFourHealReduced = false;
-        hakari.delayedDamage = [];
-        hakari.stunNextAction = false;
-        hakari.silencedThroughRound = 0;
-        hakari.frozenThroughRound = 0;
-        hakari.weaknessRound = 0;
-        hakari.gojoVulnerableUntilRound = 0;
+        hakari.hakariTrueDamage = roll === 6;
+        if (roll >= 3) {
+          for (const field of ["bleedStacks", "burnStacks", "poisonStacks", "gravityStacks", "gravityHealProgress", "bulletHoleStacks", "gunDevilBleedStacks", "nightGuyBurnStacks"])
+            hakari[field] = 0;
+          hakari.suffocating = false;
+          hakari.stageFourHealReduced = false;
+          hakari.delayedDamage = [];
+          hakari.stunNextAction = false;
+          hakari.silencedThroughRound = 0;
+          hakari.frozenThroughRound = 0;
+          hakari.weaknessRound = 0;
+          hakari.gojoVulnerableUntilRound = 0;
+        }
         events.push({ type: "hakari-roll", round: state.round, attackerId: hakari.id, roll,
           atk: hakari.atk, attackBonus: hakari.hakariDiceAttackBonus,
           damageReduction: hakari.hakariDiceReduction, jackpot: roll === 6 });
@@ -1973,7 +2009,8 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
       if (hakari.hakariLastHealRound !== state.round) {
         hakari.hakariLastHealRound = state.round;
         const before = hakari.currentHp;
-        applyBattleHeal(hakari, Math.floor(hakari.maxHp * (hakari.hakariDiceRoll === 6 ? .3 : .1)));
+        const healRatio = hakari.hakariDiceRoll === 6 ? .3 : hakari.hakariDiceRoll === 5 ? .2 : hakari.hakariDiceRoll >= 3 ? .1 : .05;
+        applyBattleHeal(hakari, Math.floor(hakari.maxHp * healRatio));
         events.push({ type: "hakari-heal", round: state.round, attackerId: hakari.id,
           amount: hakari.currentHp - before, hpAfter: hakari.currentHp });
       }
@@ -2295,7 +2332,7 @@ export function simulateBattle(config = CHARACTER_DATA, random = Math.random, op
         if (event.elitePassiveTriggered) events.push({ type: "elite-passive-trigger", ...event.elitePassiveTriggered, attackerId: attacker.id });
         events.push(event);
         if (attacker.id === "might-guy" && attacker.nightGuyActive && attacker.alive) {
-          const cost = Math.max(1, Math.floor(attacker.maxHp * .05));
+          const cost = Math.max(1, Math.floor(attacker.maxHp * .01));
           attacker.currentHp = Math.max(0, attacker.currentHp - cost);
           const died = handleDeath(attacker);
           events.push({ type: "night-guy-cost", round: state.round, attackerId: attacker.id,
