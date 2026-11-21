@@ -150,6 +150,12 @@ test("Makima's reward sequence grants one skill opportunity, two rare treasures,
   for (let i = 0; i < 8; i += 1) {
     offer = getMakimaRewardOffer(campaign);
     assert.equal(offer.recipientId, i < 3 ? hero.characterId : partner.characterId);
+    assert.equal(offer.choices.length, 3);
+    assert.equal(new Set(offer.choices.map((choice) => choice.id)).size, 3);
+    assert.deepEqual(getMakimaRewardOffer(campaign).choices, offer.choices);
+    const unavailable = ["maxHp", "atk", "def", "spd"].find((id) =>
+      !offer.choices.some((choice) => choice.id === id));
+    assert.equal(claimMakimaStatReward(campaign, offer.recipientId, unavailable), false);
     assert.ok(claimMakimaStatReward(campaign, offer.recipientId, offer.choices[0].id));
     assert.equal(campaign.essence, i < 7 ? 0 : 10);
   }

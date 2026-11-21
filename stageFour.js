@@ -3,9 +3,8 @@ import { ELITE_ENEMY_DATA } from "./characters.js";
 // Encounter IDs are the draw and reward units. A duo keeps both combat actors.
 const ROW_OVERRIDES = Object.freeze({
   "titan-duo": "front", "shin-noi": "front", "gold-silver-kings": "back",
-  "bomb-demon": "back", toji: "back", "falling-devil": "front",
 });
-const STATS = Object.freeze({
+const BASE_STATS = Object.freeze({
   "bomb-demon": { hp: 3000, atk: 500, def: 150, spd: 170 },
   mahito: { hp: 3500, atk: 400, def: 200, spd: 100 },
   "eternity-devil": { hp: 4000, atk: 270, def: 130, spd: 50 },
@@ -19,6 +18,11 @@ const STATS = Object.freeze({
   "gold-king": { hp: 3700, atk: 250, def: 210, spd: 100 },
   "silver-king": { hp: 3300, atk: 280, def: 180, spd: 100 },
 });
+const STATS = Object.freeze(Object.fromEntries(ELITE_ENEMY_DATA.map((enemy) => {
+  const base = BASE_STATS[enemy.id] ?? enemy;
+  return [enemy.id, Object.freeze({ hp: base.hp + 500, atk: base.atk + 30,
+    def: base.def + 30, spd: base.spd + 30 })];
+})));
 const DROP_OVERRIDES = Object.freeze({
   mahito: "sukuna_finger", toji: "sukuna_finger", kira: "sukuna_finger",
   "shin-noi": "sukuna_finger", "gold-silver-kings": "sukuna_finger",
@@ -61,6 +65,20 @@ export function getStageFourUnit(id) { return STAGE_FOUR_UNITS.find((unit) => un
 export function stageFourUnitForEnemy(enemyId) {
   return STAGE_FOUR_UNITS.find((unit) => unit.enemies.includes(enemyId)) ?? null;
 }
+export function pickStageFourUnits(type, history = [], random = Math.random) {
+  const counts = new Map();
+  for (const id of history) counts.set(id, (counts.get(id) ?? 0) + 1);
+  const pick = (pool) => {
+    if (!pool.length) throw new RangeError("第四关缺少可用敌人");
+    const fewest = Math.min(...pool.map((unit) => counts.get(unit.id) ?? 0));
+    const candidates = pool.filter((unit) => (counts.get(unit.id) ?? 0) === fewest);
+    return candidates[Math.min(candidates.length - 1, Math.floor(random() * candidates.length))];
+  };
+  return type === "elite"
+    ? [pick(STAGE_FOUR_UNITS.filter((unit) => unit.row === "front")),
+      pick(STAGE_FOUR_UNITS.filter((unit) => unit.row === "back"))]
+    : [pick(STAGE_FOUR_UNITS)];
+}
 export function stageFourBattle(units, type, number, step) {
   const enemies = units.flatMap((unit) => unit.enemies);
   const templates = new Map(ELITE_ENEMY_DATA.map((enemy) => [enemy.id, enemy]));
@@ -68,9 +86,7 @@ export function stageFourBattle(units, type, number, step) {
     title: units.map((unit) => unit.name).join(" + "), location: "第四关遭遇地点",
     description: "昔日精英再度挡住去路。", enemies,
     enemyNames: Object.fromEntries(enemies.map((id) => [id, templates.get(id).name])),
-    enemyBaseStats: Object.fromEntries(enemies.map((id) => [id,
-      STATS[id] ?? { hp: templates.get(id).hp, atk: templates.get(id).atk,
-        def: templates.get(id).def, spd: templates.get(id).spd }])),
+    enemyBaseStats: Object.fromEntries(enemies.map((id) => [id, STATS[id]])),
     enemyGrowthExemptIds: enemies,
   };
 }

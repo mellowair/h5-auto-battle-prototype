@@ -2,14 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { initializeBattle, executeAttack, simulateBattle } from "./battle.js";
-import { beginStageFour, claimCampaignEliteDrop, claimStageTwoStatReward, completeSettlement, createCampaign, finishPartyReplacement,
+import { beginStageFour, chooseRoute, claimCampaignEliteDrop, claimStageTwoStatReward, completeSettlement, createCampaign, finishPartyReplacement,
   finishBattle, prepareBattle, recruitPartyMember } from "./campaign.js";
 import { ELITE_ENEMY_DATA, RECRUIT_CHARACTERS, STARTING_CHARACTERS } from "./characters.js";
 import { GUN_DEVIL } from "./hiddenBoss.js";
 import { createRunCharacterState } from "./progression.js";
 import { refreshShopPrices, buyShopItem } from "./shop.js";
 import { ADVENTURE_EVENT_DATA, SKILL_DATA, TREASURE_DATA } from "./skills.js";
-import { STAGE_FOUR_BOSS, STAGE_FOUR_UNITS, getStageFourUnit, stageFourBattle } from "./stageFour.js";
+import { STAGE_FOUR_BOSS, STAGE_FOUR_ENEMY_STATS, STAGE_FOUR_UNITS, getStageFourUnit, pickStageFourUnits, stageFourBattle } from "./stageFour.js";
 
 test("Gojo's two combat forms, execution portrait and new book effects have assets", () => {
   const gojo = RECRUIT_CHARACTERS.find((entry) => entry.id === "gojo");
@@ -56,16 +56,35 @@ test("stage four groups duo encounters and isolates its panel overrides", () => 
   assert.equal(getStageFourUnit("titan-duo").row, "front");
   assert.equal(getStageFourUnit("shin-noi").row, "front");
   assert.equal(getStageFourUnit("gold-silver-kings").row, "back");
+  assert.equal(getStageFourUnit("bomb-demon").row, "front");
+  assert.equal(getStageFourUnit("toji").row, "front");
+  assert.equal(getStageFourUnit("falling-devil").row, "back");
   const encounter = stageFourBattle([getStageFourUnit("titan-duo"), getStageFourUnit("gold-silver-kings")], "elite", 1, 1);
   assert.equal(encounter.stageFourUnitIds.length, 2);
   assert.equal(encounter.enemies.length, 4);
-  assert.equal(encounter.enemyBaseStats["gold-king"].hp, 3700);
-  assert.equal(encounter.enemyBaseStats["silver-king"].hp, 3300);
+  assert.equal(encounter.enemyBaseStats["gold-king"].hp, 4200);
+  assert.equal(encounter.enemyBaseStats["silver-king"].hp, 3800);
   assert.equal(ELITE_ENEMY_DATA.find((unit) => unit.id === "gold-king").hp, 2700);
   assert.deepEqual([STAGE_FOUR_BOSS.hp, STAGE_FOUR_BOSS.atk, STAGE_FOUR_BOSS.def, STAGE_FOUR_BOSS.spd], [9999, 999, 555, 444]);
-  assert.equal(encounter.enemyBaseStats["gold-king"].def, 210);
-  assert.equal(encounter.enemyBaseStats["silver-king"].def, 180);
+  assert.equal(encounter.enemyBaseStats["gold-king"].def, 240);
+  assert.equal(encounter.enemyBaseStats["silver-king"].def, 210);
   assert.ok(existsSync(new URL("./assets/stage4-background.png", import.meta.url)));
+});
+
+test("every fourth-stage normal and elite fighter receives the same panel increase", () => {
+  const expected = {
+    "bomb-demon": [3500, 530, 180, 200], mahito: [4000, 430, 230, 130],
+    "eternity-devil": [4500, 300, 160, 80], "swamp-giant": [3700, 320, 200, 150],
+    kira: [3300, 680, 210, 190], "armored-titan": [3500, 330, 260, 130],
+    "colossal-titan": [3000, 30, 150, 40], toji: [4300, 480, 190, 380],
+    "falling-devil": [6500, 530, 260, 180], "aging-devil": [6500, 530, 260, 180],
+    "gold-king": [4200, 280, 240, 130], "silver-king": [3800, 310, 210, 130],
+    "might-guy": [4000, 350, 170, 330], shin: [3000, 730, 190, 150],
+    noi: [3500, 390, 190, 130],
+  };
+  assert.deepEqual(Object.keys(STAGE_FOUR_ENEMY_STATS).sort(), Object.keys(expected).sort());
+  for (const [id, stats] of Object.entries(expected))
+    assert.deepEqual(["hp", "atk", "def", "spd"].map((stat) => STAGE_FOUR_ENEMY_STATS[id][stat]), stats, id);
 });
 
 test("Makima victory enters stage four and a prepared duo uses stage-four stats", () => {
@@ -80,8 +99,58 @@ test("Makima victory enters stage four and a prepared duo uses stage-four stats"
   campaign.currentBattle = stageFourBattle([getStageFourUnit("titan-duo"), getStageFourUnit("gold-silver-kings")], "elite", 1, 1);
   const battle = prepareBattle(campaign);
   assert.ok(battle);
-  assert.equal(battle.roster.find((unit) => unit.id === "armored-titan").maxHp, 3000);
-  assert.equal(battle.roster.find((unit) => unit.id === "gold-king").maxHp, 3700);
+  assert.equal(battle.roster.find((unit) => unit.id === "armored-titan").maxHp, 3500);
+  assert.equal(battle.roster.find((unit) => unit.id === "gold-king").maxHp, 4200);
+});
+
+test("fourth-stage normal and elite draws prefer unseen units across both pools", () => {
+  for (let seed = 0; seed < 100; seed += 1) {
+    const history = [];
+    const random = () => ((seed * 37 + history.length * 17) % 101) / 101;
+    for (let index = 0; index < 12; index += 1) {
+      const type = index % 3 === 2 ? "elite" : "normal";
+      const units = pickStageFourUnits(type, history, random);
+      assert.equal(units.length, type === "elite" ? 2 : 1);
+      if (type === "elite") assert.deepEqual(units.map((unit) => unit.row), ["front", "back"]);
+      for (const unit of units) {
+        const remaining = STAGE_FOUR_UNITS.filter((candidate) =>
+          (type !== "elite" || candidate.row === unit.row) && !history.includes(candidate.id));
+        if (remaining.length) assert.equal(history.includes(unit.id), false);
+        history.push(unit.id);
+      }
+    }
+  }
+});
+
+test("fourth-stage route encounters persist the selected unit history", () => {
+  const campaign = fixture();
+  campaign.status = "stage_transition";
+  campaign.stageTransition = { phase: "stage3_interlude" };
+  beginStageFour(campaign);
+  const firstBattle = campaign.routeOptions.find((node) => node.type === "battle");
+  assert.ok(firstBattle);
+  assert.equal(chooseRoute(campaign, firstBattle.id)?.type, "battle");
+  assert.deepEqual(campaign.stageFourEncounterHistory, campaign.currentBattle.stageFourUnitIds);
+  assert.equal(new Set(campaign.stageFourEncounterHistory).size, 1);
+});
+
+test("fourth-stage fighters retain their original combat row and attack type", () => {
+  const campaign = fixture();
+  campaign.status = "stage_transition";
+  campaign.stageTransition = { phase: "stage3_interlude" };
+  beginStageFour(campaign);
+  for (const enemy of ELITE_ENEMY_DATA) {
+    campaign.status = "combat";
+    campaign.currentBattle = stageFourBattle([getStageFourUnit(enemy.eliteEncounterId ?? enemy.id)], "normal", 1, 1);
+    campaign.combatLaunched = false;
+    const combatant = prepareBattle(campaign).roster.find((unit) => unit.id === enemy.id);
+    assert.equal(combatant.row, enemy.row, enemy.name);
+    assert.equal(combatant.position, enemy.position, enemy.name);
+    assert.equal(combatant.attackType, enemy.attackType, enemy.name);
+    assert.deepEqual([combatant.maxHp, combatant.atk, combatant.def, combatant.spd],
+      [STAGE_FOUR_ENEMY_STATS[enemy.id].hp, STAGE_FOUR_ENEMY_STATS[enemy.id].atk,
+        STAGE_FOUR_ENEMY_STATS[enemy.id].def, STAGE_FOUR_ENEMY_STATS[enemy.id].spd], enemy.name);
+  }
 });
 
 test("Prison Realm stays at 180 essence under VIP and recruits Gojo", () => {

@@ -5750,7 +5750,7 @@ function renderEnding() {
     $("#ending-copy").textContent += ` 测试结算：天启骑士 Lv1 → ${learner}；枪之恶魔${gunJoined ? "已入队" : "未入队"}；当前小队：${campaign.partyIds.map((id) => partyPresentation(id)?.name ?? id).join("、")}。`;
   }
   $("#ending-count").textContent = "路线已走 " + campaign.history.length + " 步 · 完成战斗 " + campaign.completedBattles + " · 最终生命 " + campaign.playerHp + " / " + campaign.playerMaxHp;
-  if (localStageTwoTest && campaign.devBattleOnly) {
+  if (localStageTwoTest) {
     let returnLink = $("#dev-battle-return");
     if (!returnLink) {
       returnLink = document.createElement("a");
@@ -7277,7 +7277,7 @@ function initializeGame() {
 }
 
 function syncLeaderboardScores() {
-  if (!campaign?.playerId || campaign.devBattleOnly) return;
+  if (localStageTwoTest || !campaign?.playerId || campaign.devBattleOnly) return;
   const currentCampaign = campaign;
   const scores = leaderboardScores(currentCampaign);
   const submitted = currentCampaign.leaderboardSubmitted ??= {};

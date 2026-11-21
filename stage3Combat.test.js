@@ -23,8 +23,8 @@ test("Shin and Noi have their own transparent fallen frames", () => {
 
 test("Makima and follower panels use the updated base DEF in both summon waves", () => {
   const expected = {
-    "makima-bomb": [1900, 135], "flamethrower-devil": [2500, 135],
-    "katana-devil": [2400, 155], quanxi: [2400, 105],
+    "makima-bomb": [1600, 135], "flamethrower-devil": [2200, 135],
+    "katana-devil": [2100, 155], quanxi: [2100, 105],
   };
   for (const [id, stats] of Object.entries(expected))
     assert.deepEqual([STAGE_THREE_MINIONS[id].hp, STAGE_THREE_MINIONS[id].def], stats);

@@ -1,8 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { STARTING_CHARACTERS } from "./characters.js";
-import { resolveCampaignEvent } from "./campaign.js";
+import { beginStageThree, chooseRoute, resolveCampaignEvent } from "./campaign.js";
 import { createStageTwoTestCampaign } from "./dev/stage2-config.js";
+import { createStageThreeTestCampaign } from "./dev/stage3-config.js";
 import { createAdventureEventResult, createRunCharacterState, getAvailableAdventureEventIds,
   resolveAdventureEvent, upgradeActiveSkill } from "./progression.js";
 
@@ -23,6 +24,28 @@ test("gamble appears at most twice, in different stages", () => {
   resolveAdventureEvent(hero, "second", `gamble_recipient|${hero.characterId}`, () => 0, hero);
   resolveAdventureEvent(hero, "second", "gamble_quit", () => 0, hero);
   assert.equal(getAvailableAdventureEventIds(hero, 1, [hero], 3).includes("gamble_2"), false);
+});
+
+test("leaving a gamble forces the second third-stage adventure to be the slot machine", () => {
+  const campaign = createStageThreeTestCampaign({ heroId: "naruto", partnerId: "tang", opponent: "route", seed: 41 });
+  const hero = campaign.runCharacterState;
+  createAdventureEventResult(hero, "earlier-gamble", "gamble", () => 0, [hero], 2);
+  resolveAdventureEvent(hero, "earlier-gamble", "gamble_recipient|naruto", () => 0, hero);
+  resolveAdventureEvent(hero, "earlier-gamble", "gamble_quit", () => 0, hero);
+  campaign.stage3AdventureCount = 1;
+  const question = campaign.routeOptions.find((node) => node.type === "question");
+  assert.ok(question);
+  assert.equal(chooseRoute(campaign, question.id)?.event?.eventId, "slot_machine");
+  assert.equal(campaign.stage3AdventureCount, 2);
+
+  const fresh = createStageTwoTestCampaign({ heroId: "naruto", partnerId: "tang", seed: 41 });
+  fresh.status = "stage_transition";
+  fresh.stageTransition = { phase: "stage2_interlude" };
+  assert.equal(beginStageThree(fresh), "route");
+  assert.equal(fresh.stage3AdventureCount, 0);
+  const firstQuestion = fresh.routeOptions.find((node) => node.type === "question");
+  assert.equal(chooseRoute(fresh, firstQuestion.id)?.event?.eventId, "trial_land");
+  assert.equal(fresh.stage3AdventureCount, 1);
 });
 
 test("three locked coin outcomes award one treasure pair to the selected member", () => {

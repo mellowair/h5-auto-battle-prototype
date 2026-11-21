@@ -278,7 +278,7 @@ h1 { margin: 0; color: var(--navy); font-size: 18px; line-height: 1.12; font-wei
 .fighter.is-steam-casting .sprite-wrap { animation: steam-fall var(--steam-duration, 650ms) steps(5,end) both; transform-origin: center bottom; }
 @keyframes steam-fall { 0%,100% { transform: rotate(0); } 45%,75% { transform: translateX(-12px) rotate(-18deg); } }
 .sprite-visual { position: absolute; z-index: 2; bottom: 5px; left: 50%; margin-left: calc(var(--visual-frame-width, 84px) * -.5); display: grid; place-items: end center; width: var(--visual-frame-width, 84px); height: var(--visual-frame-height, 98px); scale: var(--visual-scale, 1); translate: calc(var(--visual-offset-x, 0px) + var(--visual-action-offset-x, 0px)) calc(0px - var(--visual-offset-y, 0px) - var(--visual-stage-foot-offset-y, 0px) - var(--visual-action-offset-y, 0px)); transform-origin: center bottom; }
-.hakari-passive-effect { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; object-fit: contain; object-position: center bottom; image-rendering: pixelated; pointer-events: none; animation: hakari-passive-glow 550ms ease-out both; }
+.hakari-passive-effect { position: absolute; z-index: 3; left: -45%; bottom: -12%; width: 190%; max-width: none; height: 190%; object-fit: contain; object-position: center bottom; image-rendering: pixelated; pointer-events: none; animation: hakari-passive-glow 550ms ease-out both; }
 .fighter.is-dead .hakari-passive-effect { display: none; }
 @keyframes hakari-passive-glow { from { opacity: 0; scale: .86; } to { opacity: 1; scale: 1; } }
 .hakari-dice-roll { position: absolute; z-index: 8; top: 16%; left: 50%; width: 72px; height: 72px; transform: translateX(-50%); pointer-events: none; filter: drop-shadow(0 4px 7px rgba(24,13,32,.7)); }

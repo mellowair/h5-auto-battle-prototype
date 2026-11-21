@@ -104,7 +104,8 @@ export function initializeBattle(config = CHARACTER_DATA, options = {}) {
     gravityHealEvents: [],
     agingSkillSuppression,
     hiddenBoss: characters.some((unit) => unit.id === GUN_DEVIL.id)
-      ? { phase: 1, phaseStartedRound: 1, convertedPartnerId: null } : null,
+      ? { phase: 1, phaseStartedRound: 1, convertedPartnerId: null,
+        localTestYoruHp: characters.find((unit) => unit.id === GUN_DEVIL.id)?.localTestYoruHp ?? null } : null,
     random: Math.random,
   };
   const fallingDevil = characters.find((unit) => unit.id === "falling-devil" && unit.team === "enemy");
@@ -508,6 +509,12 @@ export function isBattleOver(state) {
     for (const stat of ["maxHp", "atk", "def", "spd"]) yoru[stat] += absorbed[stat];
     yoru.hp = yoru.maxHp;
     yoru.currentHp = yoru.maxHp;
+    if (state.hiddenBoss.localTestYoruHp === 1) {
+      yoru.hp = 1;
+      yoru.maxHp = 1;
+      yoru.currentHp = 1;
+      yoru.entryPanelStats.maxHp = 1;
+    }
     const dismissedIds = [];
     if (partner) {
       partner.spinalSwordConverted = true;

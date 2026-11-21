@@ -151,6 +151,26 @@ test("slot machine defeat restores prebattle HP and clears essence without Game 
   for (const id of campaign.partyIds) assert.equal(campaign.partyStates[id].currentHp, originalHp[id]);
 });
 
+test("Hakari victory refunds a lost stake once and grants the extra 100 essence", () => {
+  for (const [rolls, bet, expectedRefund, expectedTotal] of [
+    [[.99, 0], 40, 40, 140],
+    [[.1, .99], 100, 0, 300],
+  ]) {
+    const campaign = slotFixture(rolls, bet);
+    assert.equal(resolveSlotMachineChoice(campaign, "slot_all_in").bet, bet);
+    assert.equal(resolveSlotMachineChoice(campaign, "slot_roll").outcome,
+      expectedRefund ? "loss" : "win");
+    assert.equal(resolveSlotMachineChoice(campaign, "slot_fight").phase, "battle");
+    const prepared = prepareBattle(campaign);
+    assert.equal(finishBattle(campaign, "victory", campaign.playerHp, [], prepared.roster).next,
+      "slot_machine_win");
+    assert.equal(campaign.essence, expectedTotal);
+    assert.equal(campaign.lastEssenceReward.stakeRefund, expectedRefund);
+    assert.equal(campaign.essenceHistory.filter((entry) =>
+      entry.reason === "slot_machine_stake_refund").reduce((sum, entry) => sum + entry.amount, 0), expectedRefund);
+  }
+});
+
 test("Hakari rolls every three rounds, jackpot is 50 percent reduction and heals once per round", () => {
   const result = simulateBattle([
     { id: "hero", team: "ally", row: "front", hp: 100000, atk: 50, def: 0, spd: 10, critChance: 0 },
